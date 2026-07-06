@@ -1,7 +1,10 @@
-import './style.css'
 import javascriptLogo from './javascript.svg'
 import viteLogo from '/vite.svg'
 import { setupCounter } from './counter.js'
+import './style.scss';
+import '@carbon/web-components/es/components/button/button.js';
+import '@carbon/web-components/es/components/ui-shell/index';
+
 
 document.querySelector('#app').innerHTML = `
   <div>
@@ -20,5 +23,22 @@ document.querySelector('#app').innerHTML = `
     </p>
   </div>
 `
+
+const bodyEl = document.querySelector('body');
+
+// button click handler
+const handleClick = () => {
+  bodyEl.classList.toggle('g10');
+  bodyEl.classList.toggle('g100');
+};
+document.querySelector('.button').addEventListener('click', handleClick);
+
+// set initial theme based on preferences
+if (matchMedia('prefers-color-scheme').matches) {
+  bodyEl.classList.add('g100');
+} else {
+  bodyEl.classList.add('g10');
+}
+
 
 setupCounter(document.querySelector('#counter'))

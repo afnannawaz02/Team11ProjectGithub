@@ -1,0 +1,31 @@
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/themes';
+@use '@carbon/styles/scss/spacing' as *; /* near top of file */
+
+:root {
+  @include theme(themes.$g10);
+
+  @media (prefers-color-scheme: dark) {
+    @include theme(themes.$g100);
+  }
+}
+
+.g10 {
+  @include theme(themes.$g10);
+}
+
+.g100 {
+  @include theme(themes.$g100);
+}
+
+.app {
+  display: grid;
+  grid-template-rows: $spacing-09 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.main {
+  height: 100%;
+  overflow-y: auto;
+}
