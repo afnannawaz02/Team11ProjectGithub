@@ -225,7 +225,7 @@ function isStepValid(step, data) {
 }
 
 // ── Wizard shell ───────────────────────────────────────────────────────────────
-export default function SignupWizard({ onComplete }) {
+export default function SignupWizard({ onComplete, onExit }) {
   const [step, setStep] = useState(0);
   const [profile, setProfile] = useState({
     goals: [],
@@ -309,9 +309,13 @@ export default function SignupWizard({ onComplete }) {
         {/* Footer nav */}
         <div className="wizard-footer">
           <div>
-            {step > 0 && (
+            {step > 0 ? (
               <button type="button" className="btn btn-ghost" onClick={() => setStep((s) => s - 1)}>
                 ← Back
+              </button>
+            ) : (
+              <button type="button" className="btn btn-ghost" onClick={onExit}>
+                ← Home
               </button>
             )}
           </div>
