@@ -4,8 +4,6 @@ import {
   Button,
   Header,
   HeaderName,
-  HeaderNavigation,
-  HeaderMenuItem,
   TextInput,
 } from '@carbon/react';
 import SignupWizard from './SignupWizard';
@@ -35,7 +33,7 @@ const GOAL_LABELS = {
 const SENDER_LABEL = { system: 'Gumdrop', bot: 'Gumdrop', user: 'You' };
 
 // ── Account Signup ─────────────────────────────────────────────────────────────
-function AccountSignup({ investorProfile, onComplete, onSkip }) {
+function AccountSignup({ investorProfile, onComplete, onSkip, isGuest }) {
   const [form, setForm]     = useState({ username: '', password: '', confirm: '' });
   const [errors, setErrors] = useState({});
   const [busy, setBusy]     = useState(false);
@@ -72,9 +70,13 @@ function AccountSignup({ investorProfile, onComplete, onSkip }) {
       <div className="wizard-card">
         <div className="wizard-accent-bar" style={{ width: '100%' }} />
         <div className="wizard-inner">
-          <div className="acct-badge">Almost there!</div>
+          <div className="acct-badge">{isGuest ? 'Save your work' : 'Almost there!'}</div>
           <h2 className="wizard-heading">Create your account</h2>
-          <p className="wizard-sub">Pick a username and password to save your profile locally. No email needed.</p>
+          <p className="wizard-sub">
+            {isGuest
+              ? 'Your profile is ready — create an account to save it. Without one your data will be lost when you close the tab.'
+              : 'Pick a username and password to save your profile locally. No email needed.'}
+          </p>
 
           {done ? (
             <div className="acct-success">
@@ -140,7 +142,7 @@ function AccountSignup({ investorProfile, onComplete, onSkip }) {
 }
 
 // ── Login Form ─────────────────────────────────────────────────────────────────
-function LoginForm({ onLogin, onCreateNew }) {
+function LoginForm({ onLogin, onCreateNew, onGuest, onGoHome }) {
   const [form, setForm]     = useState({ username: '', password: '' });
   const [error, setError]   = useState('');
   const [busy, setBusy]     = useState(false);
@@ -208,7 +210,9 @@ function LoginForm({ onLogin, onCreateNew }) {
           <button type="button" className="btn btn-ghost" onClick={onCreateNew}>
             Create new account
           </button>
-          <span className="acct-skip-hint">New to Candyland Bank?</span>
+          <button type="button" className="nav-pill" onClick={onGuest}>
+            Continue as guest
+          </button>
         </div>
       </div>
     </div>
@@ -216,8 +220,8 @@ function LoginForm({ onLogin, onCreateNew }) {
 }
 
 // ── Home Page ──────────────────────────────────────────────────────────────────
-function HomePage({ onGetStarted, isLoggedIn, onGoToChat }) {
-  const ctaLabel  = isLoggedIn ? 'Chat with Gumdrop →' : 'Build my profile';
+function HomePage({ onGetStarted, isLoggedIn, onGoToChat, onSignIn }) {
+  const ctaLabel  = isLoggedIn ? 'Chat with Gumdrop' : 'Build my profile';
   const ctaAction = isLoggedIn ? onGoToChat : onGetStarted;
 
   return (
@@ -242,6 +246,17 @@ function HomePage({ onGetStarted, isLoggedIn, onGoToChat }) {
                 ? 'Welcome back. Your profile is ready — jump straight into a conversation with Gumdrop.'
                 : 'Build a tailored investment profile in minutes. Get AI-powered guidance, personalised strategies, and stay on track — all in one place.'}
             </p>
+            <div className="home-hero-actions">
+              {isLoggedIn ? (
+                <button className="cta-btn" onClick={ctaAction}>
+                  {ctaLabel} <span className="cta-btn-arrow">→</span>
+                </button>
+              ) : (
+                <button className="nav-pill home-hero-signin" onClick={onSignIn}>
+                  Sign in
+                </button>
+              )}
+            </div>
           </div>
           <div className="home-hero-visual" aria-hidden="true">
             <div className="home-stat-card">
@@ -349,146 +364,226 @@ function HomePage({ onGetStarted, isLoggedIn, onGoToChat }) {
   );
 }
 
-// ── Profile summary bar ────────────────────────────────────────────────────────
-function ProfileBar({ profile }) {
-  const pills = [
-    ...profile.goals.map((g) => ({ text: GOAL_LABELS[g] || g, variant: 'goal' })),
-    profile.risk     && { text: profile.risk,     variant: 'risk' },
-    profile.horizon  && { text: profile.horizon + ' horizon', variant: 'horizon' },
-    profile.ageBracket && { text: profile.ageBracket, variant: 'age' },
-  ].filter(Boolean);
+// ── Chat view ──────────────────────────────────────────────────────────────────
+const PROXY_URL = import.meta.env.VITE_PROXY_URL || 'http://127.0.0.1:3001';
 
+const SUGGESTED_PROMPTS = [
+  'What should I invest in first?',
+  'Explain ETFs in simple terms',
+  'How do I build an emergency fund?',
+  'What is a good risk strategy for my age?',
+];
+
+const GOAL_ICONS = {
+  retirement: '🏖', home: '🏠', education: '🎓',
+  wealth: '📈', short_term: '⚡', long_term: '🌱',
+};
+
+function TypingDots() {
   return (
-    <div className="profile-summary" aria-label="Your investor profile">
-      <span className="profile-pill-label">Profile &nbsp;→</span>
-      {pills.map((p, i) => (
-        <span key={i} className="profile-pill">{p.text}</span>
-      ))}
+    <div className="typing-dots" aria-label="Gumdrop is typing">
+      <span /><span /><span />
     </div>
   );
 }
 
-// ── Chat view ──────────────────────────────────────────────────────────────────
-const PROXY_URL = import.meta.env.VITE_PROXY_URL || 'http://127.0.0.1:3001';
-
-function ChatView({ profile }) {
+function ChatView({ profile, username }) {
   const [messages, setMessages] = useState([
     { sender: 'system', text: buildGreeting(profile) },
   ]);
   const [draft, setDraft]     = useState('');
   const [loading, setLoading] = useState(false);
-  const bottomRef = useRef(null);
+  const bottomRef  = useRef(null);
+  const inputRef   = useRef(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSend = async () => {
-    const text = draft.trim();
-    if (!text || loading) return;
+  const send = async (text) => {
+    const trimmed = text.trim();
+    if (!trimmed || loading) return;
 
-    const userMsg = { sender: 'user', text };
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages((prev) => [...prev, { sender: 'user', text: trimmed }]);
     setDraft('');
     setLoading(true);
-
-    // Add a placeholder bubble while waiting
-    setMessages((prev) => [...prev, { sender: 'bot', text: '…', pending: true }]);
+    setMessages((prev) => [...prev, { sender: 'bot', text: '', pending: true }]);
+    inputRef.current?.focus();
 
     try {
       const res = await fetch(`${PROXY_URL}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userMessage: text,
+          userMessage: trimmed,
           profile,
-          // send the last 10 messages as history (trim pending placeholder)
           messages: messages.filter((m) => !m.pending).slice(-10),
         }),
       });
-
-      const data = await res.json();
+      const data  = await res.json();
       const reply = res.ok
-        ? (data.reply || 'Sorry, I received an empty response.')
-        : (data.error || 'Something went wrong. Please try again.');
-
-      setMessages((prev) =>
-        prev.map((m) => (m.pending ? { sender: 'bot', text: reply } : m))
-      );
+        ? (data.reply  || 'Sorry, I received an empty response.')
+        : (data.error  || 'Something went wrong. Please try again.');
+      setMessages((prev) => prev.map((m) => (m.pending ? { sender: 'bot', text: reply } : m)));
     } catch {
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.pending
-            ? { sender: 'bot', text: 'Could not reach the AI server. Make sure `npm run server` is running.' }
-            : m
-        )
-      );
+      setMessages((prev) => prev.map((m) =>
+        m.pending ? { sender: 'bot', text: 'Could not reach the AI server. Make sure `npm run server` is running.' } : m
+      ));
     } finally {
       setLoading(false);
     }
   };
 
+  const handleKey = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(draft); }
+  };
+
+  // profile pills for sidebar
+  const profilePills = [
+    ...( profile.goals || []).map((g) => ({ icon: GOAL_ICONS[g] || '🎯', text: GOAL_LABELS[g] || g })),
+    profile.risk       && { icon: '⚖️',  text: profile.risk },
+    profile.horizon    && { icon: '📅',  text: profile.horizon + ' horizon' },
+    profile.ageBracket && { icon: '👤',  text: profile.ageBracket },
+  ].filter(Boolean);
+
   return (
-    <section className="chat-section" id="chat">
-      <div className="chat-tile">
-        <div className="chat-tile-header">
-          <div className="chat-status-dot" aria-hidden="true" />
-          <h2>Gumdrop</h2>
-        </div>
+    <div className="chat-page" id="chat">
 
-        <ProfileBar profile={profile} />
-
-        <div className="chat-body">
-          <div className="chat-window" role="log" aria-live="polite" aria-label="Conversation">
-            {messages.map((msg, i) => (
-              <div key={i} className={`chat-message-group ${msg.sender}`}>
-                <span className="chat-sender-label">{SENDER_LABEL[msg.sender]}</span>
-                <div className={`chat-bubble${msg.pending ? ' chat-bubble--pending' : ''}`}>
-                  {msg.text}
-                </div>
-              </div>
-            ))}
-            <div ref={bottomRef} />
+      {/* ── Sidebar ───────────────────────────────────────────────────────── */}
+      <aside className="chat-sidebar">
+        <div className="chat-sidebar-avatar">
+          <div className="gumdrop-avatar">G</div>
+          <div>
+            <div className="gumdrop-name">Gumdrop</div>
+            <div className="gumdrop-status">
+              <span className="chat-status-dot" />
+              Online
+            </div>
           </div>
         </div>
 
-        <div className="chat-input-bar">
-          <TextInput
-            id="chat-input"
-            labelText=""
-            placeholder={loading ? 'Gumdrop is thinking…' : 'Ask me anything about investing…'}
-            value={draft}
-            disabled={loading}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-          />
-          <Button kind="primary" onClick={handleSend} disabled={loading}>
-            {loading ? '…' : 'Send'}
-          </Button>
+        <div className="chat-sidebar-section">
+          <span className="chat-sidebar-label">Your profile</span>
+          <div className="chat-sidebar-pills">
+            {profilePills.map((p, i) => (
+              <span key={i} className="chat-sidebar-pill">
+                <span className="chat-sidebar-pill-icon">{p.icon}</span>
+                {p.text}
+              </span>
+            ))}
+          </div>
         </div>
+
+        <div className="chat-sidebar-section">
+          <span className="chat-sidebar-label">Suggested</span>
+          <div className="chat-suggestions">
+            {SUGGESTED_PROMPTS.map((p) => (
+              <button
+                key={p}
+                className="chat-suggestion-btn"
+                onClick={() => send(p)}
+                disabled={loading}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+      </aside>
+
+      {/* ── Main chat area ────────────────────────────────────────────────── */}
+      <div className="chat-main">
+
+        {/* Header */}
+        <div className="chat-main-header">
+          <div className="gumdrop-avatar gumdrop-avatar--sm">G</div>
+          <div>
+            <div className="chat-main-title">Gumdrop</div>
+            <div className="chat-main-sub">Candyland Bank AI assistant</div>
+          </div>
+        </div>
+
+        {/* Messages */}
+        <div className="chat-messages" role="log" aria-live="polite" aria-label="Conversation">
+          {messages.map((msg, i) => (
+            <div key={i} className={`chat-row chat-row--${msg.sender}`}>
+              {msg.sender !== 'user' && (
+                <div className="chat-avatar chat-avatar--bot">G</div>
+              )}
+              <div className="chat-row-content">
+                <span className="chat-row-label">{SENDER_LABEL[msg.sender]}</span>
+                <div className={`chat-bubble-new${msg.pending ? ' chat-bubble-new--pending' : ''}${msg.sender === 'user' ? ' chat-bubble-new--user' : ''}`}>
+                  {msg.pending ? <TypingDots /> : msg.text}
+                </div>
+              </div>
+              {msg.sender === 'user' && (
+                <div className="chat-avatar chat-avatar--user">
+                  {username ? username[0].toUpperCase() : 'Y'}
+                </div>
+              )}
+            </div>
+          ))}
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Input */}
+        <div className="chat-input-area">
+          <div className="chat-input-wrap">
+            <textarea
+              ref={inputRef}
+              className="chat-textarea"
+              rows={1}
+              placeholder={loading ? 'Gumdrop is thinking…' : 'Ask me anything about investing…'}
+              value={draft}
+              disabled={loading}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={handleKey}
+            />
+            <button
+              className="chat-send-btn"
+              onClick={() => send(draft)}
+              disabled={loading || !draft.trim()}
+              aria-label="Send message"
+            >
+              <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="18">
+                <path d="M2 10L18 2L12 10L18 18L2 10Z" fill="currentColor" />
+              </svg>
+            </button>
+          </div>
+          <p className="chat-input-hint">Press Enter to send · Shift+Enter for new line</p>
+        </div>
+
       </div>
-    </section>
+    </div>
   );
 }
 
 // ── Shared nav shell ───────────────────────────────────────────────────────────
-function NavShell({ children, username, onLogout }) {
+function NavShell({ children, username, onLogout, onGoHome }) {
   return (
     <div className="app-shell">
       <Header aria-label="Candyland Bank">
         <HeaderName href="#" prefix="">
-          <img src={candylandTitle} alt="Candyland Bank" style={{ height: '2rem', width: 'auto' }} />
+          <img
+            src={candylandTitle}
+            alt="Candyland Bank"
+            style={{ height: '2rem', width: 'auto', cursor: onGoHome ? 'pointer' : 'default' }}
+            onClick={onGoHome || undefined}
+            role={onGoHome ? 'button' : undefined}
+            tabIndex={onGoHome ? 0 : undefined}
+            onKeyDown={onGoHome ? (e) => e.key === 'Enter' && onGoHome() : undefined}
+          />
         </HeaderName>
         {username && (
-          <HeaderNavigation aria-label="Main navigation">
-            <HeaderMenuItem href="#home">Home</HeaderMenuItem>
-            <HeaderMenuItem href="#chat">Chat</HeaderMenuItem>
-          </HeaderNavigation>
-        )}
-        {username && (
-          <div className="nav-user-bar">
-            <span className="nav-username">@{username}</span>
-            <button className="nav-logout-btn" onClick={onLogout}>Sign out</button>
+          <div className="nav-pill-group" role="navigation" aria-label="Main navigation">
+            <button className="nav-pill" onClick={onGoHome}>Home</button>
+            <button
+              className="nav-pill"
+              onClick={() => document.getElementById('chat')?.scrollIntoView({ behavior: 'smooth' })}
+            >
+              Chat
+            </button>
+            <button className="nav-pill nav-pill--danger" onClick={onLogout}>Sign out</button>
           </div>
         )}
       </Header>
@@ -500,14 +595,7 @@ function NavShell({ children, username, onLogout }) {
 // ── App ────────────────────────────────────────────────────────────────────────
 export default function App() {
   // Restore session on first render
-  const [page, setPage] = useState(() => {
-    const session = getSession();
-    if (session) {
-      const account = getAccountByUsername(session.username);
-      if (account) return 'dashboard';
-    }
-    return hasAnyAccount() ? 'login' : 'home';
-  });
+  const [page, setPage] = useState('home');
 
   const [profile, setProfile]   = useState(() => {
     const session = getSession();
@@ -519,26 +607,35 @@ export default function App() {
   });
 
   const [username, setUsername] = useState(() => getSession()?.username ?? null);
+  // true when user chose "Continue as guest" — their wizard data is unsaved
+  const [isGuest, setIsGuest]   = useState(false);
 
   const handleLogout = () => {
     logout();
     setUsername(null);
     setProfile(null);
+    setIsGuest(false);
     setPage('login');
   };
 
   // ── Login ──────────────────────────────────────────────────────────────────
   if (page === 'login') {
     return (
-      <NavShell>
+      <NavShell onGoHome={() => setPage('home')}>
         <main>
           <LoginForm
             onLogin={(account) => {
               setProfile(account.profile);
               setUsername(account.username);
+              setIsGuest(false);
               setPage('dashboard');
             }}
-            onCreateNew={() => setPage('home')}
+            onGoHome={() => setPage('home')}
+            onCreateNew={() => setPage('wizard')}
+            onGuest={() => {
+              setIsGuest(true);
+              setPage('wizard');
+            }}
           />
         </main>
       </NavShell>
@@ -552,6 +649,7 @@ export default function App() {
         onGetStarted={() => setPage('wizard')}
         isLoggedIn={!!username}
         onGoToChat={() => setPage('dashboard')}
+        onSignIn={() => setPage('login')}
       />
     );
   }
@@ -577,7 +675,12 @@ export default function App() {
         <main>
           <AccountSignup
             investorProfile={profile}
-            onComplete={(uname) => { setUsername(uname); setPage('dashboard'); }}
+            isGuest={isGuest}
+            onComplete={(uname) => {
+              setUsername(uname);
+              setIsGuest(false);
+              setPage('dashboard');
+            }}
             onSkip={() => setPage('dashboard')}
           />
         </main>
@@ -587,29 +690,9 @@ export default function App() {
 
   // ── Dashboard ──────────────────────────────────────────────────────────────
   return (
-    <NavShell username={username} onLogout={handleLogout}>
-      <main className="page-content">
-        <section id="home">
-          <div className="hero-card">
-            <p className="hero-eyebrow">Personalised investing</p>
-            <h1>
-              <img src={candylandTitle} alt="Candyland Bank" className="hero-title-img" /><br />
-              Your money, your strategy.
-            </h1>
-            <p>
-              {username ? `Welcome back, @${username}. ` : ''}
-              Your Candyland Bank investor profile is set. Chat with your assistant
-              below to get personalised guidance, explore strategies, and stay on track.
-            </p>
-            <Button
-              kind="primary"
-              onClick={() => document.getElementById('chat')?.scrollIntoView({ behavior: 'smooth' })}
-            >
-              Start chatting
-            </Button>
-          </div>
-        </section>
-        <ChatView profile={profile} />
+    <NavShell username={username} onLogout={handleLogout} onGoHome={() => setPage('home')}>
+      <main className="dashboard-main">
+        <ChatView profile={profile} username={username} />
       </main>
     </NavShell>
   );
