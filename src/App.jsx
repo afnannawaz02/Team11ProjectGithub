@@ -347,7 +347,7 @@ function HomePage({ onGetStarted, isLoggedIn, onGoToChat, onSignIn, username }) 
 }
 
 // ── Chat view ──────────────────────────────────────────────────────────────────
-const PROXY_URL = import.meta.env.VITE_PROXY_URL || 'http://127.0.0.1:3001';
+const PROXY_URL = '';  // relative URLs — Vite proxies to localhost:3001 in dev, CF Functions in prod
 
 const SUGGESTED_PROMPTS = [
   'What should I invest in first?',
@@ -752,7 +752,7 @@ function OtpGate({ children }) {
   const [error, setError]     = useState('');
   const [busy, setBusy]       = useState(false);
 
-  const proxyUrl = import.meta.env.VITE_PROXY_URL || 'http://127.0.0.1:3001';
+  const proxyUrl = '';  // relative — Vite dev proxy handles locally, CF Functions in prod
 
   const sendOtp = async () => {
     setError(''); setBusy(true);

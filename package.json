@@ -7,7 +7,17 @@
     "dev": "vite",
     "server": "node --env-file=.env.local server/proxy.js",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cf:login": "wrangler login",
+    "cf:whoami": "wrangler whoami",
+    "cf:kv:create": "wrangler kv namespace create OTP_STORE",
+    "cf:kv:list": "wrangler kv namespace list",
+    "cf:secret:resend": "wrangler pages secret put RESEND_API_KEY --project-name gumdrop",
+    "cf:secret:domain": "wrangler pages secret put ALLOWED_EMAIL_DOMAIN --project-name gumdrop",
+    "cf:secret:from": "wrangler pages secret put RESEND_FROM --project-name gumdrop",
+    "cf:secrets:list": "wrangler pages secret list --project-name gumdrop",
+    "cf:deploy": "pnpm build && wrangler pages deploy dist --project-name gumdrop",
+    "cf:dev": "wrangler pages dev dist --live-reload"
   },
   "dependencies": {
     "@carbon/react": "^1.111.0",
@@ -21,6 +31,7 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "resend": "^4.5.2",
-    "vite": "^6.3.5"
+    "vite": "^6.3.5",
+    "wrangler": "^4.110.0"
   }
 }

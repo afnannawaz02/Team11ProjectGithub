@@ -20,8 +20,8 @@ import cors from 'cors';
 import { Resend } from 'resend';
 import { retrieve } from './kb.js';
 
-const PORT = 3001;
-const HOST = '127.0.0.1'; // never bind to 0.0.0.0
+const PORT = process.env.PORT || 3001;
+const HOST = process.env.HOST || '127.0.0.1'; // 0.0.0.0 in production (set by Railway/Cloud)
 
 const {
   WATSONX_API_KEY,
@@ -231,7 +231,7 @@ app.post('/chat', async (req, res) => {
 });
 
 app.listen(PORT, HOST, () => {
-  console.log(`\n🍬 Candyland Bank AI proxy running on http://${HOST}:${PORT}`);
+  console.log(`\n🍬 Candyland Bank AI proxy running on http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
   console.log(`   Model : ${WATSONX_MODEL_ID}`);
   console.log(`   Region: ${WATSONX_REGION}`);
   if (!WATSONX_API_KEY)    console.warn('   ⚠  WATSONX_API_KEY not set — /chat will return 503');

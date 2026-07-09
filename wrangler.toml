@@ -1,0 +1,14 @@
+# wrangler.toml — Cloudflare Pages KV binding
+# This tells Cloudflare which KV namespace to bind as OTP_STORE.
+#
+# Steps to create the KV namespace:
+#   1. Cloudflare dashboard → Workers & Pages → KV → Create namespace → name it "OTP_STORE"
+#   2. Copy the namespace ID and paste it below
+#   3. Commit this file — Cloudflare reads it on deploy
+
+name = "gumdrop"
+pages_build_output_dir = "dist"
+
+[[kv_namespaces]]
+binding = "OTP_STORE"
+id      = "f17959f2f94a4c7799dd2a9c8608bf39"
