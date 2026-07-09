@@ -1,0 +1,29 @@
+{
+  "routes": [
+    {
+      "routePath": "/chat",
+      "mountPath": "/",
+      "method": "POST",
+      "module": [
+        "chat.js:onRequestPost"
+      ]
+    },
+    {
+      "routePath": "/send-otp",
+      "mountPath": "/",
+      "method": "POST",
+      "module": [
+        "send-otp.js:onRequestPost"
+      ]
+    },
+    {
+      "routePath": "/verify-otp",
+      "mountPath": "/",
+      "method": "POST",
+      "module": [
+        "verify-otp.js:onRequestPost"
+      ]
+    }
+  ],
+  "baseURL": "/"
+}
