@@ -739,6 +739,107 @@ function NavShell({ children, username, onLogout, onGoHome }) {
   );
 }
 
+// ── OTP gate ───────────────────────────────────────────────────────────────────
+const OTP_KEY = 'cb_otp_ok';
+
+function OtpGate({ children }) {
+  const [unlocked, setUnlocked] = useState(
+    () => sessionStorage.getItem(OTP_KEY) === '1'
+  );
+  const [step, setStep]       = useState('email'); // 'email' | 'code'
+  const [email, setEmail]     = useState('');
+  const [code, setCode]       = useState('');
+  const [error, setError]     = useState('');
+  const [busy, setBusy]       = useState(false);
+
+  const proxyUrl = import.meta.env.VITE_PROXY_URL || 'http://127.0.0.1:3001';
+
+  const sendOtp = async () => {
+    setError(''); setBusy(true);
+    try {
+      const res  = await fetch(`${proxyUrl}/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Failed to send code.'); }
+      else         { setStep('code'); }
+    } catch {
+      setError('Could not reach the server.');
+    } finally { setBusy(false); }
+  };
+
+  const verifyOtp = async () => {
+    setError(''); setBusy(true);
+    try {
+      const res  = await fetch(`${proxyUrl}/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Incorrect code.'); }
+      else {
+        sessionStorage.setItem(OTP_KEY, '1');
+        setUnlocked(true);
+      }
+    } catch {
+      setError('Could not reach the server.');
+    } finally { setBusy(false); }
+  };
+
+  if (unlocked) return children;
+
+  return (
+    <div className="pin-gate">
+      <div className="pin-card">
+        <img src={candylandTitle} alt="Candyland Bank" className="pin-logo" />
+        {step === 'email' ? (
+          <>
+            <p className="pin-label">Enter your IBM email to receive an access code</p>
+            <input
+              className={`pin-input${error ? ' pin-input--error' : ''}`}
+              type="email"
+              placeholder="you@ibm.com"
+              value={email}
+              autoFocus
+              onChange={(e) => { setEmail(e.target.value); setError(''); }}
+              onKeyDown={(e) => e.key === 'Enter' && !busy && email && sendOtp()}
+            />
+            {error && <p className="pin-error">{error}</p>}
+            <button className="pin-btn" onClick={sendOtp} disabled={busy || !email}>
+              {busy ? 'Sending…' : 'Send code'}
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="pin-label">Enter the 6-digit code sent to <strong>{email}</strong></p>
+            <input
+              className={`pin-input${error ? ' pin-input--error' : ''}`}
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              placeholder="000000"
+              value={code}
+              autoFocus
+              onChange={(e) => { setCode(e.target.value); setError(''); }}
+              onKeyDown={(e) => e.key === 'Enter' && !busy && code && verifyOtp()}
+            />
+            {error && <p className="pin-error">{error}</p>}
+            <button className="pin-btn" onClick={verifyOtp} disabled={busy || !code}>
+              {busy ? 'Verifying…' : 'Verify'}
+            </button>
+            <button className="pin-back" onClick={() => { setStep('email'); setCode(''); setError(''); }}>
+              ← Use a different email
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── App ────────────────────────────────────────────────────────────────────────
 export default function App() {
   // Restore session on first render
@@ -765,9 +866,10 @@ export default function App() {
     setPage('login');
   };
 
-  // ── Login ──────────────────────────────────────────────────────────────────
+  let content;
+
   if (page === 'login') {
-    return (
+    content = (
       <NavShell onGoHome={() => setPage('home')}>
         <main>
           <LoginForm
@@ -787,11 +889,8 @@ export default function App() {
         </main>
       </NavShell>
     );
-  }
-
-  // ── Home landing ───────────────────────────────────────────────────────────
-  if (page === 'home') {
-    return (
+  } else if (page === 'home') {
+    content = (
       <HomePage
         onGetStarted={() => setPage('wizard')}
         isLoggedIn={!!username}
@@ -800,11 +899,8 @@ export default function App() {
         onSignIn={() => setPage('login')}
       />
     );
-  }
-
-  // ── Investor profile wizard ────────────────────────────────────────────────
-  if (page === 'wizard') {
-    return (
+  } else if (page === 'wizard') {
+    content = (
       <NavShell>
         <main>
           <SignupWizard
@@ -814,11 +910,8 @@ export default function App() {
         </main>
       </NavShell>
     );
-  }
-
-  // ── Account creation ───────────────────────────────────────────────────────
-  if (page === 'account') {
-    return (
+  } else if (page === 'account') {
+    content = (
       <NavShell>
         <main>
           <AccountSignup
@@ -834,14 +927,15 @@ export default function App() {
         </main>
       </NavShell>
     );
+  } else {
+    content = (
+      <NavShell username={username} onLogout={handleLogout} onGoHome={() => setPage('home')}>
+        <main className="dashboard-main">
+          <ChatView profile={profile} username={username} />
+        </main>
+      </NavShell>
+    );
   }
 
-  // ── Dashboard ──────────────────────────────────────────────────────────────
-  return (
-    <NavShell username={username} onLogout={handleLogout} onGoHome={() => setPage('home')}>
-      <main className="dashboard-main">
-        <ChatView profile={profile} username={username} />
-      </main>
-    </NavShell>
-  );
+  return <OtpGate>{content}</OtpGate>;
 }

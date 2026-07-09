@@ -17,6 +17,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import { Resend } from 'resend';
 import { retrieve } from './kb.js';
 
 const PORT = 3001;
@@ -25,9 +26,22 @@ const HOST = '127.0.0.1'; // never bind to 0.0.0.0
 const {
   WATSONX_API_KEY,
   WATSONX_PROJECT_ID,
-  WATSONX_REGION    = 'us-south',
-  WATSONX_MODEL_ID  = 'ibm/granite-3-8b-instruct',
+  WATSONX_REGION       = 'us-south',
+  WATSONX_MODEL_ID     = 'ibm/granite-3-8b-instruct',
+  RESEND_API_KEY,
+  RESEND_FROM          = 'noreply@candylandbank.com',
+  ALLOWED_EMAIL_DOMAIN = 'ibm.com',
 } = process.env;
+
+const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
+
+// ── OTP store (in-memory, per-process) ────────────────────────────────────────
+// Map of email → { code, expiresAt }
+const otpStore = new Map();
+
+function generateOTP() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
 
 // ── IAM token cache ───────────────────────────────────────────────────────────
 let _iamToken = null;
@@ -60,11 +74,71 @@ async function getIAMToken() {
 // ── Express app ───────────────────────────────────────────────────────────────
 const app = express();
 
-app.use(cors({ origin: 'http://localhost:5173' })); // Vite dev server only
+app.use(cors({ origin: ['http://localhost:5173', /\.pages\.dev$/, /\.workers\.dev$/] }));
 app.use(express.json({ limit: '64kb' }));
 
 // Health check
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+
+/**
+ * POST /send-otp
+ * Body: { email: string }
+ * Sends a 6-digit OTP to the given email if it matches ALLOWED_EMAIL_DOMAIN.
+ */
+app.post('/send-otp', async (req, res) => {
+  const { email = '' } = req.body;
+  const normalised = email.trim().toLowerCase();
+
+  if (!normalised.endsWith(`@${ALLOWED_EMAIL_DOMAIN}`)) {
+    return res.status(403).json({ error: `Only @${ALLOWED_EMAIL_DOMAIN} addresses are allowed.` });
+  }
+
+  if (!resend) {
+    return res.status(503).json({ error: 'Email service not configured. Add RESEND_API_KEY to .env.local.' });
+  }
+
+  const code      = generateOTP();
+  const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+  otpStore.set(normalised, { code, expiresAt });
+
+  try {
+    await resend.emails.send({
+      from: RESEND_FROM,
+      to:   normalised,
+      subject: 'Your Candyland Bank access code',
+      html: `
+        <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:2rem;">
+          <h2 style="margin:0 0 0.5rem;">Your access code</h2>
+          <p style="color:#555;margin:0 0 1.5rem;">Use the code below to access Candyland Bank. It expires in 10 minutes.</p>
+          <div style="font-size:2.5rem;font-weight:700;letter-spacing:0.15em;color:#3b82d4;margin-bottom:1.5rem;">${code}</div>
+          <p style="color:#999;font-size:0.8rem;">If you didn't request this, ignore this email.</p>
+        </div>
+      `,
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Resend error:', err.message);
+    res.status(500).json({ error: 'Failed to send email. Check server logs.' });
+  }
+});
+
+/**
+ * POST /verify-otp
+ * Body: { email: string, code: string }
+ * Returns { ok: true } or { error: string }
+ */
+app.post('/verify-otp', (req, res) => {
+  const { email = '', code = '' } = req.body;
+  const normalised = email.trim().toLowerCase();
+  const entry      = otpStore.get(normalised);
+
+  if (!entry)                        return res.status(400).json({ error: 'No code found for this email. Request a new one.' });
+  if (Date.now() > entry.expiresAt)  { otpStore.delete(normalised); return res.status(400).json({ error: 'Code expired. Request a new one.' }); }
+  if (entry.code !== code.trim())    return res.status(400).json({ error: 'Incorrect code. Try again.' });
+
+  otpStore.delete(normalised); // single-use
+  res.json({ ok: true });
+});
 
 /**
  * POST /chat
