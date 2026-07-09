@@ -739,54 +739,25 @@ function NavShell({ children, username, onLogout, onGoHome }) {
   );
 }
 
-// ── OTP gate ───────────────────────────────────────────────────────────────────
-const OTP_KEY = 'cb_otp_ok';
+// ── Password gate ──────────────────────────────────────────────────────────────
+const GATE_KEY = 'cb_gate_ok';
+const SITE_PASSWORD = 'candyland2025';
 
-function OtpGate({ children }) {
+function PasswordGate({ children }) {
   const [unlocked, setUnlocked] = useState(
-    () => sessionStorage.getItem(OTP_KEY) === '1'
+    () => sessionStorage.getItem(GATE_KEY) === '1'
   );
-  const [step, setStep]       = useState('email'); // 'email' | 'code'
-  const [email, setEmail]     = useState('');
-  const [code, setCode]       = useState('');
-  const [error, setError]     = useState('');
-  const [busy, setBusy]       = useState(false);
+  const [value, setValue] = useState('');
+  const [error, setError] = useState(false);
 
-  const proxyUrl = '';  // relative — Vite dev proxy handles locally, CF Functions in prod
-
-  const sendOtp = async () => {
-    setError(''); setBusy(true);
-    try {
-      const res  = await fetch(`${proxyUrl}/send-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error || 'Failed to send code.'); }
-      else         { setStep('code'); }
-    } catch {
-      setError('Could not reach the server.');
-    } finally { setBusy(false); }
-  };
-
-  const verifyOtp = async () => {
-    setError(''); setBusy(true);
-    try {
-      const res  = await fetch(`${proxyUrl}/verify-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error || 'Incorrect code.'); }
-      else {
-        sessionStorage.setItem(OTP_KEY, '1');
-        setUnlocked(true);
-      }
-    } catch {
-      setError('Could not reach the server.');
-    } finally { setBusy(false); }
+  const attempt = () => {
+    if (value === SITE_PASSWORD) {
+      sessionStorage.setItem(GATE_KEY, '1');
+      setUnlocked(true);
+    } else {
+      setError(true);
+      setValue('');
+    }
   };
 
   if (unlocked) return children;
@@ -795,46 +766,20 @@ function OtpGate({ children }) {
     <div className="pin-gate">
       <div className="pin-card">
         <img src={candylandTitle} alt="Candyland Bank" className="pin-logo" />
-        {step === 'email' ? (
-          <>
-            <p className="pin-label">Enter your IBM email to receive an access code</p>
-            <input
-              className={`pin-input${error ? ' pin-input--error' : ''}`}
-              type="email"
-              placeholder="you@ibm.com"
-              value={email}
-              autoFocus
-              onChange={(e) => { setEmail(e.target.value); setError(''); }}
-              onKeyDown={(e) => e.key === 'Enter' && !busy && email && sendOtp()}
-            />
-            {error && <p className="pin-error">{error}</p>}
-            <button className="pin-btn" onClick={sendOtp} disabled={busy || !email}>
-              {busy ? 'Sending…' : 'Send code'}
-            </button>
-          </>
-        ) : (
-          <>
-            <p className="pin-label">Enter the 6-digit code sent to <strong>{email}</strong></p>
-            <input
-              className={`pin-input${error ? ' pin-input--error' : ''}`}
-              type="text"
-              inputMode="numeric"
-              maxLength={6}
-              placeholder="000000"
-              value={code}
-              autoFocus
-              onChange={(e) => { setCode(e.target.value); setError(''); }}
-              onKeyDown={(e) => e.key === 'Enter' && !busy && code && verifyOtp()}
-            />
-            {error && <p className="pin-error">{error}</p>}
-            <button className="pin-btn" onClick={verifyOtp} disabled={busy || !code}>
-              {busy ? 'Verifying…' : 'Verify'}
-            </button>
-            <button className="pin-back" onClick={() => { setStep('email'); setCode(''); setError(''); }}>
-              ← Use a different email
-            </button>
-          </>
-        )}
+        <p className="pin-label">Enter the site password to continue</p>
+        <input
+          className={`pin-input${error ? ' pin-input--error' : ''}`}
+          type="password"
+          placeholder="••••••••"
+          value={value}
+          autoFocus
+          onChange={(e) => { setValue(e.target.value); setError(false); }}
+          onKeyDown={(e) => e.key === 'Enter' && value && attempt()}
+        />
+        {error && <p className="pin-error">Incorrect password — try again</p>}
+        <button className="pin-btn" onClick={attempt} disabled={!value}>
+          Enter
+        </button>
       </div>
     </div>
   );
@@ -937,5 +882,5 @@ export default function App() {
     );
   }
 
-  return <OtpGate>{content}</OtpGate>;
+  return <PasswordGate>{content}</PasswordGate>;
 }
