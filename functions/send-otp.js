@@ -20,7 +20,7 @@ export async function onRequestPost({ request, env }) {
   const normalised = email.trim().toLowerCase();
   const domain = env.ALLOWED_EMAIL_DOMAIN || 'ibm.com';
 
-  if (!normalised.endsWith(`@${domain}`)) {
+  if (domain !== '.' && !normalised.endsWith(`@${domain}`)) {
     return Response.json({ error: `Only @${domain} addresses are allowed.` }, { status: 403 });
   }
 
@@ -57,10 +57,14 @@ export async function onRequestPost({ request, env }) {
     }),
   });
 
+  const resendBody = await emailRes.text();
+
   if (!emailRes.ok) {
-    const body = await emailRes.text();
-    console.error('Resend error:', body);
-    return Response.json({ error: 'Failed to send email.' }, { status: 500 });
+    console.error('Resend error:', emailRes.status, resendBody);
+    // Return the actual Resend error so we can diagnose it in the UI
+    let detail = resendBody;
+    try { detail = JSON.parse(resendBody)?.message || resendBody; } catch {}
+    return Response.json({ error: `Failed to send email: ${detail}` }, { status: 500 });
   }
 
   return Response.json({ ok: true });
