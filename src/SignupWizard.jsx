@@ -1,15 +1,20 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
-const TOTAL_STEPS = 7;
+const TOTAL_STEPS = 12;
 
 const STEP_META = [
-  { label: 'Goals',       hint: 'What are you investing for?' },
-  { label: 'Risk',        hint: 'How much volatility can you handle?' },
-  { label: 'Time Horizon',hint: 'How long until you need this money?' },
-  { label: 'Income',      hint: 'Income & savings snapshot' },
-  { label: 'Investments', hint: 'What do you already hold?' },
-  { label: 'Age',         hint: 'Which age range are you in?' },
-  { label: 'Preferences', hint: 'Any themes you care about?' },
+  { label: 'Goals',        hint: 'What are you investing for?' },
+  { label: 'Risk',         hint: 'How much volatility can you handle?' },
+  { label: 'Time Horizon', hint: 'How long until you need this money?' },
+  { label: 'Income',       hint: 'Income & savings snapshot' },
+  { label: 'Investments',  hint: 'What do you already hold?' },
+  { label: 'Birthday',     hint: "What's your date of birth?" },
+  { label: 'Marital Status',    hint: 'What is your marital status?' },
+  { label: 'Employment',        hint: 'Employment Status' },
+  { label: 'Credit Score', hint: 'What is your credit score range?' },
+  { label: 'Location',     hint: 'Where are you based?' },
+  { label: 'Veteran',      hint: 'Have you served in the military?' },
+  { label: 'Preferences',  hint: 'Any themes you care about?' },
 ];
 
 // ── Reusable primitives ────────────────────────────────────────────────────────
@@ -111,40 +116,44 @@ function StepTimeHorizon({ data, onChange }) {
 }
 
 function StepIncome({ data, onChange }) {
+  const bracketOptions = [
+    { value: 'under-25k',    label: 'Under $25,000',          hint: 'Entry level or part-time income' },
+    { value: '25k-50k',      label: '$25,000 – $49,999',      hint: '' },
+    { value: '50k-75k',      label: '$50,000 – $74,999',      hint: '' },
+    { value: '75k-100k',     label: '$75,000 – $99,999',      hint: '' },
+    { value: '100k-150k',    label: '$100,000 – $149,999',    hint: '' },
+    { value: '150k-250k',    label: '$150,000 – $249,999',    hint: '' },
+    { value: 'over-250k',    label: '$250,000 +',             hint: 'High income' },
+    { value: 'prefer-not',   label: 'Prefer not to say',      hint: '' },
+  ];
   const emergencyOptions = [
-    { value: 'none',    label: 'No fund yet',     hint: 'Still building one' },
-    { value: 'partial', label: 'Partial',         hint: '1 – 3 months of expenses' },
-    { value: 'full',    label: 'Fully funded',    hint: '3 – 6+ months covered' },
+    { value: 'none',    label: 'No fund yet',  hint: 'Still building one' },
+    { value: 'partial', label: 'Partial',      hint: '1 – 3 months of expenses' },
+    { value: 'full',    label: 'Fully funded', hint: '3 – 6+ months covered' },
   ];
   return (
     <div className="step-body">
-      <div className="income-fields">
-        <div className="field-group">
-          <label className="field-label" htmlFor="annual-income">Annual income (USD)</label>
-          <input
-            id="annual-income"
-            className="field-input"
-            type="number"
-            min="0"
-            placeholder="e.g. 75 000"
-            value={data.annualIncome}
-            onChange={(e) => onChange({ annualIncome: e.target.value })}
-          />
-        </div>
-        <div className="field-group">
-          <label className="field-label" htmlFor="monthly-savings">Monthly amount to invest (USD)</label>
-          <input
-            id="monthly-savings"
-            className="field-input"
-            type="number"
-            min="0"
-            placeholder="e.g. 500"
-            value={data.monthlySavings}
-            onChange={(e) => onChange({ monthlySavings: e.target.value })}
-          />
-        </div>
+      <div className="field-group">
+        <span className="field-label" style={{ marginBottom: '0.5rem', display: 'block' }}>Annual income bracket</span>
+        <RowList
+          options={bracketOptions}
+          selected={data.annualIncome}
+          onChange={(v) => onChange({ annualIncome: v })}
+        />
       </div>
-      <div className="field-group" style={{ marginTop: '0.25rem' }}>
+      <div className="field-group" style={{ marginTop: '0.75rem' }}>
+        <label className="field-label" htmlFor="monthly-savings">Monthly amount to invest (USD)</label>
+        <input
+          id="monthly-savings"
+          className="field-input"
+          type="number"
+          min="0"
+          placeholder="e.g. 500"
+          value={data.monthlySavings}
+          onChange={(e) => onChange({ monthlySavings: e.target.value })}
+        />
+      </div>
+      <div className="field-group" style={{ marginTop: '0.75rem' }}>
         <span className="field-label" style={{ marginBottom: '0.5rem', display: 'block' }}>Emergency fund status</span>
         <RowList
           options={emergencyOptions}
@@ -177,17 +186,228 @@ function StepInvestments({ data, onChange }) {
 }
 
 function StepAge({ data, onChange }) {
+  const today    = new Date();
+  const maxDate  = new Date(today.getFullYear() - 18, today.getMonth(), today.getDate())
+    .toISOString().split('T')[0];
+  const minDate  = new Date(today.getFullYear() - 120, today.getMonth(), today.getDate())
+    .toISOString().split('T')[0];
+
+  const age = data.dob
+    ? Math.floor((today - new Date(data.dob)) / (365.25 * 24 * 60 * 60 * 1000))
+    : null;
+  const tooYoung = age !== null && age < 18;
+
+  return (
+    <div className="step-body">
+      <div className="field-group">
+        <label className="field-label" htmlFor="dob-input">Date of birth</label>
+        <input
+          id="dob-input"
+          className={`field-input${tooYoung ? ' field-input--error' : ''}`}
+          type="date"
+          max={maxDate}
+          min={minDate}
+          value={data.dob || ''}
+          onChange={(e) => onChange({ dob: e.target.value })}
+        />
+        {tooYoung && (
+          <span className="field-error">You must be at least 18 years old to use Candyland Bank.</span>
+        )}
+        {age !== null && !tooYoung && (
+          <span className="field-hint">Age: {age}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StepMaritalStatus({ data, onChange }) {
   const options = [
-    { value: '18-25', label: '18 – 25' },
-    { value: '26-35', label: '26 – 35' },
-    { value: '36-45', label: '36 – 45' },
-    { value: '46-55', label: '46 – 55' },
-    { value: '56-65', label: '56 – 65' },
-    { value: '66+',   label: '66 +' },
+    { value: 'single',    label: 'Single',            hint: 'Not married or in a civil partnership' },
+    { value: 'married',   label: 'Married',           hint: 'Including civil partnership' },
+    { value: 'partnered', label: 'Living with partner', hint: 'Unmarried but cohabiting' },
+    { value: 'divorced',  label: 'Divorced / Separated', hint: '' },
+    { value: 'widowed',   label: 'Widowed',           hint: '' },
+    { value: 'prefer-not', label: 'Prefer not to say', hint: '' },
   ];
   return (
     <div className="step-body">
-      <RowList options={options} selected={data.ageBracket} onChange={(v) => onChange({ ageBracket: v })} />
+      <RowList options={options} selected={data.maritalStatus} onChange={(v) => onChange({ maritalStatus: v })} />
+    </div>
+  );
+}
+
+function StepEmployment({ data, onChange }) {
+  const options = [
+    { value: 'full-time',     label: 'Full time',       hint: 'Salaried or permanent contract' },
+    { value: 'part-time',     label: 'Part time',       hint: 'Part-time or casual contract' },
+    { value: 'self-employed', label: 'Self employed',   hint: 'Freelance, contractor, or business owner' },
+    { value: 'student',       label: 'Student',         hint: 'Full or part-time study' },
+    { value: 'retired',       label: 'Retired',         hint: 'No longer in the workforce' },
+    { value: 'unemployed',    label: 'Unemployed',      hint: 'Currently seeking work' },
+    { value: 'other',         label: 'Other',           hint: 'Homemaker, carer, or other' },
+  ];
+  return (
+    <div className="step-body">
+      <RowList options={options} selected={data.employmentStatus} onChange={(v) => onChange({ employmentStatus: v })} />
+    </div>
+  );
+}
+
+function StepCreditScore({ data, onChange }) {
+  const options = [
+    { value: 'poor',      label: 'Poor',      hint: 'Below 580 — building from scratch' },
+    { value: 'fair',      label: 'Fair',      hint: '580 – 669 — room to improve' },
+    { value: 'good',      label: 'Good',      hint: '670 – 739 — solid standing' },
+    { value: 'very-good', label: 'Very Good', hint: '740 – 799 — above average' },
+    { value: 'excellent', label: 'Excellent', hint: '800 + — top tier' },
+    { value: 'unknown',   label: "I don't know", hint: 'No worries, we can work with this' },
+  ];
+  return (
+    <div className="step-body">
+      <RowList options={options} selected={data.creditScore} onChange={(v) => onChange({ creditScore: v })} />
+    </div>
+  );
+}
+
+const US_STATES = [
+  'Alabama','Alaska','Arizona','Arkansas','California','Colorado','Connecticut',
+  'Delaware','Florida','Georgia','Hawaii','Idaho','Illinois','Indiana','Iowa',
+  'Kansas','Kentucky','Louisiana','Maine','Maryland','Massachusetts','Michigan',
+  'Minnesota','Mississippi','Missouri','Montana','Nebraska','Nevada',
+  'New Hampshire','New Jersey','New Mexico','New York','North Carolina',
+  'North Dakota','Ohio','Oklahoma','Oregon','Pennsylvania','Rhode Island',
+  'South Carolina','South Dakota','Tennessee','Texas','Utah','Vermont',
+  'Virginia','Washington','Washington D.C.','West Virginia','Wisconsin','Wyoming',
+];
+
+/** Map full state name → ISO 3166-2 code used by GeoNames (e.g. "Texas" → "TX") */
+const STATE_CODES = {
+  'Alabama':'AL','Alaska':'AK','Arizona':'AZ','Arkansas':'AR','California':'CA',
+  'Colorado':'CO','Connecticut':'CT','Delaware':'DE','Florida':'FL','Georgia':'GA',
+  'Hawaii':'HI','Idaho':'ID','Illinois':'IL','Indiana':'IN','Iowa':'IA',
+  'Kansas':'KS','Kentucky':'KY','Louisiana':'LA','Maine':'ME','Maryland':'MD',
+  'Massachusetts':'MA','Michigan':'MI','Minnesota':'MN','Mississippi':'MS',
+  'Missouri':'MO','Montana':'MT','Nebraska':'NE','Nevada':'NV',
+  'New Hampshire':'NH','New Jersey':'NJ','New Mexico':'NM','New York':'NY',
+  'North Carolina':'NC','North Dakota':'ND','Ohio':'OH','Oklahoma':'OK',
+  'Oregon':'OR','Pennsylvania':'PA','Rhode Island':'RI','South Carolina':'SC',
+  'South Dakota':'SD','Tennessee':'TN','Texas':'TX','Utah':'UT','Vermont':'VT',
+  'Virginia':'VA','Washington':'WA','Washington D.C.':'DC','West Virginia':'WV',
+  'Wisconsin':'WI','Wyoming':'WY',
+};
+
+async function fetchCitiesForState(stateName) {
+  const code = STATE_CODES[stateName];
+  if (!code) return null;
+  // GeoNames public demo account — rate-limited but sufficient for a local demo.
+  // featureCode=PPL* covers populated places; adminCode1 = state FIPS / postal code.
+  const url =
+    `https://secure.geonames.org/searchJSON` +
+    `?country=US&adminCode1=${code}&featureClass=P&maxRows=500` +
+    `&orderby=population&username=demo`;
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const json = await res.json();
+  if (!json.geonames) return null;
+  const names = [...new Set(json.geonames.map((g) => g.name))].sort();
+  return names.length ? names : null;
+}
+
+function StepState({ data, onChange }) {
+  const [cities, setCities]   = useState(null);   // null = not loaded, [] = failed
+  const [loading, setLoading] = useState(false);
+
+  // Fetch cities whenever the selected state changes
+  useEffect(() => {
+    if (!data.usState) { setCities(null); return; }
+    let cancelled = false;
+    setLoading(true);
+    onChange({ city: '' });   // reset city when state changes
+    fetchCitiesForState(data.usState).then((result) => {
+      if (cancelled) return;
+      setCities(result ?? []);   // [] means fetch failed → fall back to text input
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [data.usState]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="step-body">
+      <div className="field-group">
+        <label className="field-label" htmlFor="state-input">State</label>
+        <select
+          id="state-input"
+          className="field-input field-select"
+          value={data.usState || ''}
+          onChange={(e) => onChange({ usState: e.target.value })}
+          autoComplete="address-level1"
+        >
+          <option value="" disabled>Select a state…</option>
+          {US_STATES.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+      </div>
+
+      {data.usState && (
+        <div className="field-group" style={{ marginTop: '0.75rem' }}>
+          <label className="field-label" htmlFor="city-input">
+            City
+            {loading && <span className="field-hint" style={{ marginLeft: '0.5rem' }}>Loading…</span>}
+          </label>
+
+          {/* Loaded successfully → locked dropdown */}
+          {!loading && cities && cities.length > 0 && (
+            <select
+              id="city-input"
+              className="field-input field-select"
+              value={data.city || ''}
+              onChange={(e) => onChange({ city: e.target.value })}
+              autoComplete="address-level2"
+            >
+              <option value="" disabled>Select a city…</option>
+              {cities.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          )}
+
+          {/* Fetch failed / empty → plain text fallback */}
+          {!loading && cities !== null && cities.length === 0 && (
+            <input
+              id="city-input"
+              className="field-input"
+              type="text"
+              placeholder="Type your city"
+              value={data.city || ''}
+              onChange={(e) => onChange({ city: e.target.value })}
+              autoComplete="address-level2"
+            />
+          )}
+
+          {/* Still loading → disabled placeholder */}
+          {loading && (
+            <select id="city-input" className="field-input field-select" disabled>
+              <option>Loading cities…</option>
+            </select>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StepVeteran({ data, onChange }) {
+  const options = [
+    { value: 'yes',        label: 'Yes, I am a veteran',          hint: 'Previously served in the armed forces' },
+    { value: 'active',     label: 'Yes, currently serving',       hint: 'Active duty military' },
+    { value: 'no',         label: 'No',                           hint: 'No military service' },
+    { value: 'prefer-not', label: 'Prefer not to say',            hint: '' },
+  ];
+  return (
+    <div className="step-body">
+      <RowList options={options} selected={data.veteranStatus} onChange={(v) => onChange({ veteranStatus: v })} />
     </div>
   );
 }
@@ -218,8 +438,13 @@ function isStepValid(step, data) {
     case 2: return !!data.horizon;
     case 3: return data.annualIncome !== '' && data.monthlySavings !== '' && !!data.emergencyFund;
     case 4: return data.currentInvestments.length > 0;
-    case 5: return !!data.ageBracket;
-    case 6: return data.preferences.length > 0;
+    case 5: return !!data.dob && Math.floor((new Date() - new Date(data.dob)) / (365.25 * 24 * 60 * 60 * 1000)) >= 18;
+    case 6: return !!data.maritalStatus;
+    case 7: return !!data.employmentStatus;
+    case 8: return !!data.creditScore;
+    case 9: return !!data.usState && !!data.city;
+    case 10: return !!data.veteranStatus;
+    case 11: return data.preferences.length > 0;
     default: return false;
   }
 }
@@ -235,20 +460,31 @@ export default function SignupWizard({ onComplete, onExit }) {
     monthlySavings: '',
     emergencyFund: '',
     currentInvestments: [],
-    ageBracket: '',
+    dob: '',
+    maritalStatus: '',
+    employmentStatus: '',
+    creditScore: '',
+    usState: '',
+    city: '',
+    veteranStatus: '',
     preferences: [],
   });
 
   const patch = (partial) => setProfile((prev) => ({ ...prev, ...partial }));
 
   const steps = [
-    <StepGoals        data={profile} onChange={patch} />,
-    <StepRisk         data={profile} onChange={patch} />,
-    <StepTimeHorizon  data={profile} onChange={patch} />,
-    <StepIncome       data={profile} onChange={patch} />,
-    <StepInvestments  data={profile} onChange={patch} />,
-    <StepAge          data={profile} onChange={patch} />,
-    <StepPreferences  data={profile} onChange={patch} />,
+    <StepGoals          data={profile} onChange={patch} />,
+    <StepRisk           data={profile} onChange={patch} />,
+    <StepTimeHorizon    data={profile} onChange={patch} />,
+    <StepIncome         data={profile} onChange={patch} />,
+    <StepInvestments    data={profile} onChange={patch} />,
+    <StepAge            data={profile} onChange={patch} />,
+    <StepMaritalStatus  data={profile} onChange={patch} />,
+    <StepEmployment     data={profile} onChange={patch} />,
+    <StepCreditScore    data={profile} onChange={patch} />,
+    <StepState          data={profile} onChange={patch} />,
+    <StepVeteran        data={profile} onChange={patch} />,
+    <StepPreferences    data={profile} onChange={patch} />,
   ];
 
   const canAdvance = isStepValid(step, profile);
@@ -285,8 +521,13 @@ export default function SignupWizard({ onComplete, onExit }) {
             {step === 2 && "Think about when you\u2019ll actually need to withdraw this money."}
             {step === 3 && "Rough numbers are fine. This ensures advice fits your real situation."}
             {step === 4 && "We\u2019ll avoid overlap and build on what you already have."}
-            {step === 5 && "We only need a bracket — no exact age required."}
-            {step === 6 && "Pick any that resonate. You can always change these later."}
+            {step === 5 && "You must be 18 or over. Your exact age stays private."}
+            {step === 6 && "This helps personalise advice around joint finances and dependants."}
+            {step === 7 && "This shapes how we think about your income stability and savings capacity."}
+            {step === 8 && "This helps us tailor borrowing and debt-related advice."}
+            {step === 9 && "State and local tax rules vary — this helps us give accurate after-tax guidance."}
+            {step === 10 && "Some benefits and programmes are available exclusively to veterans."}
+            {step === 11 && "Pick any that resonate. You can always change these later."}
           </p>
 
           {/* Dot stepper */}

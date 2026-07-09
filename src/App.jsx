@@ -14,6 +14,8 @@ import {
   getSession,
   getAccountByUsername,
   hasAnyAccount,
+  saveSessions,
+  loadSessions,
 } from './auth.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -220,57 +222,37 @@ function LoginForm({ onLogin, onCreateNew, onGuest, onGoHome }) {
 }
 
 // ── Home Page ──────────────────────────────────────────────────────────────────
-function HomePage({ onGetStarted, isLoggedIn, onGoToChat, onSignIn }) {
+function HomePage({ onGetStarted, isLoggedIn, onGoToChat, onSignIn, username }) {
   const ctaLabel  = isLoggedIn ? 'Chat with Gumdrop' : 'Build my profile';
   const ctaAction = isLoggedIn ? onGoToChat : onGetStarted;
 
   return (
     <div className="app-shell">
-      <Header aria-label="Candyland Bank">
-        <HeaderName href="#" prefix="">
-          <img src={candylandTitle} alt="Candyland Bank" style={{ height: '2rem', width: 'auto' }} />
-        </HeaderName>
-      </Header>
-
       <main className="home-main">
 
         {/* ── Hero ── */}
         <section className="home-hero">
-          <div className="home-hero-inner">
-            <h1 className="home-hero-heading">
-              <img src={candylandTitle} alt="Candyland Bank" className="home-hero-title-img" />
-              Your money,<br />your strategy.
-            </h1>
-            <p className="home-hero-sub">
-              {isLoggedIn
-                ? 'Welcome back. Your profile is ready — jump straight into a conversation with Gumdrop.'
-                : 'Build a tailored investment profile in minutes. Get AI-powered guidance, personalised strategies, and stay on track — all in one place.'}
-            </p>
-            <div className="home-hero-actions">
-              {isLoggedIn ? (
-                <button className="cta-btn" onClick={ctaAction}>
-                  {ctaLabel} <span className="cta-btn-arrow">→</span>
-                </button>
-              ) : (
-                <button className="nav-pill home-hero-signin" onClick={onSignIn}>
-                  Sign in
-                </button>
-              )}
-            </div>
-          </div>
-          <div className="home-hero-visual" aria-hidden="true">
-            <div className="home-stat-card">
-              <span className="home-stat-value">3 min</span>
-              <span className="home-stat-label">to build your profile</span>
-            </div>
-            <div className="home-stat-card">
-              <span className="home-stat-value">AI</span>
-              <span className="home-stat-label">powered guidance</span>
-            </div>
-            <div className="home-stat-card">
-              <span className="home-stat-value">100%</span>
-              <span className="home-stat-label">personalised to you</span>
-            </div>
+          <h1 className="home-hero-heading">
+            <img
+  src={candylandTitle}
+  alt="Candyland Bank" className="home-hero-title-img" style={{ marginRight: '-100px' }}/>
+            Invest Smarter
+          </h1>
+          <p className="home-hero-sub">
+            {isLoggedIn
+              ? `Welcome back${username ? `, ${username}` : ''}.`
+              : 'Build a tailored investment profile in minutes. Get AI-powered guidance, personalised strategies, and stay on track — all in one place.'}
+          </p>
+          <div className="home-hero-actions">
+            {isLoggedIn ? (
+              <button className="cta-btn" onClick={ctaAction}>
+                {ctaLabel} <span className="cta-btn-arrow">→</span>
+              </button>
+            ) : (
+              <button className="nav-pill home-hero-signin" onClick={onSignIn}>
+                Sign in
+              </button>
+            )}
           </div>
         </section>
 
@@ -387,12 +369,38 @@ function TypingDots() {
   );
 }
 
+function makeSession() {
+  return { id: Date.now(), title: 'New chat', messages: [], pinned: false };
+}
+
 function ChatView({ profile, username }) {
-  const [messages, setMessages] = useState([
-    { sender: 'system', text: buildGreeting(profile) },
-  ]);
-  const [draft, setDraft]     = useState('');
-  const [loading, setLoading] = useState(false);
+  const greeting = { sender: 'system', text: buildGreeting(profile) };
+
+  const [sessions, setSessions] = useState(() => {
+    const saved = loadSessions(username);
+    return saved ?? [{ ...makeSession(), messages: [greeting] }];
+  });
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  // Persist sessions to localStorage whenever they change
+  useEffect(() => {
+    saveSessions(username, sessions);
+  }, [sessions, username]);
+
+  const messages = sessions[activeIdx].messages;
+  const setMessages = (updater) =>
+    setSessions((prev) =>
+      prev.map((s, i) =>
+        i === activeIdx
+          ? { ...s, messages: typeof updater === 'function' ? updater(s.messages) : updater }
+          : s
+      )
+    );
+
+  const [draft, setDraft]         = useState('');
+  const [loading, setLoading]     = useState(false);
+  const [editingIdx, setEditingIdx] = useState(null);
+  const [editDraft, setEditDraft]  = useState('');
   const bottomRef  = useRef(null);
   const inputRef   = useRef(null);
 
@@ -400,14 +408,76 @@ function ChatView({ profile, username }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const send = async (text) => {
+  const newChat = () => {
+    const session = { ...makeSession(), messages: [greeting] };
+    setSessions((prev) => [session, ...prev]);
+    setActiveIdx(0);
+    setDraft('');
+  };
+
+  const switchSession = (idx) => {
+    setActiveIdx(idx);
+    setDraft('');
+  };
+
+  const togglePin = (e, id) => {
+    e.stopPropagation();
+    setSessions((prev) => {
+      const updated = prev.map((s) => s.id === id ? { ...s, pinned: !s.pinned } : s);
+      const pinned   = updated.filter((s) => s.pinned);
+      const unpinned = updated.filter((s) => !s.pinned);
+      const reordered = [...pinned, ...unpinned];
+      const activeId = prev[activeIdx].id;
+      setActiveIdx(reordered.findIndex((s) => s.id === activeId));
+      return reordered;
+    });
+  };
+
+  const deleteSession = (e, id) => {
+    e.stopPropagation();
+    setSessions((prev) => {
+      if (prev.length === 1) {
+        // always keep at least one session
+        const fresh = { ...makeSession(), messages: [greeting] };
+        setActiveIdx(0);
+        return [fresh];
+      }
+      const next = prev.filter((s) => s.id !== id);
+      const deletedIdx = prev.findIndex((s) => s.id === id);
+      const currentId  = prev[activeIdx].id;
+      if (currentId === id) {
+        // activate the item that takes its place, or the last one
+        setActiveIdx(Math.min(deletedIdx, next.length - 1));
+      } else {
+        setActiveIdx(next.findIndex((s) => s.id === currentId));
+      }
+      return next;
+    });
+  };
+
+  // priorMessages: explicit history to use (for edits); falls back to current messages
+  const send = async (text, priorMessages) => {
     const trimmed = text.trim();
     if (!trimmed || loading) return;
 
-    setMessages((prev) => [...prev, { sender: 'user', text: trimmed }]);
+    const history = priorMessages ?? messages;
+
+    // Set session title from first user message
+    setSessions((prev) =>
+      prev.map((s, i) =>
+        i === activeIdx && s.title === 'New chat'
+          ? { ...s, title: trimmed.length > 30 ? trimmed.slice(0, 30) + '…' : trimmed }
+          : s
+      )
+    );
+
+    setMessages(() => [
+      ...history,
+      { sender: 'user', text: trimmed },
+      { sender: 'bot', text: '', pending: true },
+    ]);
     setDraft('');
     setLoading(true);
-    setMessages((prev) => [...prev, { sender: 'bot', text: '', pending: true }]);
     inputRef.current?.focus();
 
     try {
@@ -417,7 +487,7 @@ function ChatView({ profile, username }) {
         body: JSON.stringify({
           userMessage: trimmed,
           profile,
-          messages: messages.filter((m) => !m.pending).slice(-10),
+          messages: history.filter((m) => !m.pending).slice(-10),
         }),
       });
       const data  = await res.json();
@@ -438,70 +508,87 @@ function ChatView({ profile, username }) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(draft); }
   };
 
-  // profile pills for sidebar
-  const profilePills = [
-    ...( profile.goals || []).map((g) => ({ icon: GOAL_ICONS[g] || '🎯', text: GOAL_LABELS[g] || g })),
-    profile.risk       && { icon: '⚖️',  text: profile.risk },
-    profile.horizon    && { icon: '📅',  text: profile.horizon + ' horizon' },
-    profile.ageBracket && { icon: '👤',  text: profile.ageBracket },
-  ].filter(Boolean);
-
   return (
     <div className="chat-page" id="chat">
 
-      {/* ── Sidebar ───────────────────────────────────────────────────────── */}
-      <aside className="chat-sidebar">
-        <div className="chat-sidebar-avatar">
-          <div className="gumdrop-avatar">G</div>
-          <div>
-            <div className="gumdrop-name">Gumdrop</div>
-            <div className="gumdrop-status">
-              <span className="chat-status-dot" />
-              Online
+      {/* ── History sidebar ───────────────────────────────────────────────── */}
+      <aside className="chat-history-sidebar">
+        <button className="chat-history-new-btn" onClick={newChat}>
+          <svg viewBox="0 0 16 16" fill="none" width="14" height="14" xmlns="http://www.w3.org/2000/svg">
+            <path d="M8 1v14M1 8h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+          New chat
+        </button>
+        <div className="chat-history-list">
+          {sessions.some((s) => s.pinned) && (
+            <span className="chat-history-group-label">Pinned</span>
+          )}
+          {sessions.filter((s) => s.pinned).map((s, i) => (
+            <div
+              key={s.id}
+              className={`chat-history-item${sessions.indexOf(s) === activeIdx ? ' chat-history-item--active' : ''}`}
+              onClick={() => switchSession(sessions.indexOf(s))}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && switchSession(sessions.indexOf(s))}
+            >
+              <svg viewBox="0 0 16 16" fill="none" width="13" height="13" xmlns="http://www.w3.org/2000/svg" style={{flexShrink:0}}>
+                <path d="M14 1H2a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3l3 3 3-3h3a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
+              </svg>
+              <span className="chat-history-item-title">{s.title}</span>
+              <div className="chat-history-item-actions">
+                <button
+                  className="chat-history-pin-btn chat-history-pin-btn--active"
+                  onClick={(e) => togglePin(e, s.id)}
+                  aria-label="Unpin chat"
+                  title="Unpin"
+                >📌</button>
+                <button
+                  className="chat-history-del-btn"
+                  onClick={(e) => deleteSession(e, s.id)}
+                  aria-label="Delete chat"
+                  title="Delete"
+                >🗑</button>
+              </div>
             </div>
-          </div>
-        </div>
-
-        <div className="chat-sidebar-section">
-          <span className="chat-sidebar-label">Your profile</span>
-          <div className="chat-sidebar-pills">
-            {profilePills.map((p, i) => (
-              <span key={i} className="chat-sidebar-pill">
-                <span className="chat-sidebar-pill-icon">{p.icon}</span>
-                {p.text}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <div className="chat-sidebar-section">
-          <span className="chat-sidebar-label">Suggested</span>
-          <div className="chat-suggestions">
-            {SUGGESTED_PROMPTS.map((p) => (
-              <button
-                key={p}
-                className="chat-suggestion-btn"
-                onClick={() => send(p)}
-                disabled={loading}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
+          ))}
+          {sessions.some((s) => s.pinned) && sessions.some((s) => !s.pinned) && (
+            <span className="chat-history-group-label">Recent</span>
+          )}
+          {sessions.filter((s) => !s.pinned).map((s) => (
+            <div
+              key={s.id}
+              className={`chat-history-item${sessions.indexOf(s) === activeIdx ? ' chat-history-item--active' : ''}`}
+              onClick={() => switchSession(sessions.indexOf(s))}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && switchSession(sessions.indexOf(s))}
+            >
+              <svg viewBox="0 0 16 16" fill="none" width="13" height="13" xmlns="http://www.w3.org/2000/svg" style={{flexShrink:0}}>
+                <path d="M14 1H2a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3l3 3 3-3h3a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
+              </svg>
+              <span className="chat-history-item-title">{s.title}</span>
+              <div className="chat-history-item-actions">
+                <button
+                  className="chat-history-pin-btn"
+                  onClick={(e) => togglePin(e, s.id)}
+                  aria-label="Pin chat"
+                  title="Pin"
+                >📌</button>
+                <button
+                  className="chat-history-del-btn"
+                  onClick={(e) => deleteSession(e, s.id)}
+                  aria-label="Delete chat"
+                  title="Delete"
+                >🗑</button>
+              </div>
+            </div>
+          ))}
         </div>
       </aside>
 
       {/* ── Main chat area ────────────────────────────────────────────────── */}
       <div className="chat-main">
-
-        {/* Header */}
-        <div className="chat-main-header">
-          <div className="gumdrop-avatar gumdrop-avatar--sm">G</div>
-          <div>
-            <div className="chat-main-title">Gumdrop</div>
-            <div className="chat-main-sub">Candyland Bank AI assistant</div>
-          </div>
-        </div>
 
         {/* Messages */}
         <div className="chat-messages" role="log" aria-live="polite" aria-label="Conversation">
@@ -512,9 +599,55 @@ function ChatView({ profile, username }) {
               )}
               <div className="chat-row-content">
                 <span className="chat-row-label">{SENDER_LABEL[msg.sender]}</span>
-                <div className={`chat-bubble-new${msg.pending ? ' chat-bubble-new--pending' : ''}${msg.sender === 'user' ? ' chat-bubble-new--user' : ''}`}>
-                  {msg.pending ? <TypingDots /> : msg.text}
-                </div>
+                {editingIdx === i ? (
+                  <div className="chat-edit-wrap">
+                    <textarea
+                      className="chat-edit-textarea"
+                      value={editDraft}
+                      onChange={(e) => setEditDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          if (editDraft.trim()) {
+                            const prior = messages.slice(0, i);
+                            setEditingIdx(null);
+                            send(editDraft.trim(), prior);
+                          }
+                        }
+                        if (e.key === 'Escape') { setEditingIdx(null); }
+                      }}
+                      autoFocus
+                    />
+                    <div className="chat-edit-actions">
+                      <button
+                        className="chat-edit-save"
+                        onClick={() => {
+                          if (editDraft.trim()) {
+                            const prior = messages.slice(0, i);
+                            setEditingIdx(null);
+                            send(editDraft.trim(), prior);
+                          }
+                        }}
+                      >Save</button>
+                      <button
+                        className="chat-edit-cancel"
+                        onClick={() => setEditingIdx(null)}
+                      >Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={`chat-bubble-new${msg.pending ? ' chat-bubble-new--pending' : ''}${msg.sender === 'user' ? ' chat-bubble-new--user' : ''}`}>
+                    {msg.pending ? <TypingDots /> : msg.text}
+                    {msg.sender === 'user' && !msg.pending && (
+                      <button
+                        className="chat-edit-btn"
+                        onClick={() => { setEditingIdx(i); setEditDraft(msg.text); }}
+                        aria-label="Edit message"
+                        title="Edit"
+                      >✏️</button>
+                    )}
+                  </div>
+                )}
               </div>
               {msg.sender === 'user' && (
                 <div className="chat-avatar chat-avatar--user">
@@ -528,6 +661,20 @@ function ChatView({ profile, username }) {
 
         {/* Input */}
         <div className="chat-input-area">
+          {messages.length <= 1 && (
+            <div className="chat-inline-suggestions">
+              {SUGGESTED_PROMPTS.map((p) => (
+                <button
+                  key={p}
+                  className="chat-inline-suggestion-btn"
+                  onClick={() => send(p)}
+                  disabled={loading}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="chat-input-wrap">
             <textarea
               ref={inputRef}
@@ -648,6 +795,7 @@ export default function App() {
       <HomePage
         onGetStarted={() => setPage('wizard')}
         isLoggedIn={!!username}
+        username={username}
         onGoToChat={() => setPage('dashboard')}
         onSignIn={() => setPage('login')}
       />

@@ -130,3 +130,24 @@ export function updateProfile(username, profile) {
     saveAccounts(accounts);
   }
 }
+
+/**
+ * saveSessions(username, sessions) — persists chat sessions for a user
+ */
+export function saveSessions(username, sessions) {
+  if (!username) return;
+  localStorage.setItem(`cb_sessions_${username.toLowerCase()}`, JSON.stringify(sessions));
+}
+
+/**
+ * loadSessions(username) — returns persisted chat sessions or null
+ */
+export function loadSessions(username) {
+  if (!username) return null;
+  try {
+    const raw = localStorage.getItem(`cb_sessions_${username.toLowerCase()}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}

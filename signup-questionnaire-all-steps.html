@@ -1,0 +1,338 @@
+
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Candyland Bank — Signup Questionnaire</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #1f2328;
+    background: #ffffff;
+    margin: 0;
+    padding: 2rem 1rem 3rem;
+  }
+  .page { max-width: 760px; margin: 0 auto; }
+  h1 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 0 0 0.25rem;
+    color: #1f2328;
+  }
+  .subtitle {
+    font-size: 0.8125rem;
+    color: #57606a;
+    margin: 0 0 2rem;
+  }
+  .step {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    margin-bottom: 1.25rem;
+    overflow: hidden;
+  }
+  .step-header {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    padding: 0.75rem 1.125rem;
+    background: #f7f8fa;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .step-num {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #3b82d4;
+    flex-shrink: 0;
+  }
+  .step-title {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: #1f2328;
+  }
+  .step-hint {
+    font-size: 0.8125rem;
+    color: #57606a;
+    margin-left: auto;
+    text-align: right;
+  }
+  .step-body { padding: 0.75rem 1.125rem 1rem; }
+  .option-type {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #57606a;
+    margin-bottom: 0.5rem;
+  }
+  ul {
+    margin: 0 0 0.5rem 1.25rem;
+    padding: 0;
+  }
+  li { margin-bottom: 0.25rem; }
+  .opt-label { font-weight: 600; color: #1f2328; }
+  .opt-hint { color: #57606a; font-size: 0.8125rem; }
+  .tag {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border-radius: 4px;
+    padding: 0.1rem 0.4rem;
+    margin-left: 0.35rem;
+    vertical-align: middle;
+  }
+  .tag--multi { background: #dbeafe; color: #1d4ed8; }
+  .tag--single { background: #dcfce7; color: #166534; }
+  .tag--input { background: #fef9c3; color: #854d0e; }
+  .field-note {
+    font-size: 0.8125rem;
+    color: #57606a;
+    margin-bottom: 0.4rem;
+  }
+  footer {
+    margin-top: 2.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+    text-align: center;
+    font-size: 0.75rem;
+    color: #57606a;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Candyland Bank — Signup Questionnaire</h1>
+  <p class="subtitle">All 12 onboarding steps · exported from SignupWizard.jsx</p>
+
+  
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">Step 1</span>
+      <span class="step-title">Goals</span>
+      <span class="step-hint">What are you investing for? <span class="tag tag--multi">multi-select</span></span>
+    </div>
+    <div class="step-body">
+      <ul>
+        <li><span class="opt-label">🏖 Retirement</span> <span class="opt-hint">— Long-term security</span></li>
+        <li><span class="opt-label">🏠 Buying a Home</span> <span class="opt-hint">— Property purchase</span></li>
+        <li><span class="opt-label">🎓 Education</span> <span class="opt-hint">— Savings for study</span></li>
+        <li><span class="opt-label">📈 Wealth Growth</span> <span class="opt-hint">— Grow your net worth</span></li>
+        <li><span class="opt-label">⚡ Short-term Goals</span> <span class="opt-hint">— Within a few years</span></li>
+        <li><span class="opt-label">🌱 Long-term Goals</span> <span class="opt-hint">— 10+ year horizon</span></li>
+      </ul>
+    </div>
+  </div>
+
+  
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">Step 2</span>
+      <span class="step-title">Risk</span>
+      <span class="step-hint">How much volatility can you handle? <span class="tag tag--single">single-select</span></span>
+    </div>
+    <div class="step-body">
+      <ul>
+        <li><span class="opt-label">Conservative</span> <span class="opt-hint">— Preserve capital — accept lower returns and minimal swings</span></li>
+        <li><span class="opt-label">Moderate</span> <span class="opt-hint">— Balanced growth — manageable ups and downs</span></li>
+        <li><span class="opt-label">Aggressive</span> <span class="opt-hint">— Maximise returns — comfortable with big swings</span></li>
+      </ul>
+    </div>
+  </div>
+
+  
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">Step 3</span>
+      <span class="step-title">Time Horizon</span>
+      <span class="step-hint">How long until you need this money? <span class="tag tag--single">single-select</span></span>
+    </div>
+    <div class="step-body">
+      <ul>
+        <li><span class="opt-label">Short</span> <span class="opt-hint">— 0 – 3 years — near-term liquidity needed</span></li>
+        <li><span class="opt-label">Medium</span> <span class="opt-hint">— 3 – 10 years — mid-range planning</span></li>
+        <li><span class="opt-label">Long</span> <span class="opt-hint">— 10+ years — maximise compounding</span></li>
+      </ul>
+    </div>
+  </div>
+
+  
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">Step 4</span>
+      <span class="step-title">Income</span>
+      <span class="step-hint">Income &amp; savings snapshot <span class="tag tag--single">single-select + inputs</span></span>
+    </div>
+    <div class="step-body">
+      <p class="field-note"><strong>Annual income bracket</strong></p>
+      <ul>
+        <li><span class="opt-label">Under $25,000</span> <span class="opt-hint">— Entry level or part-time income</span></li>
+        <li><span class="opt-label">$25,000 – $49,999</span></li>
+        <li><span class="opt-label">$50,000 – $74,999</span></li>
+        <li><span class="opt-label">$75,000 – $99,999</span></li>
+        <li><span class="opt-label">$100,000 – $149,999</span></li>
+        <li><span class="opt-label">$150,000 – $249,999</span></li>
+        <li><span class="opt-label">$250,000+</span> <span class="opt-hint">— High income</span></li>
+        <li><span class="opt-label">Prefer not to say</span></li>
+      </ul>
+      <p class="field-note"><strong>Monthly amount to invest (USD)</strong> <span class="tag tag--input">free text</span></p>
+      <ul>
+        <li><span class="opt-hint">Number input — e.g. 500</span></li>
+      </ul>
+      <p class="field-note"><strong>Emergency fund status</strong></p>
+      <ul>
+        <li><span class="opt-label">No fund yet</span> <span class="opt-hint">— Still building one</span></li>
+        <li><span class="opt-label">Partial</span> <span class="opt-hint">— 1 – 3 months of expenses</span></li>
+        <li><span class="opt-label">Fully funded</span> <span class="opt-hint">— 3 – 6+ months covered</span></li>
+      </ul>
+    </div>
+  </div>
+
+  
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">Step 5</span>
+      <span class="step-title">Investments</span>
+      <span class="step-hint">What do you already hold? <span class="tag tag--multi">multi-select</span></span>
+    </div>
+    <div class="step-body">
+      <ul>
+        <li><span class="opt-label">📊 Stocks</span> <span class="opt-hint">— Equities</span></li>
+        <li><span class="opt-label">🏦 Bonds</span> <span class="opt-hint">— Fixed income</span></li>
+        <li><span class="opt-label">📦 ETFs</span> <span class="opt-hint">— Index baskets</span></li>
+        <li><span class="opt-label">🪙 Crypto</span> <span class="opt-hint">— Digital assets</span></li>
+        <li><span class="opt-label">💵 Cash / Savings</span> <span class="opt-hint">— Liquid savings</span></li>
+        <li><span class="opt-label">🚀 Starting fresh</span> <span class="opt-hint">— No holdings yet</span></li>
+      </ul>
+    </div>
+  </div>
+
+  
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">Step 6</span>
+      <span class="step-title">Birthday</span>
+      <span class="step-hint">What's your date of birth? <span class="tag tag--input">date input</span></span>
+    </div>
+    <div class="step-body">
+      <ul>
+        <li><span class="opt-hint">Date picker — must be 18 or older (max age 120)</span></li>
+      </ul>
+    </div>
+  </div>
+
+  
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">Step 7</span>
+      <span class="step-title">Marital Status</span>
+      <span class="step-hint">What is your marital status? <span class="tag tag--single">single-select</span></span>
+    </div>
+    <div class="step-body">
+      <ul>
+        <li><span class="opt-label">Single</span> <span class="opt-hint">— Not married or in a civil partnership</span></li>
+        <li><span class="opt-label">Married</span> <span class="opt-hint">— Including civil partnership</span></li>
+        <li><span class="opt-label">Living with partner</span> <span class="opt-hint">— Unmarried but cohabiting</span></li>
+        <li><span class="opt-label">Divorced / Separated</span></li>
+        <li><span class="opt-label">Widowed</span></li>
+        <li><span class="opt-label">Prefer not to say</span></li>
+      </ul>
+    </div>
+  </div>
+
+  
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">Step 8</span>
+      <span class="step-title">Employment</span>
+      <span class="step-hint">Employment status <span class="tag tag--single">single-select</span></span>
+    </div>
+    <div class="step-body">
+      <ul>
+        <li><span class="opt-label">Full time</span> <span class="opt-hint">— Salaried or permanent contract</span></li>
+        <li><span class="opt-label">Part time</span> <span class="opt-hint">— Part-time or casual contract</span></li>
+        <li><span class="opt-label">Self employed</span> <span class="opt-hint">— Freelance, contractor, or business owner</span></li>
+        <li><span class="opt-label">Student</span> <span class="opt-hint">— Full or part-time study</span></li>
+        <li><span class="opt-label">Retired</span> <span class="opt-hint">— No longer in the workforce</span></li>
+        <li><span class="opt-label">Unemployed</span> <span class="opt-hint">— Currently seeking work</span></li>
+        <li><span class="opt-label">Other</span> <span class="opt-hint">— Homemaker, carer, or other</span></li>
+      </ul>
+    </div>
+  </div>
+
+  
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">Step 9</span>
+      <span class="step-title">Credit Score</span>
+      <span class="step-hint">What is your credit score range? <span class="tag tag--single">single-select</span></span>
+    </div>
+    <div class="step-body">
+      <ul>
+        <li><span class="opt-label">Poor</span> <span class="opt-hint">— Below 580 — building from scratch</span></li>
+        <li><span class="opt-label">Fair</span> <span class="opt-hint">— 580 – 669 — room to improve</span></li>
+        <li><span class="opt-label">Good</span> <span class="opt-hint">— 670 – 739 — solid standing</span></li>
+        <li><span class="opt-label">Very Good</span> <span class="opt-hint">— 740 – 799 — above average</span></li>
+        <li><span class="opt-label">Excellent</span> <span class="opt-hint">— 800+ — top tier</span></li>
+        <li><span class="opt-label">I don't know</span> <span class="opt-hint">— No worries, we can work with this</span></li>
+      </ul>
+    </div>
+  </div>
+
+  
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">Step 10</span>
+      <span class="step-title">Location</span>
+      <span class="step-hint">Where are you based? <span class="tag tag--input">dropdowns</span></span>
+    </div>
+    <div class="step-body">
+      <ul>
+        <li><span class="opt-label">State</span> <span class="opt-hint">— Dropdown of all 50 US states + Washington D.C.</span></li>
+        <li><span class="opt-label">City</span> <span class="opt-hint">— Dropdown populated via GeoNames API based on selected state; falls back to free-text input if API fails</span></li>
+      </ul>
+    </div>
+  </div>
+
+  
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">Step 11</span>
+      <span class="step-title">Veteran</span>
+      <span class="step-hint">Have you served in the military? <span class="tag tag--single">single-select</span></span>
+    </div>
+    <div class="step-body">
+      <ul>
+        <li><span class="opt-label">Yes, I am a veteran</span> <span class="opt-hint">— Previously served in the armed forces</span></li>
+        <li><span class="opt-label">Yes, currently serving</span> <span class="opt-hint">— Active duty military</span></li>
+        <li><span class="opt-label">No</span> <span class="opt-hint">— No military service</span></li>
+        <li><span class="opt-label">Prefer not to say</span></li>
+      </ul>
+    </div>
+  </div>
+
+  
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">Step 12</span>
+      <span class="step-title">Preferences</span>
+      <span class="step-hint">Any themes you care about? <span class="tag tag--multi">multi-select</span></span>
+    </div>
+    <div class="step-body">
+      <ul>
+        <li><span class="opt-label">🌿 ESG / Ethical</span> <span class="opt-hint">— Values-aligned investing</span></li>
+        <li><span class="opt-label">💻 High-growth Tech</span> <span class="opt-hint">— Innovative companies</span></li>
+        <li><span class="opt-label">💰 Dividend Income</span> <span class="opt-hint">— Regular payouts</span></li>
+        <li><span class="opt-label">📉 Low-fee Index</span> <span class="opt-hint">— Broad market exposure</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>Made with IBM Bob</footer>
+</div>
+</body>
+</html>
