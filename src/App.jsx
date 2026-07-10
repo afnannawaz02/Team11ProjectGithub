@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import candylandTitle from '/CandyLand Title.svg';
+import BrandLogo from './grouped-logo.svg?react';
 import {
   Button,
   Header,
@@ -234,18 +234,12 @@ function HomePage({ onGetStarted, isLoggedIn, onGoToChat, onSignIn, username }) 
       {/* ── Hero ── */}
       <section className="home-hero">
         <Grid>
-          <Column sm={4} md={6} lg={8} className="home-hero-inner">
+          <Column sm={4} md={8} lg={16} className="home-hero-inner">
             <h1 className="home-hero-heading">
-              <img src={candylandTitle} alt="Candyland Bank" className="home-hero-title-img" />
-              Invest Smarter
+              <BrandLogo className="hero-brand-logo" aria-label="Candyland Bank × IBM" />
             </h1>
-            <p className="home-hero-sub">
-              {isLoggedIn
-                ? `Welcome back${username ? `, ${username}` : ''}.`
-                : 'Build a tailored investment profile in minutes. Get AI-powered guidance, personalised strategies, and stay on track — all in one place.'}
-            </p>
             <div className="home-hero-actions">
-              <Button kind="primary" size="lg" onClick={ctaAction}>
+              <Button kind="primary" size="lg" onClick={ctaAction} style={{ justifyContent: 'center', textAlign: 'center', minWidth: '16rem', paddingRight: '1rem', paddingLeft: '1rem' }}>
                 {ctaLabel}
               </Button>
               {!isLoggedIn && (
@@ -254,6 +248,11 @@ function HomePage({ onGetStarted, isLoggedIn, onGoToChat, onSignIn, username }) 
                 </Button>
               )}
             </div>
+            <p className="home-hero-sub">
+              {isLoggedIn
+                ? `Welcome back${username ? `, ${username}` : ''}.`
+                : 'Build a tailored investment profile in minutes. Get AI-powered guidance, personalised strategies, and stay on track — all in one place.'}
+            </p>
           </Column>
         </Grid>
       </section>
@@ -312,25 +311,6 @@ function HomePage({ onGetStarted, isLoggedIn, onGoToChat, onSignIn, username }) 
         </Grid>
       </section>
 
-      {/* ── CTA ── */}
-      <section className="home-cta">
-        <Grid>
-          <Column sm={4} md={8} lg={16} style={{ textAlign: 'center' }}>
-            <h2 className="home-cta-heading">
-              {isLoggedIn ? 'Your advisor is ready.' : 'Ready to take control of your finances?'}
-            </h2>
-            <p className="home-cta-sub">
-              {isLoggedIn
-                ? 'Pick up where you left off — Gumdrop remembers your profile and is ready to help.'
-                : "Join thousands of investors who've built smarter strategies with Candyland Bank."}
-            </p>
-            <Button kind="tertiary" size="lg" onClick={ctaAction}>
-              {ctaLabel}
-            </Button>
-          </Column>
-        </Grid>
-      </section>
-
       {/* ── Contact ── */}
       <section className="home-section" id="contact">
         <Grid>
@@ -368,8 +348,7 @@ function HomePage({ onGetStarted, isLoggedIn, onGoToChat, onSignIn, username }) 
       {/* ── Footer ── */}
       <footer className="home-footer">
         <Grid>
-          <Column sm={4} md={8} lg={16} style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <img src={candylandTitle} alt="Candyland Bank" style={{ height: '1.5rem', width: 'auto', opacity: 0.7 }} />
+          <Column sm={4} md={8} lg={16}>
             <p>© {new Date().getFullYear()} Candyland Bank. All rights reserved.</p>
           </Column>
         </Grid>
@@ -762,11 +741,7 @@ function NavShell({ children, username, onLogout, onGoHome }) {
         <HeaderName href="#" prefix=""
           onClick={(e) => { e.preventDefault(); onGoHome?.(); }}
         >
-          <img
-            src={candylandTitle}
-            alt="Candyland Bank"
-            style={{ height: '1.75rem', width: 'auto' }}
-          />
+          <BrandLogo className="header-brand-logo" aria-label="Candyland Bank × IBM" />
         </HeaderName>
         {username && (
           <HeaderNavigation aria-label="Main navigation">
@@ -828,7 +803,7 @@ function PasswordGate({ children }) {
   return (
     <div className="pin-gate">
       <div className="pin-card">
-        <img src={candylandTitle} alt="Candyland Bank" className="pin-logo" />
+        <BrandLogo className="pin-brand-logo" aria-label="Candyland Bank × IBM" />
         <p className="pin-label">Enter the site password to continue</p>
         <PasswordInput
           id="pin-input"
@@ -862,7 +837,6 @@ export default function App() {
     }
     return null;
   });
-
   const [username, setUsername] = useState(() => getSession()?.username ?? null);
   const [isGuest, setIsGuest]   = useState(false);
 

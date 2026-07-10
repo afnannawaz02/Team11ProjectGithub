@@ -8,73 +8,216 @@
 @use '@carbon/react/scss/breakpoint' as *;
 @use '@carbon/react/scss/theme' as *;
 
-// ── Candyland red/white/pink theme tokens ─────────────────────────────────────
-// Override Carbon's g10 interactive + brand tokens with the brand palette.
-//   Primary red   #da1e28  (Carbon red-60)
-//   Hover red     #b81922  (Carbon red-70)
-//   Pink accent   #ff8389  (Carbon red-30)
-//   Light pink bg #fff1f1  (tinted white)
-:root {
+// ── Candy-soft theme tokens ────────────────────────────────────────────────────
+// A sweet, pastel palette inspired by Candyland.
+//   Candy pink    #f9a8b8  — primary interactive
+//   Bubblegum     #f472a0  — hover / accent
+//   Deep rose     #c0356a  — active / pressed
+//   Pale blush    #fff0f4  — page background
+//   Petal white   #fff8fa  — card surface
+//   Mint fresh    #a7f3d0  — success / positive
+//   Cotton candy  #fce7f3  — tinted section bg
+//   Lavender mist #ede9fe  — secondary surface
+:root,
+.cds--white,
+.cds--g10 {
+  // ── Candy brand palette ───────────────────────────────────────────────────
+  //   Primary pink  #f9a8b8
+  //   Hover pink    #f472a0
+  //   Active rose   #c0356a
+  //   Pale blush    #fff0f4
+  //   Cotton candy  #fce7f3
+  //   Petal white   #fff8fa
+  //   Lavender      #ede9fe
+
   // Interactive (buttons, links, focus ring, progress fill)
-  --cds-interactive:             #da1e28;
-  --cds-interactive-hover:       #b81922;
 
-  // Focus ring
-  --cds-focus:                   #da1e28;
+  --cds-tag-background-blue:      #fce7f3;
+  --cds-tag-color-blue:           #9d2256;
+  --cds-tag-hover-blue:           #fbcfe8;
+  --cds-tag-background-cyan:      #d1fae5;
+  --cds-tag-color-cyan:           #065f46;
+  --cds-tag-hover-cyan:           #a7f3d0;
+  --cds-tag-background-teal:      #ede9fe;
+  --cds-tag-color-teal:           #5b21b6;
+  --cds-tag-background-purple:    #ede9fe;
+  --cds-tag-color-purple:         #5b21b6;
 
-  // Link colours
-  --cds-link-primary:            #da1e28;
-  --cds-link-primary-hover:      #b81922;
-  --cds-link-visited:            #b81922;
+  // Notification / InlineNotification info → candy pink
+  --cds-support-info:             #f472a0;
+  --cds-support-info-inverse:     #fce7f3;
 
-  // Button primary fill
-  --cds-button-primary:          #da1e28;
-  --cds-button-primary-hover:    #b81922;
-  --cds-button-primary-active:   #750e13;
+  // Highlight
+  --cds-highlight:                #fce7f3;
 
-  // Button tertiary (outline) stroke + text
-  --cds-button-tertiary:         #da1e28;
-  --cds-button-tertiary-hover:   #b81922;
-  --cds-button-tertiary-active:  #750e13;
+  // Header bar background
+  --cds-background-brand:         #fce7f3;
+  --cds-header-01:                #ffffff;
 
-  // Tag blue → use pink
-  --cds-tag-background-blue:     #ffd7d9;
-  --cds-tag-color-blue:          #750e13;
-  --cds-tag-hover-blue:          #ffc2c5;
+  // Page background → pale blush
+  --cds-background:               #fff0f4;
+  --cds-background-hover:         #fce7f3;
+  --cds-background-active:        #fbcfe8;
+  --cds-background-selected:      #fce7f3;
+  --cds-background-selected-hover:#fbcfe8;
 
-  // Header bar background (Carbon UI Shell)
-  --cds-background-brand:        #da1e28;
-  --cds-header-01:               #da1e28;
+  // Layer surfaces → petal white / cotton candy
+  --cds-layer-01:                 #fff8fa;
+  --cds-layer-02:                 #fce7f3;
+  --cds-layer-03:                 #fbcfe8;
+  --cds-layer-accent-01:          #fce7f3;
+  --cds-layer-accent-02:          #fbcfe8;
 
-  // Page background → near-white with a hint of pink
-  --cds-background:              #fff8f8;
+  // Layer hover / selected
+  --cds-layer-hover-01:           #fce7f3;
+  --cds-layer-hover-02:           #fbcfe8;
+  --cds-layer-selected-01:        #fce7f3;
+  --cds-layer-selected-02:        #fbcfe8;
+  --cds-layer-selected-hover-01:  #fbcfe8;
+  --cds-layer-selected-hover-02:  #f9a8c9;
+  --cds-layer-selected-inverse:   #f472a0;
+  --cds-layer-selected-disabled:  #fde8f1;
 
-  // Layer surfaces → white / very-light-pink
-  --cds-layer-01:                #ffffff;
-  --cds-layer-02:                #fff1f1;
-  --cds-layer-accent-01:         #ffd7d9;
-
-  // Layer hover/selected
-  --cds-layer-hover-01:          #fff1f1;
-  --cds-layer-selected-01:       #ffd7d9;
-  --cds-layer-selected-hover-01: #ffc2c5;
-
-  // Border
-  --cds-border-subtle-01:        #f5c2c4;
-  --cds-border-strong-01:        #da1e28;
+  // Border — soft candy strokes
+  --cds-border-subtle-00:         #fbc4d9;
+  --cds-border-subtle-01:         #ffffff;
+  --cds-border-subtle-02:         #fbcfe8;
+  --cds-border-strong-01:         #ffffff;
+  --cds-border-strong-02:         #ffffff;
+  --cds-border-interactive:       #ffffff;
+  --cds-border-inverse:           #ffffff;
 
   // Field inputs
-  --cds-field-01:                #ffffff;
+  --cds-field-01:                 #ffffff;
+  --cds-field-02:                 #fff0f4;
+  --cds-field-hover-01:           #fce7f3;
+  --cds-field-hover-02:           #fbcfe8;
 
-  // Support success (keep green readable)
-  --cds-support-success:         #198038;
-  --cds-support-success-inverse: #defbe6;
+  // Support — keep green/yellow semantics; replace info blue with candy pink
+  --cds-support-success:          #059669;
+  --cds-support-success-inverse:  #d1fae5;
+  --cds-support-info:             #f472a0;
+  --cds-support-info-inverse:     #fce7f3;
 }
 
-// ── Carbon Header (UI Shell) — force red background + white text ──────────────
+// ── Button overrides — ghost / secondary / danger ─────────────────────────────
+// Ghost: candy-pink text, soft pink hover
+.cds--btn--ghost {
+  color: #c0356a !important;
+  border-radius: 999px !important;
+
+  &:hover,
+  &:focus {
+    background-color: #fce7f3 !important;
+    color: #9d2256 !important;
+  }
+}
+
+// Secondary: deep rose fill
+.cds--btn--secondary {
+  background-color: #c0356a !important;
+  color: #ffffff !important;
+  border-radius: 999px !important;
+
+  &:hover {
+    background-color: #9d2256 !important;
+  }
+}
+
+// Tertiary: pink outline + pink text; filled on hover
+.cds--btn--tertiary {
+  color: #f472a0 !important;
+  border-color: #f472a0 !important;
+  border-radius: 999px !important;
+
+  &:hover {
+    background-color: #f472a0 !important;
+    color: #ffffff !important;
+  }
+
+  &:focus {
+    background-color: #f472a0 !important;
+    color: #ffffff !important;
+  }
+}
+
+// Primary buttons — pill shape
+.cds--btn--primary {
+  border-radius: 999px !important;
+}
+
+// Danger: deep rose
+.cds--btn--danger {
+  background-color: #c0356a !important;
+  border-radius: 999px !important;
+
+  &:hover {
+    background-color: #9d2256 !important;
+  }
+}
+
+// ── Hero buttons — white on the candy hero background ─────────────────────────
+.home-hero .cds--btn--primary {
+  background-color: #ffffff !important;
+  color: #c0356a !important;
+  border-color: #ffffff !important;
+
+  &:hover {
+    background-color: #fce7f3 !important;
+    color: #9d2256 !important;
+  }
+
+  &:active {
+    background-color: #fbcfe8 !important;
+    color: #7a1840 !important;
+  }
+}
+
+.home-hero .cds--btn--tertiary {
+  background-color: transparent !important;
+  color: #ffffff !important;
+  border-color: #ffffff !important;
+
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.18) !important;
+    color: #ffffff !important;
+  }
+
+  &:active {
+    background-color: rgba(255, 255, 255, 0.30) !important;
+    color: #ffffff !important;
+  }
+}
+
+// ── Carbon Header (UI Shell) — soft blush header + dark text ─────────────────
 .cds--header {
-  background-color: #da1e28 !important;
-  border-bottom: 1px solid #b81922 !important;
+  background-color: #2d1a24 !important;
+  border-bottom: 1px solid #4a2a38 !important;
+  height: 8rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+// Make all direct header children fill the full height and centre their content
+.cds--header__name,
+.cds--header__nav,
+.cds--header__global {
+  height: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+// Remove background fill behind header icon/action buttons
+.cds--header-action,
+.cds--header__global .cds--btn--ghost,
+.cds--header__global .cds--header-action {
+  background: transparent !important;
+
+  &:hover,
+  &:focus {
+    background: transparent !important;
+  }
 }
 
 .cds--header__name,
@@ -85,21 +228,110 @@
   color: #ffffff !important;
 }
 
-.cds--header__menu-item:hover,
-.cds--header__menu-item:focus,
-.cds--header-action:hover,
-.cds--header-action:focus {
-  background-color: #b81922 !important;
-  color: #ffffff !important;
-}
-
 .cds--header__menu-item--current,
 .cds--header__menu-item[aria-current='page'] {
-  background-color: #b81922 !important;
+  background-color: #3d2030 !important;
 
   &::after {
-    background-color: #ffd7d9 !important;
+    background-color: #fce7f3 !important;
   }
+}
+
+// Ghost buttons INSIDE the header must stay white
+.cds--header .cds--btn--ghost {
+  color: #ffffff !important;
+
+  &:hover,
+  &:focus {
+    background-color: #c0356a !important;
+    color: #ffffff !important;
+  }
+}
+
+// ── Component candy overrides ─────────────────────────────────────────────────
+// TileGroup radio checked indicator
+.cds--tile-group .cds--radio-tile-group .cds--radio-tile--checked,
+.cds--radio-tile--checked {
+  border-color: #f472a0 !important;
+}
+
+// NumberInput — stepper buttons
+.cds--number__control-btn {
+  color: #f472a0 !important;
+
+  &:hover {
+    background-color: #fce7f3 !important;
+    color: #c0356a !important;
+  }
+}
+
+// Select / Dropdown chevron icon
+.cds--select__arrow,
+.cds--dropdown .cds--list-box__menu-icon svg {
+  fill: #f472a0 !important;
+}
+
+// InlineNotification info variant → candy pink
+.cds--inline-notification--info,
+.cds--inline-notification--info-square {
+  background-color: #fce7f3 !important;
+  border-color: #f472a0 !important;
+
+  .cds--inline-notification__icon { fill: #f472a0 !important; }
+  .cds--inline-notification__title { color: #c0356a !important; }
+}
+
+// ── Brand logo — grouped logo.svg (inline SVG via ?react) ────────────────────
+// The SVG viewBox is "0 0 368 224". Content sits in a band ~y70–112.
+// As an inline SVG, width/height attrs on <svg> are overridden by CSS.
+// We set a fixed width and let height follow the natural aspect ratio,
+// then use overflow:visible so nothing clips.
+
+// Shared base for all instances
+.header-brand-logo,
+.hero-brand-logo,
+.pin-brand-logo,
+.footer-brand-logo {
+  display: block;
+  overflow: visible;
+  flex-shrink: 0;
+}
+
+// Allow HeaderName to show the full logo without clipping
+.cds--header__name {
+  overflow: visible !important;
+  max-height: none !important;
+  padding: 0 $spacing-06 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.header-brand-logo {
+  width: 24rem;
+  height: auto;
+  filter: brightness(0) invert(1);
+}
+
+// Hero: large white lockup on red background
+.hero-brand-logo {
+  width: clamp(16rem, 50vw, 28rem);
+  height: auto;
+  filter: brightness(0) invert(1);
+}
+
+// Pin gate: white on card background
+.pin-brand-logo {
+  width: 12rem;
+  height: auto;
+  filter: brightness(0) invert(1);
+}
+
+// Footer: smaller, white
+.footer-brand-logo {
+  width: 9rem;
+  height: auto;
+  filter: brightness(0) invert(1);
 }
 
 // ── Reset ─────────────────────────────────────────────────────────────────────
@@ -114,6 +346,7 @@ body {
   background: var(--cds-background);
   color: var(--cds-text-primary);
   font-family: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 // ── App shell ─────────────────────────────────────────────────────────────────
@@ -124,9 +357,9 @@ body {
   background: var(--cds-background);
 }
 
-// Push main content below the 3rem Carbon header
+// Push main content below the header (2rem)
 .app-shell > main {
-  margin-top: 3rem;
+  margin-top: 2rem;
   flex: 1;
 }
 
@@ -136,7 +369,7 @@ body {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: var(--cds-background);
+  background: linear-gradient(160deg, #fff0f4 0%, #fce7f3 50%, #ede9fe 100%);
 }
 
 .pin-card {
@@ -145,14 +378,11 @@ body {
   padding: $spacing-07;
   background: var(--cds-layer-01);
   border: 1px solid var(--cds-border-subtle-01);
+  border-radius: 1.5rem;
   display: flex;
   flex-direction: column;
   gap: $spacing-05;
-}
-
-.pin-logo {
-  height: 2rem;
-  width: auto;
+  box-shadow: 0 4px 24px rgba(244, 114, 160, 0.10);
 }
 
 .pin-label {
@@ -163,56 +393,79 @@ body {
 
 // ── Home page ─────────────────────────────────────────────────────────────────
 .home-main {
-  background: var(--cds-background);
+  background: linear-gradient(180deg, #fff0f4 0%, #fce7f3 40%, #f5eeff 100%);
 }
 
 // Hero
 .home-hero {
-  background: #da1e28;
-  padding: $spacing-10 0;
-  border-bottom: 1px solid #b81922;
-}
+  background: linear-gradient(135deg, #f472a0 0%, #c0356a 60%, #9d2256 100%);
+  padding: $spacing-07 0;
+  border-bottom: none;
 
-.home-hero-inner {
-  max-width: 48rem;
-  padding: 0 $spacing-05;
-}
+  // Force the Carbon Grid inside to centre its content
+  .cds--grid {
+    display: flex !important;
+    justify-content: center !important;
+  }
 
-.home-hero-title-img {
-  height: 3rem;
-  width: auto;
-  vertical-align: middle;
-  margin-right: $spacing-03;
-  margin-bottom: $spacing-02;
-}
-
-.home-hero-heading {
-  @include type-style('heading-05');
-  color: #ffffff;
-  margin: 0 0 $spacing-05;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: $spacing-02;
-
-  @include breakpoint(lg) {
-    font-size: 2.625rem;
-    line-height: 1.2;
+  .cds--row,
+  .cds--css-grid {
+    justify-content: center !important;
+    width: 100% !important;
   }
 }
 
-.home-hero-sub {
-  @include type-style('body-02');
-  color: rgba(255, 255, 255, 0.85);
-  margin: 0 0 $spacing-07;
-  max-width: 36rem;
+.home-hero-inner {
+  width: 100%;
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: 0 $spacing-05;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.home-hero-heading {
+  color: #ffffff;
+  margin: 0;
+  position: relative;
+  width: 100%;
+  height: 10rem;           // reserved slot — button/subtitle are unaffected
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+
+  .hero-brand-logo {
+    position: absolute;
+    top: 80%;
+    left: 41.5%;
+    transform: translate(-50%, -50%);
+    width: 52rem !important;
+    max-width: 92vw !important;
+    height: auto !important;
+    pointer-events: none;
+  }
 }
 
 .home-hero-actions {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: $spacing-05;
   flex-wrap: wrap;
+  width: 100%;
+  margin-top: $spacing-05;
+}
+
+.home-hero-sub {
+  @include type-style('body-02');
+  color: rgba(255, 255, 255, 0.85);
+  margin: $spacing-05 0 0;
+  max-width: 36rem;
+  text-align: center;
+  width: 100%;
 }
 
 // Sections
@@ -222,7 +475,7 @@ body {
 }
 
 .home-section--tinted {
-  background: var(--cds-layer-01);
+  background: linear-gradient(135deg, #fce7f3 0%, #ede9fe 100%);
 }
 
 .home-section-heading {
@@ -242,8 +495,8 @@ body {
 .home-features-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1px;
-  background: var(--cds-border-subtle-01);
+  gap: $spacing-05;
+  background: transparent;
 
   @include breakpoint-down(lg) {
     grid-template-columns: repeat(2, 1fr);
@@ -255,12 +508,14 @@ body {
 }
 
 .home-feature-card {
-  background: var(--cds-layer-01);
+  background: linear-gradient(145deg, #fff8fa 0%, #fce7f3 100%);
   padding: $spacing-07;
-  transition: background 70ms ease;
+  border-radius: 0;
+  transition: background 120ms ease, box-shadow 120ms ease;
 
   &:hover {
-    background: var(--cds-layer-hover-01);
+    background: linear-gradient(145deg, #fce7f3 0%, #ede9fe 100%);
+    box-shadow: 0 4px 20px rgba(244, 114, 160, 0.18);
   }
 }
 
@@ -300,16 +555,17 @@ body {
 }
 
 .home-step-number {
-  width: 2rem;
-  height: 2rem;
+  width: 2.25rem;
+  height: 2.25rem;
   border-radius: 50%;
-  background: var(--cds-interactive);
-  color: var(--cds-text-on-color);
+  background: linear-gradient(135deg, #f9a8b8, #f472a0);
+  color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
   @include type-style('heading-02');
   flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(244, 114, 160, 0.30);
 }
 
 .home-step-title {
@@ -327,29 +583,28 @@ body {
 // CTA band
 .home-cta {
   padding: $spacing-10 0;
-  background: var(--cds-interactive);
+  background: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%);
   text-align: center;
 }
 
 .home-cta-heading {
   @include type-style('heading-05');
-  color: var(--cds-text-on-color);
+  color: #c0356a;
   margin: 0 0 $spacing-04;
 }
 
 .home-cta-sub {
   @include type-style('body-02');
-  color: var(--cds-text-on-color);
+  color: #9d2256;
   margin: 0 0 $spacing-07;
-  opacity: 0.85;
 }
 
 // Contact cards
 .contact-cards {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1px;
-  background: var(--cds-border-subtle-01);
+  gap: $spacing-05;
+  background: transparent;
 
   @include breakpoint-down(md) {
     grid-template-columns: 1fr;
@@ -357,8 +612,10 @@ body {
 }
 
 .contact-card {
-  background: var(--cds-layer-01);
+  background: linear-gradient(145deg, #fff8fa 0%, #fce7f3 100%);
+  border: 1px solid #fbc4d9;
   padding: $spacing-07;
+  border-radius: 1rem;
   display: flex;
   flex-direction: column;
   gap: $spacing-03;
@@ -395,7 +652,8 @@ body {
 // Home footer
 .home-footer {
   padding: $spacing-07 0;
-  border-top: 1px solid var(--cds-border-subtle-01);
+  background: linear-gradient(90deg, #fce7f3 0%, #ede9fe 100%);
+  border-top: 1px solid #fbc4d9;
   display: flex;
   align-items: center;
   gap: $spacing-05;
@@ -413,8 +671,8 @@ body {
   align-items: flex-start;
   justify-content: center;
   padding: $spacing-09 $spacing-05;
-  min-height: calc(100vh - 3rem);
-  background: var(--cds-background);
+  min-height: calc(100vh - 2.5rem);
+  background: linear-gradient(160deg, #fff0f4 0%, #fce7f3 50%, #ede9fe 100%);
 }
 
 .auth-card {
@@ -422,6 +680,9 @@ body {
   max-width: 26rem;
   background: var(--cds-layer-01);
   border: 1px solid var(--cds-border-subtle-01);
+  border-radius: 1.5rem;
+  overflow: hidden;
+  box-shadow: 0 6px 32px rgba(244, 114, 160, 0.12);
 }
 
 .auth-card-body {
@@ -482,21 +743,21 @@ body {
 
 // ── Dashboard / Chat ───────────────────────────────────────────────────────────
 .dashboard-main {
-  height: calc(100vh - 3rem);
+  height: calc(100vh - 2.5rem);
   overflow: hidden;
 }
 
 .chat-page {
   display: flex;
   height: 100%;
-  background: var(--cds-background);
+  background: linear-gradient(135deg, #fff0f4 0%, #f5eeff 100%);
 }
 
 // Sidebar
 .chat-history-sidebar {
   width: 14rem;
   flex-shrink: 0;
-  background: var(--cds-layer-01);
+  background: linear-gradient(180deg, #fff0f4 0%, #fce7f3 100%);
   border-right: 1px solid var(--cds-border-subtle-01);
   display: flex;
   flex-direction: column;
@@ -650,14 +911,15 @@ body {
 }
 
 .chat-avatar--bot {
-  background: var(--cds-interactive);
-  color: var(--cds-text-on-color);
+  background: linear-gradient(135deg, #f9a8b8, #f472a0);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(244, 114, 160, 0.25);
 }
 
 .chat-avatar--user {
-  background: var(--cds-layer-accent-01, var(--cds-layer-02));
-  color: var(--cds-text-primary);
-  border: 1px solid var(--cds-border-subtle-01);
+  background: #ede9fe;
+  color: #5b21b6;
+  border: 1px solid #ddd6fe;
 }
 
 .chat-row-content {
@@ -677,8 +939,9 @@ body {
 }
 
 .chat-bubble-new {
-  background: var(--cds-layer-01);
-  border: 1px solid var(--cds-border-subtle-01);
+  background: #fff8fa;
+  border: 1px solid #fbc4d9;
+  border-radius: 1rem 1rem 1rem 0.25rem;
   padding: $spacing-04 $spacing-05;
   @include type-style('body-01');
   color: var(--cds-text-primary);
@@ -686,16 +949,19 @@ body {
   white-space: pre-wrap;
   word-break: break-word;
   position: relative;
+  box-shadow: 0 2px 8px rgba(244, 114, 160, 0.07);
 }
 
 .chat-bubble-new--user {
-  background: var(--cds-interactive);
-  border-color: var(--cds-interactive);
-  color: var(--cds-text-on-color);
+  background: linear-gradient(135deg, #f9a8b8, #f472a0);
+  border-color: #f472a0;
+  border-radius: 1rem 1rem 0.25rem 1rem;
+  color: #ffffff;
+  box-shadow: 0 2px 10px rgba(244, 114, 160, 0.22);
 }
 
 .chat-bubble-new--pending {
-  background: var(--cds-layer-01);
+  background: #fff8fa;
 }
 
 .chat-edit-btn {
@@ -738,10 +1004,10 @@ body {
 }
 
 .typing-dots span {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: var(--cds-interactive);
+  background: linear-gradient(135deg, #f9a8b8, #f472a0);
   animation: typing-bounce 1.2s infinite ease-in-out;
 }
 
@@ -755,12 +1021,12 @@ body {
 
 // Input area
 .chat-input-area {
-  border-top: 1px solid var(--cds-border-subtle-01);
+  border-top: 1px solid #fbc4d9;
   padding: $spacing-05 $spacing-07;
   display: flex;
   flex-direction: column;
   gap: $spacing-03;
-  background: var(--cds-layer-01);
+  background: #fff8fa;
 
   @include breakpoint-down(sm) {
     padding: $spacing-04 $spacing-05;
@@ -777,14 +1043,16 @@ body {
   display: flex;
   align-items: flex-end;
   gap: $spacing-03;
-  background: var(--cds-field-01);
-  border: 1px solid var(--cds-border-strong-01);
+  background: #ffffff;
+  border: 1.5px solid #fbc4d9;
+  border-radius: 1.5rem;
   padding: $spacing-03 $spacing-03 $spacing-03 $spacing-05;
-  transition: border-color 70ms ease;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
 
   &:focus-within {
-    border-color: var(--cds-focus);
-    outline: 1px solid var(--cds-focus);
+    border-color: #f472a0;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(244, 114, 160, 0.18);
   }
 }
 
@@ -835,7 +1103,7 @@ body {
   align-items: flex-start;
   justify-content: center;
   padding: $spacing-08 $spacing-05 $spacing-10;
-  min-height: calc(100vh - 3rem);
+  min-height: calc(100vh - 2.5rem);
   background: var(--cds-background);
 }
 
@@ -844,22 +1112,25 @@ body {
   max-width: 44rem;
   background: var(--cds-layer-01);
   border: 1px solid var(--cds-border-subtle-01);
+  border-radius: 1.5rem;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  box-shadow: 0 6px 32px rgba(244, 114, 160, 0.10);
 }
 
 .wizard-progress-bar {
-  height: 4px;
-  background: var(--cds-border-subtle-01);
+  height: 6px;
+  background: #fce7f3;
   position: relative;
   flex-shrink: 0;
 }
 
 .wizard-progress-fill {
   height: 100%;
-  background: var(--cds-interactive);
-  transition: width 200ms ease;
+  background: linear-gradient(90deg, #f9a8b8, #f472a0);
+  border-radius: 999px;
+  transition: width 250ms ease;
 }
 
 .wizard-inner {
