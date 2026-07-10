@@ -6,12 +6,19 @@ import {
   HeaderName,
   HeaderNavigation,
   HeaderMenuItem,
+  HeaderGlobalBar,
+  HeaderGlobalAction,
+  Content,
+  Grid,
+  Column,
+  Theme,
   TextInput,
   PasswordInput,
   TextArea,
   InlineNotification,
   Tag,
   Loading,
+  ClickableTile,
 } from '@carbon/react';
 import SignupWizard from './SignupWizard';
 import {
@@ -55,10 +62,10 @@ function AccountSignup({ investorProfile, onComplete, onSkip, isGuest }) {
 
   const validate = () => {
     const e = {};
-    if (!form.username.trim())        e.username = 'Username is required.';
+    if (!form.username.trim())         e.username = 'Username is required.';
     else if (form.username.length < 3) e.username = 'Username must be at least 3 characters.';
-    if (form.password.length < 6)     e.password = 'Password must be at least 6 characters.';
-    if (form.password !== form.confirm) e.confirm = 'Passwords do not match.';
+    if (form.password.length < 6)      e.password = 'Password must be at least 6 characters.';
+    if (form.password !== form.confirm) e.confirm  = 'Passwords do not match.';
     return e;
   };
 
@@ -77,7 +84,9 @@ function AccountSignup({ investorProfile, onComplete, onSkip, isGuest }) {
   return (
     <div className="wizard-page">
       <div className="wizard-card">
-        <div className="wizard-accent-bar" style={{ width: '100%' }} />
+        <div className="wizard-progress-bar">
+          <div className="wizard-progress-fill" style={{ width: '100%' }} />
+        </div>
         <div className="wizard-inner">
           <div className="acct-badge">{isGuest ? 'Save your work' : 'Almost there!'}</div>
           <h2 className="wizard-heading">Create your account</h2>
@@ -93,48 +102,40 @@ function AccountSignup({ investorProfile, onComplete, onSkip, isGuest }) {
               <p>Account created! Taking you to your dashboard…</p>
             </div>
           ) : (
-            <form className="acct-form" onSubmit={handleSubmit} noValidate>
-              <div className="field-group">
-                <TextInput
-                  id="acct-username"
-                  labelText="Username"
-                  placeholder="e.g. jsmith"
-                  autoComplete="username"
-                  value={form.username}
-                  onChange={(e) => patch('username', e.target.value)}
-                  invalid={!!errors.username}
-                  invalidText={errors.username}
-                />
-              </div>
-              <div className="field-group">
-                <PasswordInput
-                  id="acct-password"
-                  labelText="Password"
-                  placeholder="At least 6 characters"
-                  autoComplete="new-password"
-                  value={form.password}
-                  onChange={(e) => patch('password', e.target.value)}
-                  invalid={!!errors.password}
-                  invalidText={errors.password}
-                />
-              </div>
-              <div className="field-group">
-                <PasswordInput
-                  id="acct-confirm"
-                  labelText="Confirm password"
-                  placeholder="Repeat password"
-                  autoComplete="new-password"
-                  value={form.confirm}
-                  onChange={(e) => patch('confirm', e.target.value)}
-                  invalid={!!errors.confirm}
-                  invalidText={errors.confirm}
-                />
-              </div>
-              <div className="acct-form-footer">
-                <Button type="submit" kind="primary" className="acct-submit-btn" disabled={busy}>
-                  {busy ? 'Saving…' : 'Create account →'}
-                </Button>
-              </div>
+            <form className="auth-fields" onSubmit={handleSubmit} noValidate>
+              <TextInput
+                id="acct-username"
+                labelText="Username"
+                placeholder="e.g. jsmith"
+                autoComplete="username"
+                value={form.username}
+                onChange={(e) => patch('username', e.target.value)}
+                invalid={!!errors.username}
+                invalidText={errors.username}
+              />
+              <PasswordInput
+                id="acct-password"
+                labelText="Password"
+                placeholder="At least 6 characters"
+                autoComplete="new-password"
+                value={form.password}
+                onChange={(e) => patch('password', e.target.value)}
+                invalid={!!errors.password}
+                invalidText={errors.password}
+              />
+              <PasswordInput
+                id="acct-confirm"
+                labelText="Confirm password"
+                placeholder="Repeat password"
+                autoComplete="new-password"
+                value={form.confirm}
+                onChange={(e) => patch('confirm', e.target.value)}
+                invalid={!!errors.confirm}
+                invalidText={errors.confirm}
+              />
+              <Button type="submit" kind="primary" disabled={busy}>
+                {busy ? 'Saving…' : 'Create account'}
+              </Button>
             </form>
           )}
         </div>
@@ -149,9 +150,9 @@ function AccountSignup({ investorProfile, onComplete, onSkip, isGuest }) {
 
 // ── Login Form ─────────────────────────────────────────────────────────────────
 function LoginForm({ onLogin, onCreateNew, onGuest, onGoHome }) {
-  const [form, setForm]     = useState({ username: '', password: '' });
-  const [error, setError]   = useState('');
-  const [busy, setBusy]     = useState(false);
+  const [form, setForm]   = useState({ username: '', password: '' });
+  const [error, setError] = useState('');
+  const [busy, setBusy]   = useState(false);
 
   const patch = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -174,49 +175,49 @@ function LoginForm({ onLogin, onCreateNew, onGuest, onGoHome }) {
   return (
     <div className="wizard-page">
       <div className="wizard-card">
-        <div className="wizard-accent-bar" style={{ width: '100%' }} />
+        <div className="wizard-progress-bar">
+          <div className="wizard-progress-fill" style={{ width: '100%' }} />
+        </div>
         <div className="wizard-inner">
           <div className="acct-badge">Welcome back</div>
           <h2 className="wizard-heading">Sign in</h2>
           <p className="wizard-sub">Enter your Candyland Bank username and password.</p>
-          <form className="acct-form" onSubmit={handleSubmit} noValidate>
-            <div className="field-group">
-              <TextInput
-                id="login-username"
-                labelText="Username"
-                placeholder="Your username"
-                autoComplete="username"
-                value={form.username}
-                onChange={(e) => patch('username', e.target.value)}
-                invalid={!!error}
-              />
-            </div>
-            <div className="field-group">
-              <PasswordInput
-                id="login-password"
-                labelText="Password"
-                placeholder="Your password"
-                autoComplete="current-password"
-                value={form.password}
-                onChange={(e) => patch('password', e.target.value)}
-                invalid={!!error}
-                invalidText={error}
-              />
-            </div>
-            <div className="acct-form-footer">
-              <Button type="submit" kind="primary" className="acct-submit-btn" disabled={busy}>
-                {busy ? 'Signing in…' : 'Sign in →'}
-              </Button>
-            </div>
+
+          {error && (
+            <InlineNotification
+              kind="error"
+              title="Sign-in failed"
+              subtitle={error}
+              lowContrast
+              hideCloseButton
+            />
+          )}
+
+          <form className="auth-fields" onSubmit={handleSubmit} noValidate>
+            <TextInput
+              id="login-username"
+              labelText="Username"
+              placeholder="Your username"
+              autoComplete="username"
+              value={form.username}
+              onChange={(e) => patch('username', e.target.value)}
+            />
+            <PasswordInput
+              id="login-password"
+              labelText="Password"
+              placeholder="Your password"
+              autoComplete="current-password"
+              value={form.password}
+              onChange={(e) => patch('password', e.target.value)}
+            />
+            <Button type="submit" kind="primary" disabled={busy}>
+              {busy ? 'Signing in…' : 'Sign in'}
+            </Button>
           </form>
         </div>
         <div className="wizard-footer">
-          <Button kind="ghost" onClick={onCreateNew}>
-            Create new account
-          </Button>
-          <Button kind="tertiary" onClick={onGuest}>
-            Continue as guest
-          </Button>
+          <Button kind="ghost" onClick={onCreateNew}>Create new account</Button>
+          <Button kind="tertiary" onClick={onGuest}>Continue as guest</Button>
         </div>
       </div>
     </div>
@@ -229,121 +230,150 @@ function HomePage({ onGetStarted, isLoggedIn, onGoToChat, onSignIn, username }) 
   const ctaAction = isLoggedIn ? onGoToChat : onGetStarted;
 
   return (
-    <div className="app-shell">
-      <main className="home-main">
-
-        {/* ── Hero ── */}
-        <section className="home-hero">
-          <h1 className="home-hero-heading">
-            <img
-  src={candylandTitle}
-  alt="Candyland Bank" className="home-hero-title-img" style={{ marginRight: '-100px' }}/>
-            Invest Smarter
-          </h1>
-          <p className="home-hero-sub">
-            {isLoggedIn
-              ? `Welcome back${username ? `, ${username}` : ''}.`
-              : 'Build a tailored investment profile in minutes. Get AI-powered guidance, personalised strategies, and stay on track — all in one place.'}
-          </p>
-          <div className="home-hero-actions">
-            {isLoggedIn ? (
-              <button className="cta-btn" onClick={ctaAction}>
-                {ctaLabel} <span className="cta-btn-arrow">→</span>
-              </button>
-            ) : (
-              <Button kind="tertiary" className="home-hero-signin" onClick={onSignIn}>
-                Sign in
+    <div className="home-main">
+      {/* ── Hero ── */}
+      <section className="home-hero">
+        <Grid>
+          <Column sm={4} md={6} lg={8} className="home-hero-inner">
+            <h1 className="home-hero-heading">
+              <img src={candylandTitle} alt="Candyland Bank" className="home-hero-title-img" />
+              Invest Smarter
+            </h1>
+            <p className="home-hero-sub">
+              {isLoggedIn
+                ? `Welcome back${username ? `, ${username}` : ''}.`
+                : 'Build a tailored investment profile in minutes. Get AI-powered guidance, personalised strategies, and stay on track — all in one place.'}
+            </p>
+            <div className="home-hero-actions">
+              <Button kind="primary" size="lg" onClick={ctaAction}>
+                {ctaLabel}
               </Button>
-            )}
-          </div>
-        </section>
+              {!isLoggedIn && (
+                <Button kind="tertiary" size="lg" onClick={onSignIn}>
+                  Sign in
+                </Button>
+              )}
+            </div>
+          </Column>
+        </Grid>
+      </section>
 
-        {/* ── Features ── */}
-        <section className="home-section" id="features">
-          <h2 className="home-section-heading">Everything you need to invest smarter</h2>
-          <p className="home-section-sub">Candyland Bank brings together your goals, risk appetite, and financial profile to give you guidance that actually fits your life.</p>
-          <div className="home-features-grid">
-            {[
-              { icon: '🎯', title: 'Goal-based planning', desc: 'Whether you\'re saving for retirement, a home, or education — we tailor every recommendation to your specific goals.' },
-              { icon: '🤖', title: 'AI chat assistant', desc: 'Ask anything about your investments. Your assistant knows your profile and gives contextual, personalised answers.' },
-              { icon: '📊', title: 'Risk-matched strategies', desc: 'From conservative to aggressive, your strategy is built around your risk tolerance and time horizon.' },
-              { icon: '🔒', title: 'Secure & private', desc: 'Your financial data never leaves your session. No account required to get started.' },
-              { icon: '⚡', title: 'Instant profile', desc: 'Answer 7 quick questions and get a complete investor profile with personalised insights straight away.' },
-              { icon: '📈', title: 'Track your horizon', desc: 'Short-term or long-term, we keep you focused on what matters most for your timeline.' },
-            ].map(({ icon, title, desc }) => (
-              <div key={title} className="home-feature-card">
-                <span className="home-feature-icon">{icon}</span>
-                <h3 className="home-feature-title">{title}</h3>
-                <p className="home-feature-desc">{desc}</p>
+      {/* ── Features ── */}
+      <section className="home-section" id="features">
+        <Grid>
+          <Column sm={4} md={8} lg={16}>
+            <h2 className="home-section-heading">Everything you need to invest smarter</h2>
+            <p className="home-section-sub">
+              Candyland Bank brings together your goals, risk appetite, and financial profile to give you guidance that actually fits your life.
+            </p>
+          </Column>
+          <Column sm={4} md={8} lg={16}>
+            <div className="home-features-grid">
+              {[
+                { icon: '🎯', title: 'Goal-based planning',    desc: "Whether you're saving for retirement, a home, or education — we tailor every recommendation to your specific goals." },
+                { icon: '🤖', title: 'AI chat assistant',      desc: 'Ask anything about your investments. Your assistant knows your profile and gives contextual, personalised answers.' },
+                { icon: '📊', title: 'Risk-matched strategies', desc: 'From conservative to aggressive, your strategy is built around your risk tolerance and time horizon.' },
+                { icon: '🔒', title: 'Secure & private',        desc: 'Your financial data never leaves your session. No account required to get started.' },
+                { icon: '⚡', title: 'Instant profile',         desc: 'Answer 7 quick questions and get a complete investor profile with personalised insights straight away.' },
+                { icon: '📈', title: 'Track your horizon',      desc: 'Short-term or long-term, we keep you focused on what matters most for your timeline.' },
+              ].map(({ icon, title, desc }) => (
+                <div key={title} className="home-feature-card">
+                  <span className="home-feature-icon">{icon}</span>
+                  <h3 className="home-feature-title">{title}</h3>
+                  <p className="home-feature-desc">{desc}</p>
+                </div>
+              ))}
+            </div>
+          </Column>
+        </Grid>
+      </section>
+
+      {/* ── How it works ── */}
+      <section className="home-section home-section--tinted" id="how-it-works">
+        <Grid>
+          <Column sm={4} md={8} lg={16}>
+            <h2 className="home-section-heading">Up and running in three steps</h2>
+          </Column>
+          <Column sm={4} md={8} lg={16}>
+            <div className="home-steps">
+              {[
+                { n: '1', title: 'Build your profile',       desc: 'Tell us your goals, risk appetite, age, and income in a quick 12-step wizard.' },
+                { n: '2', title: 'Get your strategy',        desc: 'We generate a personalised investor profile tailored to your answers.' },
+                { n: '3', title: 'Chat with your assistant', desc: 'Ask questions, explore strategies, and get real-time guidance from your AI advisor.' },
+              ].map(({ n, title, desc }) => (
+                <div key={n} className="home-step">
+                  <div className="home-step-number">{n}</div>
+                  <h3 className="home-step-title">{title}</h3>
+                  <p className="home-step-desc">{desc}</p>
+                </div>
+              ))}
+            </div>
+          </Column>
+        </Grid>
+      </section>
+
+      {/* ── CTA ── */}
+      <section className="home-cta">
+        <Grid>
+          <Column sm={4} md={8} lg={16} style={{ textAlign: 'center' }}>
+            <h2 className="home-cta-heading">
+              {isLoggedIn ? 'Your advisor is ready.' : 'Ready to take control of your finances?'}
+            </h2>
+            <p className="home-cta-sub">
+              {isLoggedIn
+                ? 'Pick up where you left off — Gumdrop remembers your profile and is ready to help.'
+                : "Join thousands of investors who've built smarter strategies with Candyland Bank."}
+            </p>
+            <Button kind="tertiary" size="lg" onClick={ctaAction}>
+              {ctaLabel}
+            </Button>
+          </Column>
+        </Grid>
+      </section>
+
+      {/* ── Contact ── */}
+      <section className="home-section" id="contact">
+        <Grid>
+          <Column sm={4} md={8} lg={16}>
+            <h2 className="home-section-heading">Need help? We're here.</h2>
+            <p className="home-section-sub">
+              Our support team is available Monday – Friday, 9am – 6pm. Reach out and we'll get back to you within one business day.
+            </p>
+          </Column>
+          <Column sm={4} md={8} lg={16}>
+            <div className="contact-cards">
+              <div className="contact-card">
+                <span className="contact-card-icon">✉️</span>
+                <h3 className="contact-card-title">Email support</h3>
+                <p className="contact-card-desc">For general enquiries and account questions.</p>
+                <a className="contact-link" href="mailto:support@candylandbank.com">support@candylandbank.com</a>
               </div>
-            ))}
-          </div>
-        </section>
-
-        {/* ── How it works ── */}
-        <section className="home-section home-section--tinted" id="how-it-works">
-          <h2 className="home-section-heading">Up and running in three steps</h2>
-          <div className="home-steps">
-            {[
-              { n: '1', title: 'Build your profile', desc: 'Tell us your goals, risk appetite, age, and income in a quick 7-step wizard.' },
-              { n: '2', title: 'Get your strategy', desc: 'We generate a personalised investor profile tailored to your answers.' },
-              { n: '3', title: 'Chat with your assistant', desc: 'Ask questions, explore strategies, and get real-time guidance from your AI advisor.' },
-            ].map(({ n, title, desc }) => (
-              <div key={n} className="home-step">
-                <div className="home-step-number">{n}</div>
-                <h3 className="home-step-title">{title}</h3>
-                <p className="home-step-desc">{desc}</p>
+              <div className="contact-card">
+                <span className="contact-card-icon">💬</span>
+                <h3 className="contact-card-title">Live chat</h3>
+                <p className="contact-card-desc">Chat with your AI assistant directly inside the app.</p>
+                <Button kind="ghost" onClick={ctaAction}>Open the app</Button>
               </div>
-            ))}
-          </div>
-        </section>
-
-        {/* ── CTA ── */}
-        <section className="home-cta">
-          <h2 className="home-cta-heading">
-            {isLoggedIn ? 'Your advisor is ready.' : 'Ready to take control of your finances?'}
-          </h2>
-          <p className="home-cta-sub">
-            {isLoggedIn
-              ? 'Pick up where you left off — Gumdrop remembers your profile and is ready to help.'
-              : "Join thousands of investors who've built smarter strategies with Candyland Bank."}
-          </p>
-          <button className="cta-btn" onClick={ctaAction}>
-            {ctaLabel} <span className="cta-btn-arrow">→</span>
-          </button>
-        </section>
-
-        {/* ── Contact ── */}
-        <section className="home-section" id="contact">
-          <h2 className="home-section-heading">Need help? We're here.</h2>
-          <p className="home-section-sub">Our support team is available Monday – Friday, 9am – 6pm. Reach out and we'll get back to you within one business day.</p>
-          <div className="contact-cards">
-            <div className="contact-card">
-              <span className="contact-card-icon">✉️</span>
-              <h3 className="contact-card-title">Email support</h3>
-              <p className="contact-card-desc">For general enquiries and account questions.</p>
-              <a className="contact-link" href="mailto:support@candylandbank.com">support@candylandbank.com</a>
+              <div className="contact-card">
+                <span className="contact-card-icon">📞</span>
+                <h3 className="contact-card-title">Phone</h3>
+                <p className="contact-card-desc">Speak to a real person for urgent matters.</p>
+                <a className="contact-link" href="tel:+18005550100">+1 800 555 0100</a>
+              </div>
             </div>
-            <div className="contact-card">
-              <span className="contact-card-icon">💬</span>
-              <h3 className="contact-card-title">Live chat</h3>
-              <p className="contact-card-desc">Chat with your AI assistant directly inside the app.</p>
-              <Button kind="ghost" className="contact-link-btn" onClick={ctaAction}>Open the app →</Button>
-            </div>
-            <div className="contact-card">
-              <span className="contact-card-icon">📞</span>
-              <h3 className="contact-card-title">Phone</h3>
-              <p className="contact-card-desc">Speak to a real person for urgent matters.</p>
-              <a className="contact-link" href="tel:+18005550100">+1 800 555 0100</a>
-            </div>
-          </div>
-        </section>
+          </Column>
+        </Grid>
+      </section>
 
-        <footer className="home-footer">
-          <img src={candylandTitle} alt="Candyland Bank" style={{ height: '1.5rem', width: 'auto', opacity: 0.7 }} />
-          <p>© {new Date().getFullYear()} Candyland Bank. All rights reserved.</p>
-        </footer>
-      </main>
+      {/* ── Footer ── */}
+      <footer className="home-footer">
+        <Grid>
+          <Column sm={4} md={8} lg={16} style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <img src={candylandTitle} alt="Candyland Bank" style={{ height: '1.5rem', width: 'auto', opacity: 0.7 }} />
+            <p>© {new Date().getFullYear()} Candyland Bank. All rights reserved.</p>
+          </Column>
+        </Grid>
+      </footer>
     </div>
   );
 }
@@ -399,12 +429,12 @@ function ChatView({ profile, username }) {
       )
     );
 
-  const [draft, setDraft]         = useState('');
-  const [loading, setLoading]     = useState(false);
+  const [draft, setDraft]           = useState('');
+  const [loading, setLoading]       = useState(false);
   const [editingIdx, setEditingIdx] = useState(null);
-  const [editDraft, setEditDraft]  = useState('');
-  const bottomRef  = useRef(null);
-  const inputRef   = useRef(null);
+  const [editDraft, setEditDraft]   = useState('');
+  const bottomRef = useRef(null);
+  const inputRef  = useRef(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -425,11 +455,11 @@ function ChatView({ profile, username }) {
   const togglePin = (e, id) => {
     e.stopPropagation();
     setSessions((prev) => {
-      const updated = prev.map((s) => s.id === id ? { ...s, pinned: !s.pinned } : s);
+      const updated  = prev.map((s) => s.id === id ? { ...s, pinned: !s.pinned } : s);
       const pinned   = updated.filter((s) => s.pinned);
       const unpinned = updated.filter((s) => !s.pinned);
       const reordered = [...pinned, ...unpinned];
-      const activeId = prev[activeIdx].id;
+      const activeId  = prev[activeIdx].id;
       setActiveIdx(reordered.findIndex((s) => s.id === activeId));
       return reordered;
     });
@@ -439,16 +469,14 @@ function ChatView({ profile, username }) {
     e.stopPropagation();
     setSessions((prev) => {
       if (prev.length === 1) {
-        // always keep at least one session
         const fresh = { ...makeSession(), messages: [greeting] };
         setActiveIdx(0);
         return [fresh];
       }
-      const next = prev.filter((s) => s.id !== id);
+      const next       = prev.filter((s) => s.id !== id);
       const deletedIdx = prev.findIndex((s) => s.id === id);
       const currentId  = prev[activeIdx].id;
       if (currentId === id) {
-        // activate the item that takes its place, or the last one
         setActiveIdx(Math.min(deletedIdx, next.length - 1));
       } else {
         setActiveIdx(next.findIndex((s) => s.id === currentId));
@@ -634,7 +662,6 @@ function ChatView({ profile, username }) {
                       <Button
                         kind="primary"
                         size="sm"
-                        className="chat-edit-save"
                         onClick={() => {
                           if (editDraft.trim()) {
                             const prior = messages.slice(0, i);
@@ -646,7 +673,6 @@ function ChatView({ profile, username }) {
                       <Button
                         kind="ghost"
                         size="sm"
-                        className="chat-edit-cancel"
                         onClick={() => setEditingIdx(null)}
                       >Cancel</Button>
                     </div>
@@ -698,7 +724,6 @@ function ChatView({ profile, username }) {
               id="chat-input"
               labelText=""
               hideLabel
-              className="chat-textarea"
               rows={1}
               placeholder={loading ? 'Gumdrop is thinking…' : 'Ask me anything about investing…'}
               value={draft}
@@ -709,7 +734,6 @@ function ChatView({ profile, username }) {
             <Button
               kind="primary"
               size="sm"
-              className="chat-send-btn"
               onClick={() => send(draft)}
               disabled={loading || !draft.trim()}
               aria-label="Send message"
@@ -735,15 +759,13 @@ function NavShell({ children, username, onLogout, onGoHome }) {
   return (
     <div className="app-shell">
       <Header aria-label="Candyland Bank">
-        <HeaderName href="#" prefix="">
+        <HeaderName href="#" prefix=""
+          onClick={(e) => { e.preventDefault(); onGoHome?.(); }}
+        >
           <img
             src={candylandTitle}
             alt="Candyland Bank"
-            style={{ height: '2rem', width: 'auto', cursor: onGoHome ? 'pointer' : 'default' }}
-            onClick={onGoHome || undefined}
-            role={onGoHome ? 'button' : undefined}
-            tabIndex={onGoHome ? 0 : undefined}
-            onKeyDown={onGoHome ? (e) => e.key === 'Enter' && onGoHome() : undefined}
+            style={{ height: '1.75rem', width: 'auto' }}
           />
         </HeaderName>
         {username && (
@@ -754,19 +776,34 @@ function NavShell({ children, username, onLogout, onGoHome }) {
             >
               Chat
             </HeaderMenuItem>
-            <HeaderMenuItem onClick={onLogout} className="nav-danger">
-              Sign out
-            </HeaderMenuItem>
           </HeaderNavigation>
         )}
+        {username && (
+          <HeaderGlobalBar>
+            <HeaderGlobalAction
+              aria-label={`Sign out (${username})`}
+              tooltipAlignment="end"
+              onClick={onLogout}
+            >
+              <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" width="20" height="20">
+                <circle cx="10" cy="10" r="9" stroke="currentColor" strokeWidth="1.5"/>
+                <text x="10" y="14" textAnchor="middle" fontSize="9" fill="currentColor" fontWeight="600">
+                  {username[0].toUpperCase()}
+                </text>
+              </svg>
+            </HeaderGlobalAction>
+          </HeaderGlobalBar>
+        )}
       </Header>
-      {children}
+      <Content style={{ padding: 0, marginTop: 0 }}>
+        {children}
+      </Content>
     </div>
   );
 }
 
 // ── Password gate ──────────────────────────────────────────────────────────────
-const GATE_KEY = 'cb_gate_ok';
+const GATE_KEY      = 'cb_gate_ok';
 const SITE_PASSWORD = 'candyland2025';
 
 function PasswordGate({ children }) {
@@ -795,9 +832,8 @@ function PasswordGate({ children }) {
         <p className="pin-label">Enter the site password to continue</p>
         <PasswordInput
           id="pin-input"
-          labelText=""
+          labelText="Site password"
           hideLabel
-          className={`pin-input${error ? ' pin-input--error' : ''}`}
           placeholder="••••••••"
           value={value}
           autoFocus
@@ -806,7 +842,7 @@ function PasswordGate({ children }) {
           invalid={error}
           invalidText="Incorrect password — try again"
         />
-        <Button kind="primary" className="pin-btn" onClick={attempt} disabled={!value}>
+        <Button kind="primary" onClick={attempt} disabled={!value}>
           Enter
         </Button>
       </div>
@@ -816,10 +852,9 @@ function PasswordGate({ children }) {
 
 // ── App ────────────────────────────────────────────────────────────────────────
 export default function App() {
-  // Restore session on first render
   const [page, setPage] = useState('home');
 
-  const [profile, setProfile]   = useState(() => {
+  const [profile, setProfile] = useState(() => {
     const session = getSession();
     if (session) {
       const account = getAccountByUsername(session.username);
@@ -829,7 +864,6 @@ export default function App() {
   });
 
   const [username, setUsername] = useState(() => getSession()?.username ?? null);
-  // true when user chose "Continue as guest" — their wizard data is unsaved
   const [isGuest, setIsGuest]   = useState(false);
 
   const handleLogout = () => {
@@ -845,22 +879,20 @@ export default function App() {
   if (page === 'login') {
     content = (
       <NavShell onGoHome={() => setPage('home')}>
-        <main>
-          <LoginForm
-            onLogin={(account) => {
-              setProfile(account.profile);
-              setUsername(account.username);
-              setIsGuest(false);
-              setPage('dashboard');
-            }}
-            onGoHome={() => setPage('home')}
-            onCreateNew={() => setPage('wizard')}
-            onGuest={() => {
-              setIsGuest(true);
-              setPage('wizard');
-            }}
-          />
-        </main>
+        <LoginForm
+          onLogin={(account) => {
+            setProfile(account.profile);
+            setUsername(account.username);
+            setIsGuest(false);
+            setPage('dashboard');
+          }}
+          onGoHome={() => setPage('home')}
+          onCreateNew={() => setPage('wizard')}
+          onGuest={() => {
+            setIsGuest(true);
+            setPage('wizard');
+          }}
+        />
       </NavShell>
     );
   } else if (page === 'home') {
@@ -875,41 +907,37 @@ export default function App() {
     );
   } else if (page === 'wizard') {
     content = (
-      <NavShell>
-        <main>
-          <SignupWizard
-            onComplete={(p) => { setProfile(p); setPage('account'); }}
-            onExit={() => setPage(hasAnyAccount() ? 'login' : 'home')}
-          />
-        </main>
+      <NavShell onGoHome={() => setPage(hasAnyAccount() ? 'login' : 'home')}>
+        <SignupWizard
+          onComplete={(p) => { setProfile(p); setPage('account'); }}
+          onExit={() => setPage(hasAnyAccount() ? 'login' : 'home')}
+        />
       </NavShell>
     );
   } else if (page === 'account') {
     content = (
-      <NavShell>
-        <main>
-          <AccountSignup
-            investorProfile={profile}
-            isGuest={isGuest}
-            onComplete={(uname) => {
-              setUsername(uname);
-              setIsGuest(false);
-              setPage('dashboard');
-            }}
-            onSkip={() => setPage('dashboard')}
-          />
-        </main>
+      <NavShell onGoHome={() => setPage('home')}>
+        <AccountSignup
+          investorProfile={profile}
+          isGuest={isGuest}
+          onComplete={(uname) => {
+            setUsername(uname);
+            setIsGuest(false);
+            setPage('dashboard');
+          }}
+          onSkip={() => setPage('dashboard')}
+        />
       </NavShell>
     );
   } else {
     content = (
       <NavShell username={username} onLogout={handleLogout} onGoHome={() => setPage('home')}>
-        <main className="dashboard-main">
+        <div className="dashboard-main">
           <ChatView profile={profile} username={username} />
-        </main>
+        </div>
       </NavShell>
     );
   }
 
-  return <PasswordGate>{content}</PasswordGate>;
+  return <Theme theme="g10"><PasswordGate>{content}</PasswordGate></Theme>;
 }

@@ -501,13 +501,15 @@ export default function SignupWizard({ onComplete, onExit }) {
       <div className="wizard-card">
         {/* Progress bar */}
         <div
-          className="wizard-accent-bar"
-          style={{ width: `${progressPct}%` }}
+          className="wizard-progress-bar"
           role="progressbar"
           aria-valuenow={progressPct}
           aria-valuemin={0}
           aria-valuemax={100}
-        />
+          aria-label={`Step ${step + 1} of ${TOTAL_STEPS}`}
+        >
+          <div className="wizard-progress-fill" style={{ width: `${progressPct}%` }} />
+        </div>
 
         <div className="wizard-inner">
           {/* Step pill */}
