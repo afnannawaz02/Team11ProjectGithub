@@ -8,6 +8,100 @@
 @use '@carbon/react/scss/breakpoint' as *;
 @use '@carbon/react/scss/theme' as *;
 
+// ── Candyland red/white/pink theme tokens ─────────────────────────────────────
+// Override Carbon's g10 interactive + brand tokens with the brand palette.
+//   Primary red   #da1e28  (Carbon red-60)
+//   Hover red     #b81922  (Carbon red-70)
+//   Pink accent   #ff8389  (Carbon red-30)
+//   Light pink bg #fff1f1  (tinted white)
+:root {
+  // Interactive (buttons, links, focus ring, progress fill)
+  --cds-interactive:             #da1e28;
+  --cds-interactive-hover:       #b81922;
+
+  // Focus ring
+  --cds-focus:                   #da1e28;
+
+  // Link colours
+  --cds-link-primary:            #da1e28;
+  --cds-link-primary-hover:      #b81922;
+  --cds-link-visited:            #b81922;
+
+  // Button primary fill
+  --cds-button-primary:          #da1e28;
+  --cds-button-primary-hover:    #b81922;
+  --cds-button-primary-active:   #750e13;
+
+  // Button tertiary (outline) stroke + text
+  --cds-button-tertiary:         #da1e28;
+  --cds-button-tertiary-hover:   #b81922;
+  --cds-button-tertiary-active:  #750e13;
+
+  // Tag blue → use pink
+  --cds-tag-background-blue:     #ffd7d9;
+  --cds-tag-color-blue:          #750e13;
+  --cds-tag-hover-blue:          #ffc2c5;
+
+  // Header bar background (Carbon UI Shell)
+  --cds-background-brand:        #da1e28;
+  --cds-header-01:               #da1e28;
+
+  // Page background → near-white with a hint of pink
+  --cds-background:              #fff8f8;
+
+  // Layer surfaces → white / very-light-pink
+  --cds-layer-01:                #ffffff;
+  --cds-layer-02:                #fff1f1;
+  --cds-layer-accent-01:         #ffd7d9;
+
+  // Layer hover/selected
+  --cds-layer-hover-01:          #fff1f1;
+  --cds-layer-selected-01:       #ffd7d9;
+  --cds-layer-selected-hover-01: #ffc2c5;
+
+  // Border
+  --cds-border-subtle-01:        #f5c2c4;
+  --cds-border-strong-01:        #da1e28;
+
+  // Field inputs
+  --cds-field-01:                #ffffff;
+
+  // Support success (keep green readable)
+  --cds-support-success:         #198038;
+  --cds-support-success-inverse: #defbe6;
+}
+
+// ── Carbon Header (UI Shell) — force red background + white text ──────────────
+.cds--header {
+  background-color: #da1e28 !important;
+  border-bottom: 1px solid #b81922 !important;
+}
+
+.cds--header__name,
+.cds--header__menu-item,
+.cds--header__menu-arrow,
+.cds--header-action,
+.cds--header__nav::before {
+  color: #ffffff !important;
+}
+
+.cds--header__menu-item:hover,
+.cds--header__menu-item:focus,
+.cds--header-action:hover,
+.cds--header-action:focus {
+  background-color: #b81922 !important;
+  color: #ffffff !important;
+}
+
+.cds--header__menu-item--current,
+.cds--header__menu-item[aria-current='page'] {
+  background-color: #b81922 !important;
+
+  &::after {
+    background-color: #ffd7d9 !important;
+  }
+}
+
 // ── Reset ─────────────────────────────────────────────────────────────────────
 *,
 *::before,
@@ -74,9 +168,9 @@ body {
 
 // Hero
 .home-hero {
-  background: var(--cds-background-brand, var(--cds-layer-accent-01));
+  background: #da1e28;
   padding: $spacing-10 0;
-  border-bottom: 1px solid var(--cds-border-subtle-01);
+  border-bottom: 1px solid #b81922;
 }
 
 .home-hero-inner {
@@ -94,7 +188,7 @@ body {
 
 .home-hero-heading {
   @include type-style('heading-05');
-  color: var(--cds-text-on-color, var(--cds-text-primary));
+  color: #ffffff;
   margin: 0 0 $spacing-05;
   display: flex;
   align-items: center;
@@ -109,7 +203,7 @@ body {
 
 .home-hero-sub {
   @include type-style('body-02');
-  color: var(--cds-text-on-color-disabled, var(--cds-text-secondary));
+  color: rgba(255, 255, 255, 0.85);
   margin: 0 0 $spacing-07;
   max-width: 36rem;
 }
