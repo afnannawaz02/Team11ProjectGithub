@@ -357,6 +357,158 @@ function HomePage({ onGetStarted, isLoggedIn, onGoToChat, onSignIn, username }) 
   );
 }
 
+// ── Dashboard Page ─────────────────────────────────────────────────────────────
+function DashboardPage({ profile, username }) {
+  const RISK_DESC = {
+    conservative: 'Low risk, stable returns',
+    moderate:     'Balanced growth & safety',
+    aggressive:   'High risk, high reward',
+  };
+  const HORIZON_DESC = {
+    short:  'Under 3 years',
+    medium: '3 – 10 years',
+    long:   '10+ years',
+  };
+
+  const goals = (profile?.goals ?? []).map((g) => GOAL_LABELS[g] ?? g);
+
+  const stats = [
+    {
+      icon: '🎯',
+      label: 'Goals',
+      value: goals.length ? goals.join(', ') : 'None set',
+    },
+    {
+      icon: '📊',
+      label: 'Risk appetite',
+      value: profile?.risk
+        ? `${profile.risk.charAt(0).toUpperCase() + profile.risk.slice(1)} — ${RISK_DESC[profile.risk] ?? ''}`
+        : 'Not set',
+    },
+    {
+      icon: '⏳',
+      label: 'Time horizon',
+      value: profile?.horizon
+        ? `${profile.horizon.charAt(0).toUpperCase() + profile.horizon.slice(1)} — ${HORIZON_DESC[profile.horizon] ?? ''}`
+        : 'Not set',
+    },
+    {
+      icon: '💰',
+      label: 'Annual income',
+      value: profile?.annualIncome ? `$${Number(profile.annualIncome).toLocaleString()}` : 'Not set',
+    },
+    {
+      icon: '🏦',
+      label: 'Monthly savings',
+      value: profile?.monthlySavings ? `$${Number(profile.monthlySavings).toLocaleString()}` : 'Not set',
+    },
+    {
+      icon: '📍',
+      label: 'Location',
+      value: profile?.city && profile?.usState ? `${profile.city}, ${profile.usState}` : profile?.usState ?? 'Not set',
+    },
+  ];
+
+  return (
+    <div className="db-page">
+      <div className="db-inner">
+        <div className="db-welcome">
+          <h1 className="db-heading">Welcome back{username ? `, ${username}` : ''}.</h1>
+          <p className="db-sub">Here's a snapshot of your investor profile. Use the chat button below to ask Gumdrop anything.</p>
+        </div>
+
+        <div className="db-stats-grid">
+          {stats.map(({ icon, label, value }) => (
+            <div key={label} className="db-stat-card">
+              <span className="db-stat-icon">{icon}</span>
+              <span className="db-stat-label">{label}</span>
+              <span className="db-stat-value">{value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Floating Gumdrop chat widget ───────────────────────────────────────────────
+function FloatingChat({ profile }) {
+  const [open, setOpen]     = useState(false);
+  const [messages, setMsgs] = useState([{ sender: 'bot', text: 'Hi! Ask me anything about your investments.' }]);
+  const [draft, setDraft]   = useState('');
+  const [loading, setLoad]  = useState(false);
+  const bottomRef           = useRef(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, open]);
+
+  const send = async () => {
+    const trimmed = draft.trim();
+    if (!trimmed || loading) return;
+    const next = [...messages, { sender: 'user', text: trimmed }, { sender: 'bot', text: '', pending: true }];
+    setMsgs(next);
+    setDraft('');
+    setLoad(true);
+    try {
+      const res  = await fetch(`${PROXY_URL}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userMessage: trimmed, profile, messages: messages.slice(-6) }),
+      });
+      const data  = await res.json();
+      const reply = res.ok ? (data.reply || 'No response.') : (data.error || 'Something went wrong.');
+      setMsgs((prev) => prev.map((m) => m.pending ? { sender: 'bot', text: reply } : m));
+    } catch {
+      setMsgs((prev) => prev.map((m) => m.pending ? { sender: 'bot', text: 'Could not reach the server.' } : m));
+    } finally {
+      setLoad(false);
+    }
+  };
+
+  return (
+    <div className="fc-wrap">
+      {open && (
+        <div className="fc-window">
+          <div className="fc-header">
+            <span className="fc-title">Gumdrop</span>
+            <button className="fc-close" onClick={() => setOpen(false)} aria-label="Close chat">✕</button>
+          </div>
+          <div className="fc-messages">
+            {messages.map((m, i) => (
+              <div key={i} className={`fc-msg fc-msg--${m.sender}`}>
+                {m.pending ? <span className="fc-dots"><span/><span/><span/></span> : m.text}
+              </div>
+            ))}
+            <div ref={bottomRef} />
+          </div>
+          <div className="fc-input-row">
+            <input
+              className="fc-input"
+              placeholder="Ask anything…"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && send()}
+              disabled={loading}
+            />
+            <button className="fc-send" onClick={send} disabled={loading || !draft.trim()} aria-label="Send">
+              <svg viewBox="0 0 20 20" width="16" height="16" fill="none"><path d="M2 10L18 2L12 10L18 18L2 10Z" fill="currentColor"/></svg>
+            </button>
+          </div>
+        </div>
+      )}
+      <button className="fc-fab" onClick={() => setOpen((o) => !o)} aria-label="Open Gumdrop chat">
+        <svg viewBox="0 0 32 32" width="26" height="26" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M28 4H4a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h6l6 4 6-4h6a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
+          <circle cx="10" cy="14" r="1.5" fill="currentColor"/>
+          <circle cx="16" cy="14" r="1.5" fill="currentColor"/>
+          <circle cx="22" cy="14" r="1.5" fill="currentColor"/>
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 // ── Chat view ──────────────────────────────────────────────────────────────────
 const PROXY_URL = '';  // relative URLs — Vite proxies to localhost:3001 in dev, CF Functions in prod
 
@@ -875,6 +1027,16 @@ export default function App() {
         onSignIn={() => setPage('login')}
       />
     );
+  } else if (page === 'dashboard') {
+    content = (
+      <NavShell heroHeader username={username} onLogout={handleLogout} onGoHome={() => setPage('home')}>
+        <DashboardPage
+          profile={profile}
+          username={username}
+        />
+        <FloatingChat profile={profile} />
+      </NavShell>
+    );
   } else if (page === 'wizard') {
     content = (
       <NavShell heroHeader onGoHome={() => setPage(hasAnyAccount() ? 'login' : 'home')}>
@@ -901,10 +1063,12 @@ export default function App() {
     );
   } else {
     content = (
-      <NavShell username={username} onLogout={handleLogout} onGoHome={() => setPage('home')}>
-        <div className="dashboard-main">
-          <ChatView profile={profile} username={username} />
-        </div>
+      <NavShell heroHeader username={username} onLogout={handleLogout} onGoHome={() => setPage('home')}>
+        <DashboardPage
+          profile={profile}
+          username={username}
+        />
+        <FloatingChat profile={profile} />
       </NavShell>
     );
   }
