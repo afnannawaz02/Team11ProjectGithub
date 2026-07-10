@@ -734,14 +734,14 @@ function ChatView({ profile, username }) {
 }
 
 // ── Shared nav shell ───────────────────────────────────────────────────────────
-function NavShell({ children, username, onLogout, onGoHome }) {
+function NavShell({ children, username, onLogout, onGoHome, heroHeader }) {
   return (
     <div className="app-shell">
-      <Header aria-label="Candyland Bank">
+      <Header aria-label="Candyland Bank" className={heroHeader ? 'cds--header--hero' : undefined}>
         <HeaderName href="#" prefix=""
           onClick={(e) => { e.preventDefault(); onGoHome?.(); }}
         >
-          <BrandLogo className="header-brand-logo" aria-label="Candyland Bank × IBM" />
+          <img src="/grouped-logo.svg" alt="Candyland Bank" className="header-brand-logo" />
         </HeaderName>
         {username && (
           <HeaderNavigation aria-label="Main navigation">
@@ -755,18 +755,14 @@ function NavShell({ children, username, onLogout, onGoHome }) {
         )}
         {username && (
           <HeaderGlobalBar>
-            <HeaderGlobalAction
-              aria-label={`Sign out (${username})`}
-              tooltipAlignment="end"
-              onClick={onLogout}
-            >
-              <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" width="20" height="20">
-                <circle cx="10" cy="10" r="9" stroke="currentColor" strokeWidth="1.5"/>
-                <text x="10" y="14" textAnchor="middle" fontSize="9" fill="currentColor" fontWeight="600">
+            <button className="avatar-btn" aria-label={`Sign out (${username})`} onClick={onLogout}>
+              <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" width="32" height="32">
+                <circle cx="16" cy="16" r="14" stroke="currentColor" strokeWidth="2"/>
+                <text x="16" y="21" textAnchor="middle" fontSize="14" fill="currentColor" fontWeight="700">
                   {username[0].toUpperCase()}
                 </text>
               </svg>
-            </HeaderGlobalAction>
+            </button>
           </HeaderGlobalBar>
         )}
       </Header>
@@ -852,7 +848,7 @@ export default function App() {
 
   if (page === 'login') {
     content = (
-      <NavShell onGoHome={() => setPage('home')}>
+      <NavShell heroHeader onGoHome={() => setPage('home')}>
         <LoginForm
           onLogin={(account) => {
             setProfile(account.profile);
@@ -881,7 +877,7 @@ export default function App() {
     );
   } else if (page === 'wizard') {
     content = (
-      <NavShell onGoHome={() => setPage(hasAnyAccount() ? 'login' : 'home')}>
+      <NavShell heroHeader onGoHome={() => setPage(hasAnyAccount() ? 'login' : 'home')}>
         <SignupWizard
           onComplete={(p) => { setProfile(p); setPage('account'); }}
           onExit={() => setPage(hasAnyAccount() ? 'login' : 'home')}
@@ -890,7 +886,7 @@ export default function App() {
     );
   } else if (page === 'account') {
     content = (
-      <NavShell onGoHome={() => setPage('home')}>
+      <NavShell heroHeader onGoHome={() => setPage('home')}>
         <AccountSignup
           investorProfile={profile}
           isGuest={isGuest}

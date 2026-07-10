@@ -189,14 +189,22 @@
   }
 }
 
-// ── Carbon Header (UI Shell) — soft blush header + dark text ─────────────────
+// ── Carbon Header (UI Shell) — candy gradient header ─────────────────────────
 .cds--header {
-  background-color: #2d1a24 !important;
-  border-bottom: 1px solid #4a2a38 !important;
-  height: 8rem !important;
+  background: linear-gradient(135deg, #2d1a24 0%, #4a1a30 100%) !important;
+  border-bottom: 1px solid #6b2040 !important;
+  height: 3rem !important;
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
+  position: relative !important;
+}
+
+// Hero variant — goals wizard, sign-in, and account pages
+.cds--header--hero {
+  background: linear-gradient(135deg, #f472a0 0%, #c0356a 60%, #9d2256 100%) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15) !important;
+  height: 4rem !important;
 }
 
 // Make all direct header children fill the full height and centre their content
@@ -206,6 +214,17 @@
   height: 100% !important;
   display: flex !important;
   align-items: center !important;
+}
+
+// Kill ALL focus rings inside the header
+.cds--header *:focus,
+.cds--header *:focus-visible,
+.cds--header *:focus-within,
+.cds--header a:focus,
+.cds--header button:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
 }
 
 // Remove background fill behind header icon/action buttons
@@ -218,6 +237,31 @@
   &:focus {
     background: transparent !important;
   }
+}
+
+// Custom plain avatar button — no Carbon focus ring
+.avatar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 0 $spacing-05;
+  height: 100%;
+  cursor: pointer;
+  color: #ffffff;
+  outline: none;
+  box-shadow: none;
+
+  &:hover,
+  &:focus,
+  &:focus-visible {
+    background: transparent;
+    outline: none;
+    box-shadow: none;
+  }
+
+  svg { display: block; }
 }
 
 .cds--header__name,
@@ -281,14 +325,24 @@
   .cds--inline-notification__title { color: #c0356a !important; }
 }
 
-// ── Brand logo — grouped logo.svg (inline SVG via ?react) ────────────────────
-// The SVG viewBox is "0 0 368 224". Content sits in a band ~y70–112.
-// As an inline SVG, width/height attrs on <svg> are overridden by CSS.
-// We set a fixed width and let height follow the natural aspect ratio,
-// then use overflow:visible so nothing clips.
+// ── Brand logo ────────────────────────────────────────────────────────────────
+// grouped-logo.svg viewBox is now cropped to the artwork: "17 70 351 49".
+// It renders with no extra whitespace — just set width/height directly.
 
-// Shared base for all instances
-.header-brand-logo,
+// Centre the logo absolutely in the header bar
+.cds--header__name {
+  overflow: visible !important;
+  max-height: none !important;
+  padding: 0 !important;
+  position: absolute !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  display: flex !important;
+  align-items: center !important;
+  pointer-events: auto !important;
+}
+
+// Shared base for inline SVG instances (hero, pin, footer)
 .hero-brand-logo,
 .pin-brand-logo,
 .footer-brand-logo {
@@ -297,20 +351,18 @@
   flex-shrink: 0;
 }
 
-// Allow HeaderName to show the full logo without clipping
-.cds--header__name {
-  overflow: visible !important;
-  max-height: none !important;
-  padding: 0 $spacing-06 !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
+// Header logo — cropped SVG, scales by height
+.header-brand-logo {
+  height: 2.25rem;
+  width: auto;
+  flex-shrink: 0;
+  display: block;
+  filter: brightness(0) invert(1);
 }
 
-.header-brand-logo {
-  width: 24rem;
-  height: auto;
-  filter: brightness(0) invert(1);
+// Hero header: larger logo
+.cds--header--hero .header-brand-logo {
+  height: 3rem;
 }
 
 // Hero: large white lockup on red background
@@ -343,7 +395,7 @@
 
 body {
   margin: 0;
-  background: var(--cds-background);
+  background: linear-gradient(160deg, #fff0f4 0%, #fce7f3 50%, #f5eeff 100%);
   color: var(--cds-text-primary);
   font-family: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -354,7 +406,7 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background: var(--cds-background);
+  background: linear-gradient(160deg, #fff0f4 0%, #fce7f3 50%, #f5eeff 100%);
 }
 
 // Push main content below the header (2rem)
@@ -728,8 +780,8 @@ body {
 
 .auth-card-footer {
   padding: $spacing-05 $spacing-07;
-  border-top: 1px solid var(--cds-border-subtle-01);
-  background: var(--cds-layer-02);
+  border-top: 1px solid #fbc4d9;
+  background: linear-gradient(135deg, #fce7f3 0%, #ede9fe 100%);
   display: flex;
   align-items: center;
   gap: $spacing-05;
@@ -1026,7 +1078,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: $spacing-03;
-  background: #fff8fa;
+  background: linear-gradient(135deg, #fff8fa 0%, #fce7f3 100%);
 
   @include breakpoint-down(sm) {
     padding: $spacing-04 $spacing-05;
@@ -1100,23 +1152,23 @@ body {
 // ── Wizard ────────────────────────────────────────────────────────────────────
 .wizard-page {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  padding: $spacing-08 $spacing-05 $spacing-10;
-  min-height: calc(100vh - 2.5rem);
-  background: var(--cds-background);
+  padding: $spacing-07 $spacing-05;
+  min-height: calc(100vh - 4rem);
+  background: linear-gradient(160deg, #fff0f4 0%, #fce7f3 50%, #ede9fe 100%);
 }
 
 .wizard-card {
   width: 100%;
   max-width: 44rem;
-  background: var(--cds-layer-01);
-  border: 1px solid var(--cds-border-subtle-01);
+  background: linear-gradient(160deg, #fff8fa 0%, #fce7f3 100%);
+  border: 1px solid #fbc4d9;
   border-radius: 1.5rem;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 6px 32px rgba(244, 114, 160, 0.10);
+  box-shadow: 0 6px 32px rgba(244, 114, 160, 0.12);
 }
 
 .wizard-progress-bar {
@@ -1160,9 +1212,11 @@ body {
   margin: 0;
 }
 
-// Step dots — hide the oversized ProgressIndicator labels in tight wizard
+// Step dots — centred and scrollable
 .step-dots {
   overflow-x: auto;
+  display: flex;
+  justify-content: center;
 }
 
 .step-body {
@@ -1249,8 +1303,8 @@ body {
 // Wizard footer
 .wizard-footer {
   padding: $spacing-05 $spacing-07;
-  border-top: 1px solid var(--cds-border-subtle-01);
-  background: var(--cds-layer-02);
+  border-top: 1px solid #fbc4d9;
+  background: linear-gradient(135deg, #fce7f3 0%, #ede9fe 100%);
   display: flex;
   align-items: center;
   justify-content: space-between;

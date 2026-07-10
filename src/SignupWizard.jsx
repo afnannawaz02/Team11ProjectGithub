@@ -533,25 +533,6 @@ export default function SignupWizard({ onComplete, onExit }) {
             {step === 11 && "Pick any that resonate. You can always change these later."}
           </p>
 
-          {/* Carbon ProgressIndicator for the 12-step wizard */}
-          <ProgressIndicator
-            currentIndex={step}
-            className="step-dots"
-            onChange={(newStep) => newStep < step && setStep(newStep)}
-            spaceEqually
-          >
-            {STEP_META.map((meta, i) => (
-              <ProgressStep
-                key={i}
-                label={meta.label}
-                complete={i < step}
-                current={i === step}
-                disabled={i > step}
-                onClick={() => i < step && setStep(i)}
-              />
-            ))}
-          </ProgressIndicator>
-
           {steps[step]}
         </div>
 
