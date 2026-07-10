@@ -226,7 +226,7 @@ function LoginForm({ onLogin, onCreateNew, onGuest, onGoHome }) {
 
 // ── Home Page ──────────────────────────────────────────────────────────────────
 function HomePage({ onGetStarted, isLoggedIn, onGoToChat, onSignIn, username }) {
-  const ctaLabel  = isLoggedIn ? 'Chat with Gumdrop' : 'Build my profile';
+  const ctaLabel  = isLoggedIn ? 'Go to Dashboard' : 'Build my profile';
   const ctaAction = isLoggedIn ? onGoToChat : onGetStarted;
 
   return (
@@ -357,76 +357,191 @@ function HomePage({ onGetStarted, isLoggedIn, onGoToChat, onSignIn, username }) 
   );
 }
 
-// ── Dashboard Page ─────────────────────────────────────────────────────────────
-function DashboardPage({ profile, username }) {
-  const RISK_DESC = {
-    conservative: 'Low risk, stable returns',
-    moderate:     'Balanced growth & safety',
-    aggressive:   'High risk, high reward',
-  };
-  const HORIZON_DESC = {
-    short:  'Under 3 years',
-    medium: '3 – 10 years',
-    long:   '10+ years',
-  };
+// ── Dashboard panels ───────────────────────────────────────────────────────────
+function PanelAssets() {
+  const items = [
+    { name: 'US Equity ETF',        ticker: 'VTI',  value: '$12,450.00', change: '+2.4%',  up: true  },
+    { name: 'International ETF',    ticker: 'VXUS', value: '$4,820.00',  change: '+0.8%',  up: true  },
+    { name: 'Bond Fund',            ticker: 'BND',  value: '$6,100.00',  change: '-0.3%',  up: false },
+    { name: 'Real Estate REIT',     ticker: 'VNQ',  value: '$2,310.00',  change: '+1.1%',  up: true  },
+    { name: 'Cash & Equivalents',   ticker: 'VMFXX',value: '$3,050.00',  change: '0.0%',   up: true  },
+  ];
+  return (
+    <div className="db-panel">
+      <h2 className="db-panel-heading">Assets</h2>
+      <p className="db-panel-sub">Overview of your current holdings.</p>
+      <div className="db-table-wrap">
+        <table className="db-table">
+          <thead><tr><th>Name</th><th>Ticker</th><th>Value</th><th>Change</th></tr></thead>
+          <tbody>
+            {items.map((r) => (
+              <tr key={r.ticker}>
+                <td>{r.name}</td>
+                <td><span className="db-ticker">{r.ticker}</span></td>
+                <td>{r.value}</td>
+                <td className={r.up ? 'db-up' : 'db-down'}>{r.change}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
+function PanelSpending() {
+  const items = [
+    { date: 'Jun 28', desc: 'Grocery Store',      amount: '-$84.32',  type: 'debit'  },
+    { date: 'Jun 27', desc: 'Netflix',             amount: '-$15.99',  type: 'credit' },
+    { date: 'Jun 26', desc: 'Salary Deposit',      amount: '+$3,200.00', type: 'debit' },
+    { date: 'Jun 25', desc: 'Electricity Bill',    amount: '-$112.00', type: 'debit'  },
+    { date: 'Jun 24', desc: 'Amazon Purchase',     amount: '-$47.60',  type: 'credit' },
+    { date: 'Jun 23', desc: 'Coffee Shop',         amount: '-$6.40',   type: 'debit'  },
+    { date: 'Jun 22', desc: 'Gym Membership',      amount: '-$40.00',  type: 'credit' },
+    { date: 'Jun 21', desc: 'ATM Withdrawal',      amount: '-$200.00', type: 'debit'  },
+  ];
+  return (
+    <div className="db-panel">
+      <h2 className="db-panel-heading">Spending History</h2>
+      <p className="db-panel-sub">Recent transactions from your debit and credit cards.</p>
+      <div className="db-table-wrap">
+        <table className="db-table">
+          <thead><tr><th>Date</th><th>Description</th><th>Card</th><th>Amount</th></tr></thead>
+          <tbody>
+            {items.map((r, i) => (
+              <tr key={i}>
+                <td>{r.date}</td>
+                <td>{r.desc}</td>
+                <td><span className={`db-badge db-badge--${r.type}`}>{r.type}</span></td>
+                <td className={r.amount.startsWith('+') ? 'db-up' : 'db-down'}>{r.amount}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function PanelPortfolio({ profile }) {
+  const RISK_DESC   = { conservative: 'Low risk, stable returns', moderate: 'Balanced growth & safety', aggressive: 'High risk, high reward' };
+  const HORIZON_DESC = { short: 'Under 3 years', medium: '3 – 10 years', long: '10+ years' };
   const goals = (profile?.goals ?? []).map((g) => GOAL_LABELS[g] ?? g);
 
-  const stats = [
-    {
-      icon: '🎯',
-      label: 'Goals',
-      value: goals.length ? goals.join(', ') : 'None set',
-    },
-    {
-      icon: '📊',
-      label: 'Risk appetite',
-      value: profile?.risk
-        ? `${profile.risk.charAt(0).toUpperCase() + profile.risk.slice(1)} — ${RISK_DESC[profile.risk] ?? ''}`
-        : 'Not set',
-    },
-    {
-      icon: '⏳',
-      label: 'Time horizon',
-      value: profile?.horizon
-        ? `${profile.horizon.charAt(0).toUpperCase() + profile.horizon.slice(1)} — ${HORIZON_DESC[profile.horizon] ?? ''}`
-        : 'Not set',
-    },
-    {
-      icon: '💰',
-      label: 'Annual income',
-      value: profile?.annualIncome ? `$${Number(profile.annualIncome).toLocaleString()}` : 'Not set',
-    },
-    {
-      icon: '🏦',
-      label: 'Monthly savings',
-      value: profile?.monthlySavings ? `$${Number(profile.monthlySavings).toLocaleString()}` : 'Not set',
-    },
-    {
-      icon: '📍',
-      label: 'Location',
-      value: profile?.city && profile?.usState ? `${profile.city}, ${profile.usState}` : profile?.usState ?? 'Not set',
-    },
+  const rows = [
+    { label: 'Goals',            value: goals.length ? goals.join(', ') : 'None set' },
+    { label: 'Risk appetite',    value: profile?.risk ? `${profile.risk} — ${RISK_DESC[profile.risk] ?? ''}` : 'Not set' },
+    { label: 'Time horizon',     value: profile?.horizon ? `${profile.horizon} — ${HORIZON_DESC[profile.horizon] ?? ''}` : 'Not set' },
+    { label: 'Annual income',    value: profile?.annualIncome ? `$${Number(profile.annualIncome).toLocaleString()}` : 'Not set' },
+    { label: 'Monthly savings',  value: profile?.monthlySavings ? `$${Number(profile.monthlySavings).toLocaleString()}` : 'Not set' },
+    { label: 'Emergency fund',   value: profile?.emergencyFund ?? 'Not set' },
+    { label: 'Employment',       value: profile?.employmentStatus ?? 'Not set' },
+    { label: 'Marital status',   value: profile?.maritalStatus ?? 'Not set' },
+    { label: 'Credit score',     value: profile?.creditScore ?? 'Not set' },
+    { label: 'Location',         value: profile?.city && profile?.usState ? `${profile.city}, ${profile.usState}` : profile?.usState ?? 'Not set' },
+    { label: 'Veteran status',   value: profile?.veteranStatus ?? 'Not set' },
+    { label: 'Preferences',      value: (profile?.preferences ?? []).join(', ') || 'None' },
   ];
 
   return (
-    <div className="db-page">
-      <div className="db-inner">
-        <div className="db-welcome">
-          <h1 className="db-heading">Welcome back{username ? `, ${username}` : ''}.</h1>
-          <p className="db-sub">Here's a snapshot of your investor profile. Use the chat button below to ask Gumdrop anything.</p>
-        </div>
-
-        <div className="db-stats-grid">
-          {stats.map(({ icon, label, value }) => (
-            <div key={label} className="db-stat-card">
-              <span className="db-stat-icon">{icon}</span>
-              <span className="db-stat-label">{label}</span>
-              <span className="db-stat-value">{value}</span>
-            </div>
-          ))}
-        </div>
+    <div className="db-panel">
+      <h2 className="db-panel-heading">Portfolio Breakdown</h2>
+      <p className="db-panel-sub">Your full investor profile from the questionnaire.</p>
+      <div className="db-kv-grid">
+        {rows.map(({ label, value }) => (
+          <div key={label} className="db-kv-row">
+            <span className="db-kv-label">{label}</span>
+            <span className="db-kv-value">{value}</span>
+          </div>
+        ))}
       </div>
+    </div>
+  );
+}
+
+function PanelTrades() {
+  const items = [
+    { date: 'Jun 28', action: 'Buy',  ticker: 'VTI',  qty: 5,   price: '$225.40', total: '$1,127.00' },
+    { date: 'Jun 25', action: 'Sell', ticker: 'AAPL', qty: 2,   price: '$189.20', total: '$378.40'   },
+    { date: 'Jun 20', action: 'Buy',  ticker: 'BND',  qty: 10,  price: '$73.15',  total: '$731.50'   },
+    { date: 'Jun 15', action: 'Buy',  ticker: 'VXUS', qty: 8,   price: '$57.80',  total: '$462.40'   },
+    { date: 'Jun 10', action: 'Sell', ticker: 'TSLA', qty: 1,   price: '$245.00', total: '$245.00'   },
+    { date: 'Jun 05', action: 'Buy',  ticker: 'VNQ',  qty: 4,   price: '$82.30',  total: '$329.20'   },
+  ];
+  return (
+    <div className="db-panel">
+      <h2 className="db-panel-heading">Trade History</h2>
+      <p className="db-panel-sub">Recent stock trades on your account.</p>
+      <div className="db-table-wrap">
+        <table className="db-table">
+          <thead><tr><th>Date</th><th>Action</th><th>Ticker</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
+          <tbody>
+            {items.map((r, i) => (
+              <tr key={i}>
+                <td>{r.date}</td>
+                <td><span className={`db-badge db-badge--${r.action.toLowerCase()}`}>{r.action}</span></td>
+                <td><span className="db-ticker">{r.ticker}</span></td>
+                <td>{r.qty}</td>
+                <td>{r.price}</td>
+                <td>{r.total}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Dashboard Page ─────────────────────────────────────────────────────────────
+function DashboardPage({ profile, username }) {
+  const [activePanel, setActivePanel] = useState('portfolio');
+  const [menuOpen, setMenuOpen]       = useState(false);
+
+  const NAV = [
+    { id: 'assets',    label: 'Assets',           icon: '💼' },
+    { id: 'spending',  label: 'Spending History',  icon: '💳' },
+    { id: 'portfolio', label: 'Portfolio Breakdown', icon: '📊' },
+    { id: 'trades',    label: 'Trade History',     icon: '📈' },
+  ];
+
+  const activeLabel = NAV.find((n) => n.id === activePanel)?.label;
+
+  return (
+    <div className="db-layout">
+      {/* ── Left sidebar ── */}
+      <aside className="db-sidebar">
+        <p className="db-sidebar-greeting">Welcome{username ? `, ${username}` : ''}.</p>
+
+        {/* Mobile dropdown toggle */}
+        <button className="db-menu-toggle" onClick={() => setMenuOpen((o) => !o)}>
+          <span>{activeLabel}</span>
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none">
+            <path d={menuOpen ? 'M2 11L8 5L14 11' : 'M2 5L8 11L14 5'} stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+        </button>
+
+        <nav className={`db-nav${menuOpen ? ' db-nav--open' : ''}`}>
+          {NAV.map(({ id, label, icon }) => (
+            <button
+              key={id}
+              className={`db-nav-item${activePanel === id ? ' db-nav-item--active' : ''}`}
+              onClick={() => { setActivePanel(id); setMenuOpen(false); }}
+            >
+              <span className="db-nav-icon">{icon}</span>
+              {label}
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      {/* ── Main content ── */}
+      <main className="db-content">
+        {activePanel === 'assets'    && <PanelAssets />}
+        {activePanel === 'spending'  && <PanelSpending />}
+        {activePanel === 'portfolio' && <PanelPortfolio profile={profile} />}
+        {activePanel === 'trades'    && <PanelTrades />}
+      </main>
     </div>
   );
 }
@@ -895,16 +1010,6 @@ function NavShell({ children, username, onLogout, onGoHome, heroHeader }) {
         >
           <img src="/grouped-logo.svg" alt="Candyland Bank" className="header-brand-logo" />
         </HeaderName>
-        {username && (
-          <HeaderNavigation aria-label="Main navigation">
-            <HeaderMenuItem onClick={onGoHome}>Home</HeaderMenuItem>
-            <HeaderMenuItem
-              onClick={() => document.getElementById('chat')?.scrollIntoView({ behavior: 'smooth' })}
-            >
-              Chat
-            </HeaderMenuItem>
-          </HeaderNavigation>
-        )}
         {username && (
           <HeaderGlobalBar>
             <button className="avatar-btn" aria-label={`Sign out (${username})`} onClick={onLogout}>
