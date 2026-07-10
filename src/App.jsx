@@ -358,33 +358,237 @@ function HomePage({ onGetStarted, isLoggedIn, onGoToChat, onSignIn, username }) 
 }
 
 // ── Dashboard panels ───────────────────────────────────────────────────────────
-function PanelAssets() {
-  const items = [
-    { name: 'US Equity ETF',        ticker: 'VTI',  value: '$12,450.00', change: '+2.4%',  up: true  },
-    { name: 'International ETF',    ticker: 'VXUS', value: '$4,820.00',  change: '+0.8%',  up: true  },
-    { name: 'Bond Fund',            ticker: 'BND',  value: '$6,100.00',  change: '-0.3%',  up: false },
-    { name: 'Real Estate REIT',     ticker: 'VNQ',  value: '$2,310.00',  change: '+1.1%',  up: true  },
-    { name: 'Cash & Equivalents',   ticker: 'VMFXX',value: '$3,050.00',  change: '0.0%',   up: true  },
-  ];
+
+// Seed-based pseudo-random for deterministic sparkline data
+function seededRand(seed) {
+  let s = seed;
+  return () => { s = (s * 16807 + 0) % 2147483647; return (s - 1) / 2147483646; };
+}
+
+function StockLineChart({ ticker, range }) {
+  const W = 600, H = 180, VH = 80, PAD = { top: 8, right: 8, bottom: 28, left: 44 };
+  const cW = W - PAD.left - PAD.right;
+  const cH = H - PAD.top  - PAD.bottom;
+
+  // Generate deterministic price series
+  const POINTS = range === '1W' ? 7 : range === '1M' ? 30 : 90;
+  const BASE   = { CANDY: 130, CHOC: 54, GUMI: 28, MINTY: 87, LOLLY: 62, SUGAR: 44 }[ticker] ?? 100;
+  const rand   = seededRand(ticker.charCodeAt(0) * 31 + POINTS);
+  const prices = [BASE];
+  for (let i = 1; i < POINTS; i++) prices.push(Math.max(5, prices[i-1] + (rand() - 0.48) * 4));
+
+  const minP = Math.min(...prices), maxP = Math.max(...prices);
+  const scX  = (i) => PAD.left + (i / (POINTS - 1)) * cW;
+  const scY  = (p) => PAD.top  + cH - ((p - minP) / (maxP - minP || 1)) * cH;
+
+  // Y ticks
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((t) => ({
+    y: PAD.top + cH - t * cH,
+    label: `$${Math.round(minP + t * (maxP - minP))}`,
+  }));
+
+  // X ticks (4 evenly spaced)
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const today  = new Date();
+  const xTicks = [0, 1, 2, 3].map((k) => {
+    const idx  = Math.round((k / 3) * (POINTS - 1));
+    const d    = new Date(today); d.setDate(d.getDate() - (POINTS - 1 - idx));
+    return { x: scX(idx), label: `${MONTHS[d.getMonth()]} ${d.getDate()}` };
+  });
+
+  // Build SVG path
+  const linePts  = prices.map((p, i) => `${scX(i)},${scY(p)}`).join(' ');
+  const areaPath = `M${scX(0)},${scY(prices[0])} `
+    + prices.map((p, i) => `L${scX(i)},${scY(p)}`).join(' ')
+    + ` L${scX(POINTS-1)},${PAD.top + cH} L${scX(0)},${PAD.top + cH} Z`;
+
+  // Volume bars
+  const volRand = seededRand(ticker.charCodeAt(0) * 17 + POINTS);
+  const vols    = Array.from({ length: POINTS }, () => 0.2 + volRand() * 0.8);
+  const volBarW = Math.max(2, cW / POINTS - 1);
+
+  const lastPrice = prices[POINTS - 1];
+  const firstPrice = prices[0];
+  const priceUp = lastPrice >= firstPrice;
+
   return (
-    <div className="db-panel">
-      <h2 className="db-panel-heading">Assets</h2>
-      <p className="db-panel-sub">Overview of your current holdings.</p>
-      <div className="db-table-wrap">
-        <table className="db-table">
-          <thead><tr><th>Name</th><th>Ticker</th><th>Value</th><th>Change</th></tr></thead>
-          <tbody>
-            {items.map((r) => (
-              <tr key={r.ticker}>
-                <td>{r.name}</td>
-                <td><span className="db-ticker">{r.ticker}</span></td>
-                <td>{r.value}</td>
-                <td className={r.up ? 'db-up' : 'db-down'}>{r.change}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <div className="st-chart-wrap">
+      {/* Main line chart */}
+      <svg viewBox={`0 0 ${W} ${H}`} className="st-line-svg" aria-label={`${ticker} price chart`}>
+        <defs>
+          <linearGradient id={`fill-${ticker}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor={priceUp ? '#24a148' : '#da1e28'} stopOpacity="0.18"/>
+            <stop offset="100%" stopColor={priceUp ? '#24a148' : '#da1e28'} stopOpacity="0.02"/>
+          </linearGradient>
+        </defs>
+
+        {/* Grid lines */}
+        {yTicks.map(({ y, label }) => (
+          <g key={label}>
+            <line x1={PAD.left} y1={y} x2={PAD.left + cW} y2={y} stroke="#e8e8e8" strokeWidth="1"/>
+            <text x={PAD.left - 6} y={y + 4} textAnchor="end" fontSize="10" fill="#9e5a72">{label}</text>
+          </g>
+        ))}
+
+        {/* X labels */}
+        {xTicks.map(({ x, label }) => (
+          <text key={label} x={x} y={PAD.top + cH + 18} textAnchor="middle" fontSize="10" fill="#9e5a72">{label}</text>
+        ))}
+
+        {/* Area fill */}
+        <path d={areaPath} fill={`url(#fill-${ticker})`}/>
+
+        {/* Line */}
+        <polyline points={linePts} fill="none" stroke={priceUp ? '#24a148' : '#da1e28'} strokeWidth="2" strokeLinejoin="round"/>
+      </svg>
+
+      {/* Volume bars */}
+      <div className="st-vol-label">Volume</div>
+      <svg viewBox={`0 0 ${W} ${VH}`} className="st-vol-svg" aria-label="Volume">
+        {vols.map((v, i) => (
+          <rect
+            key={i}
+            x={PAD.left + (i / POINTS) * cW}
+            y={VH - v * (VH - 4)}
+            width={volBarW}
+            height={v * (VH - 4)}
+            fill="#fbc4d9"
+            rx="1"
+          />
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+function PanelAssets() {
+  const STOCKS = [
+    { ticker: 'CANDY', name: 'CandyCorp Inc.',    price: 142.50, change: +3.21,  pct: '+2.31%', up: true  },
+    { ticker: 'CHOC',  name: 'Chocolatey Ltd.',   price: 54.18,  change: -0.62,  pct: '-1.12%', up: false },
+    { ticker: 'GUMI',  name: 'Gumi Holdings',     price: 28.94,  change: +1.30,  pct: '+4.71%', up: true  },
+    { ticker: 'MINTY', name: 'Minty Financial',   price: 87.06,  change: +0.71,  pct: '+0.82%', up: true  },
+    { ticker: 'LOLLY', name: 'Lolly Corp',        price: 62.43,  change: -1.54,  pct: '-2.41%', up: false },
+    { ticker: 'SUGAR', name: 'Sugar Street ETF',  price: 44.70,  change: +0.54,  pct: '+1.21%', up: true  },
+  ];
+
+  const STATS = {
+    CANDY: { vol: '4.2M', mktCap: '$18.4B', high52: '$188.10', low52: '$101.17', pe: '24.8x', div: '1.42%' },
+    CHOC:  { vol: '1.1M', mktCap: '$6.2B',  high52: '$71.40',  low52: '$48.20',  pe: '18.2x', div: '0.85%' },
+    GUMI:  { vol: '890K', mktCap: '$3.1B',  high52: '$32.50',  low52: '$19.80',  pe: '31.5x', div: '0.00%' },
+    MINTY: { vol: '2.3M', mktCap: '$9.8B',  high52: '$102.40', low52: '$74.60',  pe: '22.1x', div: '2.10%' },
+    LOLLY: { vol: '670K', mktCap: '$2.4B',  high52: '$80.00',  low52: '$55.30',  pe: '14.7x', div: '3.20%' },
+    SUGAR: { vol: '5.1M', mktCap: '$22.0B', high52: '$51.20',  low52: '$38.90',  pe: '19.4x', div: '1.88%' },
+  };
+
+  const [active, setActive]   = useState('CANDY');
+  const [range,  setRange]    = useState('1M');
+  const [tab,    setTab]      = useState('buy');
+  const [shares, setShares]   = useState('');
+
+  const stock = STOCKS.find((s) => s.ticker === active);
+  const stats = STATS[active];
+
+  return (
+    <div className="st-wrap">
+
+      {/* ── Top stat cards ── */}
+      <div className="st-top-cards">
+        <div className="st-card">
+          <span className="st-card-label">Total Value</span>
+          <span className="st-card-value">$84,231.50</span>
+          <span className="st-card-sub st-up">+$1,204.30 today</span>
+        </div>
+        <div className="st-card">
+          <span className="st-card-label">Day P&amp;L</span>
+          <span className="st-card-value st-up">+$1,204.30</span>
+          <span className="st-card-sub st-up">+1.45%</span>
+        </div>
+        <div className="st-card">
+          <span className="st-card-label">Open Positions</span>
+          <span className="st-card-value">12</span>
+          <span className="st-card-sub">6 gainers · 4 losers · 2 flat</span>
+        </div>
+        <div className="st-card">
+          <span className="st-card-label">Buying Power</span>
+          <span className="st-card-value">$12,840.00</span>
+          <span className="st-card-sub">Settled: $10,200</span>
+        </div>
       </div>
+
+      {/* ── Ticker pills ── */}
+      <div className="st-tickers">
+        {STOCKS.map((s) => (
+          <button
+            key={s.ticker}
+            className={`st-pill${active === s.ticker ? ' st-pill--active' : ''} ${s.up ? 'st-pill--up' : 'st-pill--down'}`}
+            onClick={() => setActive(s.ticker)}
+          >
+            {s.ticker} <span>{s.pct}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* ── Stock detail ── */}
+      <div className="st-detail">
+        <div className="st-detail-left">
+          <h2 className="st-name">{stock.name} ★</h2>
+          <div className="st-price">${stock.price.toFixed(2)}</div>
+          <div className={`st-change ${stock.up ? 'st-up' : 'st-down'}`}>
+            {stock.up ? '↗' : '↘'} {stock.up ? '+' : ''}{stock.change.toFixed(2)} ({stock.pct})
+          </div>
+        </div>
+        <div className="st-range-btns">
+          {['1W','1M','3M'].map((r) => (
+            <button key={r} className={`st-range-btn${range === r ? ' st-range-btn--active' : ''}`} onClick={() => setRange(r)}>{r}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Chart ── */}
+      <StockLineChart key={`${active}-${range}`} ticker={active} range={range} />
+
+      {/* ── Stat grid ── */}
+      <div className="st-stats-grid">
+        {[
+          { label: 'Volume',    value: stats.vol    },
+          { label: 'Market Cap',value: stats.mktCap },
+          { label: '52W High',  value: stats.high52 },
+          { label: '52W Low',   value: stats.low52  },
+          { label: 'P/E Ratio', value: stats.pe     },
+          { label: 'Dividend',  value: stats.div    },
+        ].map(({ label, value }) => (
+          <div key={label} className="st-stat-card">
+            <span className="st-stat-label">{label}</span>
+            <span className="st-stat-value">{value}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Place order ── */}
+      <div className="st-order">
+        <h3 className="st-order-heading">Place Order</h3>
+        <div className="st-order-tabs">
+          <button className={`st-order-tab st-order-tab--buy${tab === 'buy' ? ' active' : ''}`} onClick={() => setTab('buy')}>Buy</button>
+          <button className={`st-order-tab st-order-tab--sell${tab === 'sell' ? ' active' : ''}`} onClick={() => setTab('sell')}>Sell</button>
+        </div>
+        <div className="st-order-body">
+          <label className="st-order-label">Number of shares</label>
+          <input
+            className="st-order-input"
+            type="number" min="1" placeholder="0"
+            value={shares} onChange={(e) => setShares(e.target.value)}
+          />
+          {shares > 0 && (
+            <p className="st-order-est">
+              Estimated {tab === 'buy' ? 'cost' : 'proceeds'}: <strong>${(shares * stock.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+            </p>
+          )}
+          <button className={`st-order-submit st-order-submit--${tab}`}>
+            {tab === 'buy' ? 'Buy' : 'Sell'} {active}
+          </button>
+        </div>
+      </div>
+
     </div>
   );
 }
@@ -1178,5 +1382,13 @@ export default function App() {
     );
   }
 
-  return <Theme theme="g10"><PasswordGate>{content}</PasswordGate></Theme>;
+  return (
+    <Theme theme="g10">
+      <PasswordGate>
+        <div key={page} className="page-transition">
+          {content}
+        </div>
+      </PasswordGate>
+    </Theme>
+  );
 }

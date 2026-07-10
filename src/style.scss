@@ -386,6 +386,16 @@
   filter: brightness(0) invert(1);
 }
 
+// ── Page transitions ──────────────────────────────────────────────────────────
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+
+.page-transition {
+  animation: page-in 200ms ease both;
+}
+
 // ── Reset ─────────────────────────────────────────────────────────────────────
 *,
 *::before,
@@ -956,6 +966,283 @@ body {
 
 .db-up   { color: #24a148; font-weight: 600; }
 .db-down { color: #da1e28; font-weight: 600; }
+
+// ── Stock / Assets panel ───────────────────────────────────────────────────────
+.st-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+  max-width: 52rem;
+}
+
+// Top 4 stat cards
+.st-top-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: $spacing-04;
+}
+
+.st-card {
+  background: var(--cds-layer-01);
+  border: 1px solid var(--cds-border-subtle-01);
+  border-radius: 0.75rem;
+  padding: $spacing-05;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-02;
+}
+
+.st-card-label {
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.st-card-value {
+  @include type-style('heading-04');
+  color: var(--cds-text-primary);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.st-card-sub {
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+}
+
+.st-up   { color: #24a148 !important; font-weight: 600; }
+.st-down { color: #da1e28 !important; font-weight: 600; }
+
+// Ticker pill row
+.st-tickers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+}
+
+.st-pill {
+  @include type-style('label-01');
+  border: 1px solid var(--cds-border-subtle-01);
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  background: var(--cds-layer-01);
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--cds-text-secondary);
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  transition: background 120ms, border-color 120ms;
+
+  &--up   span { color: #24a148; }
+  &--down span { color: #da1e28; }
+
+  &--active {
+    background: #f472a0;
+    border-color: #f472a0;
+    color: #ffffff;
+    span { color: #ffffff !important; }
+  }
+
+  &:focus, &:focus-visible { outline: none; }
+}
+
+// Stock name / price header
+.st-detail {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: $spacing-04;
+}
+
+.st-detail-left { display: flex; flex-direction: column; gap: 0.15rem; }
+
+.st-name {
+  @include type-style('heading-03');
+  color: var(--cds-text-primary);
+  margin: 0;
+}
+
+.st-price {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--cds-text-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.st-change {
+  @include type-style('body-01');
+  font-weight: 600;
+}
+
+.st-range-btns {
+  display: flex;
+  gap: $spacing-02;
+}
+
+.st-range-btn {
+  border: 1px solid var(--cds-border-subtle-01);
+  border-radius: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  background: var(--cds-layer-01);
+  @include type-style('label-01');
+  cursor: pointer;
+  color: var(--cds-text-secondary);
+
+  &--active {
+    background: #f472a0;
+    border-color: #f472a0;
+    color: #ffffff;
+    font-weight: 700;
+  }
+  &:focus, &:focus-visible { outline: none; }
+}
+
+// Charts
+.st-chart-wrap {
+  background: var(--cds-layer-01);
+  border: 1px solid var(--cds-border-subtle-01);
+  border-radius: 0.75rem;
+  padding: $spacing-04 $spacing-04 $spacing-03;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-02;
+}
+
+.st-line-svg,
+.st-vol-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.st-vol-label {
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+  margin-top: $spacing-02;
+}
+
+// Bottom 6 stat cards
+.st-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: $spacing-04;
+
+  @include breakpoint-down(sm) { grid-template-columns: repeat(2, 1fr); }
+}
+
+.st-stat-card {
+  background: var(--cds-layer-01);
+  border: 1px solid var(--cds-border-subtle-01);
+  border-radius: 0.75rem;
+  padding: $spacing-04 $spacing-05;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-02;
+}
+
+.st-stat-label {
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.st-stat-value {
+  @include type-style('heading-03');
+  color: var(--cds-text-primary);
+  font-weight: 700;
+}
+
+// Place order
+.st-order {
+  background: var(--cds-layer-01);
+  border: 1px solid var(--cds-border-subtle-01);
+  border-radius: 0.75rem;
+  padding: $spacing-06;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-04;
+}
+
+.st-order-heading {
+  @include type-style('heading-03');
+  color: var(--cds-text-primary);
+  margin: 0;
+  font-weight: 700;
+}
+
+.st-order-tabs {
+  display: flex;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  border: 1px solid var(--cds-border-subtle-01);
+  width: fit-content;
+}
+
+.st-order-tab {
+  padding: $spacing-03 $spacing-07;
+  border: none;
+  background: var(--cds-layer-01);
+  @include type-style('body-01');
+  cursor: pointer;
+  color: var(--cds-text-secondary);
+  font-weight: 600;
+
+  &--buy.active  { background: #24a148; color: #ffffff; }
+  &--sell.active { background: #da1e28; color: #ffffff; }
+  &:focus, &:focus-visible { outline: none; }
+}
+
+.st-order-body {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+  max-width: 20rem;
+}
+
+.st-order-label {
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+}
+
+.st-order-input {
+  border: 1px solid var(--cds-border-subtle-01);
+  border-radius: 0.5rem;
+  padding: $spacing-03 $spacing-04;
+  @include type-style('body-01');
+  color: var(--cds-text-primary);
+  background: var(--cds-layer-01);
+  outline: none;
+  width: 100%;
+
+  &:focus { border-color: #f472a0; }
+}
+
+.st-order-est {
+  @include type-style('body-01');
+  color: var(--cds-text-secondary);
+  margin: 0;
+}
+
+.st-order-submit {
+  border: none;
+  border-radius: 0.5rem;
+  padding: $spacing-04;
+  @include type-style('body-01');
+  font-weight: 700;
+  cursor: pointer;
+  color: #ffffff;
+  width: 100%;
+
+  &--buy  { background: #24a148; }
+  &--sell { background: #da1e28; }
+  &:focus, &:focus-visible { outline: none; }
+}
 
 .db-badge {
   @include type-style('label-01');
