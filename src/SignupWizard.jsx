@@ -1,4 +1,16 @@
 import { useState, useEffect } from 'react';
+import {
+  Button,
+  NumberInput,
+  Select,
+  SelectItem,
+  TextInput,
+  SelectableTile,
+  RadioTile,
+  TileGroup,
+  ProgressIndicator,
+  ProgressStep,
+} from '@carbon/react';
 
 const TOTAL_STEPS = 12;
 
@@ -30,17 +42,18 @@ function CardGrid({ options, selected, onChange }) {
   return (
     <div className="option-grid">
       {options.map(({ value, icon, label, sub }) => (
-        <button
+        <SelectableTile
           key={value}
-          type="button"
-          className={`option-card${selected.includes(value) ? ' selected' : ''}`}
-          onClick={() => toggle(value)}
-          aria-pressed={selected.includes(value)}
+          id={`selectable-${value}`}
+          value={value}
+          selected={selected.includes(value)}
+          onChange={() => toggle(value)}
+          className="option-card"
         >
           {icon && <span className="option-card-icon">{icon}</span>}
           <span>{label}</span>
           {sub && <span className="option-card-sub">{sub}</span>}
-        </button>
+        </SelectableTile>
       ))}
     </div>
   );
@@ -49,25 +62,25 @@ function CardGrid({ options, selected, onChange }) {
 /** Row-list for single-select (risk, horizon, age, emergency) */
 function RowList({ options, selected, onChange }) {
   return (
-    <div className="option-list">
+    <TileGroup
+      name={`rowlist-${options[0]?.value ?? 'group'}`}
+      valueSelected={selected}
+      onChange={(value) => onChange(value)}
+      className="option-list"
+    >
       {options.map(({ value, label, hint }) => (
-        <button
+        <RadioTile
           key={value}
-          type="button"
-          className={`option-row${selected === value ? ' selected' : ''}`}
-          onClick={() => onChange(value)}
-          aria-pressed={selected === value}
+          value={value}
+          className="option-row"
         >
-          <span className="option-row-radio">
-            <span className="option-row-radio-dot" />
-          </span>
           <span className="option-row-text">
             <span className="option-row-title">{label}</span>
             {hint && <span className="option-row-hint">{hint}</span>}
           </span>
-        </button>
+        </RadioTile>
       ))}
-    </div>
+    </TileGroup>
   );
 }
 
@@ -142,15 +155,14 @@ function StepIncome({ data, onChange }) {
         />
       </div>
       <div className="field-group" style={{ marginTop: '0.75rem' }}>
-        <label className="field-label" htmlFor="monthly-savings">Monthly amount to invest (USD)</label>
-        <input
+        <NumberInput
           id="monthly-savings"
-          className="field-input"
-          type="number"
-          min="0"
+          label="Monthly amount to invest (USD)"
+          min={0}
           placeholder="e.g. 500"
-          value={data.monthlySavings}
-          onChange={(e) => onChange({ monthlySavings: e.target.value })}
+          value={data.monthlySavings === '' ? '' : Number(data.monthlySavings)}
+          onChange={(_e, { value }) => onChange({ monthlySavings: value === '' ? '' : String(value) })}
+          allowEmpty
         />
       </div>
       <div className="field-group" style={{ marginTop: '0.75rem' }}>
@@ -200,22 +212,18 @@ function StepAge({ data, onChange }) {
   return (
     <div className="step-body">
       <div className="field-group">
-        <label className="field-label" htmlFor="dob-input">Date of birth</label>
-        <input
+        <TextInput
           id="dob-input"
-          className={`field-input${tooYoung ? ' field-input--error' : ''}`}
+          labelText="Date of birth"
           type="date"
           max={maxDate}
           min={minDate}
           value={data.dob || ''}
           onChange={(e) => onChange({ dob: e.target.value })}
+          invalid={tooYoung}
+          invalidText="You must be at least 18 years old to use Candyland Bank."
+          helperText={age !== null && !tooYoung ? `Age: ${age}` : ''}
         />
-        {tooYoung && (
-          <span className="field-error">You must be at least 18 years old to use Candyland Bank.</span>
-        )}
-        {age !== null && !tooYoung && (
-          <span className="field-hint">Age: {age}</span>
-        )}
       </div>
     </div>
   );
@@ -335,50 +343,43 @@ function StepState({ data, onChange }) {
   return (
     <div className="step-body">
       <div className="field-group">
-        <label className="field-label" htmlFor="state-input">State</label>
-        <select
+        <Select
           id="state-input"
-          className="field-input field-select"
+          labelText="State"
           value={data.usState || ''}
           onChange={(e) => onChange({ usState: e.target.value })}
           autoComplete="address-level1"
         >
-          <option value="" disabled>Select a state…</option>
+          <SelectItem value="" text="Select a state…" disabled hidden />
           {US_STATES.map((s) => (
-            <option key={s} value={s}>{s}</option>
+            <SelectItem key={s} value={s} text={s} />
           ))}
-        </select>
+        </Select>
       </div>
 
       {data.usState && (
         <div className="field-group" style={{ marginTop: '0.75rem' }}>
-          <label className="field-label" htmlFor="city-input">
-            City
-            {loading && <span className="field-hint" style={{ marginLeft: '0.5rem' }}>Loading…</span>}
-          </label>
-
           {/* Loaded successfully → locked dropdown */}
           {!loading && cities && cities.length > 0 && (
-            <select
+            <Select
               id="city-input"
-              className="field-input field-select"
+              labelText={`City${loading ? ' (Loading…)' : ''}`}
               value={data.city || ''}
               onChange={(e) => onChange({ city: e.target.value })}
               autoComplete="address-level2"
             >
-              <option value="" disabled>Select a city…</option>
+              <SelectItem value="" text="Select a city…" disabled hidden />
               {cities.map((c) => (
-                <option key={c} value={c}>{c}</option>
+                <SelectItem key={c} value={c} text={c} />
               ))}
-            </select>
+            </Select>
           )}
 
           {/* Fetch failed / empty → plain text fallback */}
           {!loading && cities !== null && cities.length === 0 && (
-            <input
+            <TextInput
               id="city-input"
-              className="field-input"
-              type="text"
+              labelText="City"
               placeholder="Type your city"
               value={data.city || ''}
               onChange={(e) => onChange({ city: e.target.value })}
@@ -388,9 +389,9 @@ function StepState({ data, onChange }) {
 
           {/* Still loading → disabled placeholder */}
           {loading && (
-            <select id="city-input" className="field-input field-select" disabled>
-              <option>Loading cities…</option>
-            </select>
+            <Select id="city-input" labelText="City" disabled>
+              <SelectItem value="" text="Loading cities…" />
+            </Select>
           )}
         </div>
       )}
@@ -530,19 +531,24 @@ export default function SignupWizard({ onComplete, onExit }) {
             {step === 11 && "Pick any that resonate. You can always change these later."}
           </p>
 
-          {/* Dot stepper */}
-          <div className="step-dots" aria-hidden="true">
-            {STEP_META.map((_, i) => (
-              <button
+          {/* Carbon ProgressIndicator for the 12-step wizard */}
+          <ProgressIndicator
+            currentIndex={step}
+            className="step-dots"
+            onChange={(newStep) => newStep < step && setStep(newStep)}
+            spaceEqually
+          >
+            {STEP_META.map((meta, i) => (
+              <ProgressStep
                 key={i}
-                type="button"
-                className={`step-dot${i === step ? ' active' : i < step ? ' done' : ''}`}
+                label={meta.label}
+                complete={i < step}
+                current={i === step}
+                disabled={i > step}
                 onClick={() => i < step && setStep(i)}
-                tabIndex={i < step ? 0 : -1}
-                aria-label={i < step ? `Go back to step ${i + 1}` : undefined}
               />
             ))}
-          </div>
+          </ProgressIndicator>
 
           {steps[step]}
         </div>
@@ -551,24 +557,23 @@ export default function SignupWizard({ onComplete, onExit }) {
         <div className="wizard-footer">
           <div>
             {step > 0 ? (
-              <button type="button" className="btn btn-ghost" onClick={() => setStep((s) => s - 1)}>
+              <Button kind="ghost" onClick={() => setStep((s) => s - 1)}>
                 ← Back
-              </button>
+              </Button>
             ) : (
-              <button type="button" className="btn btn-ghost" onClick={onExit}>
+              <Button kind="ghost" onClick={onExit}>
                 ← Home
-              </button>
+              </Button>
             )}
           </div>
           <div className="wizard-footer-right">
-            <button
-              type="button"
-              className="btn btn-primary"
+            <Button
+              kind="primary"
               onClick={handleNext}
               disabled={!canAdvance}
             >
               {step === TOTAL_STEPS - 1 ? 'Finish setup →' : 'Next →'}
-            </button>
+            </Button>
           </div>
         </div>
       </div>

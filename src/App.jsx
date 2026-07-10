@@ -4,7 +4,14 @@ import {
   Button,
   Header,
   HeaderName,
+  HeaderNavigation,
+  HeaderMenuItem,
   TextInput,
+  PasswordInput,
+  TextArea,
+  InlineNotification,
+  Tag,
+  Loading,
 } from '@carbon/react';
 import SignupWizard from './SignupWizard';
 import {
@@ -88,54 +95,51 @@ function AccountSignup({ investorProfile, onComplete, onSkip, isGuest }) {
           ) : (
             <form className="acct-form" onSubmit={handleSubmit} noValidate>
               <div className="field-group">
-                <label className="field-label" htmlFor="acct-username">Username</label>
-                <input
+                <TextInput
                   id="acct-username"
-                  className={`field-input${errors.username ? ' field-input--error' : ''}`}
-                  type="text"
+                  labelText="Username"
                   placeholder="e.g. jsmith"
                   autoComplete="username"
                   value={form.username}
                   onChange={(e) => patch('username', e.target.value)}
+                  invalid={!!errors.username}
+                  invalidText={errors.username}
                 />
-                {errors.username && <span className="field-error">{errors.username}</span>}
               </div>
               <div className="field-group">
-                <label className="field-label" htmlFor="acct-password">Password</label>
-                <input
+                <PasswordInput
                   id="acct-password"
-                  className={`field-input${errors.password ? ' field-input--error' : ''}`}
-                  type="password"
+                  labelText="Password"
                   placeholder="At least 6 characters"
                   autoComplete="new-password"
                   value={form.password}
                   onChange={(e) => patch('password', e.target.value)}
+                  invalid={!!errors.password}
+                  invalidText={errors.password}
                 />
-                {errors.password && <span className="field-error">{errors.password}</span>}
               </div>
               <div className="field-group">
-                <label className="field-label" htmlFor="acct-confirm">Confirm password</label>
-                <input
+                <PasswordInput
                   id="acct-confirm"
-                  className={`field-input${errors.confirm ? ' field-input--error' : ''}`}
-                  type="password"
+                  labelText="Confirm password"
                   placeholder="Repeat password"
                   autoComplete="new-password"
                   value={form.confirm}
                   onChange={(e) => patch('confirm', e.target.value)}
+                  invalid={!!errors.confirm}
+                  invalidText={errors.confirm}
                 />
-                {errors.confirm && <span className="field-error">{errors.confirm}</span>}
               </div>
               <div className="acct-form-footer">
-                <button type="submit" className="btn btn-primary acct-submit-btn" disabled={busy}>
+                <Button type="submit" kind="primary" className="acct-submit-btn" disabled={busy}>
                   {busy ? 'Saving…' : 'Create account →'}
-                </button>
+                </Button>
               </div>
             </form>
           )}
         </div>
         <div className="wizard-footer">
-          <button type="button" className="btn btn-ghost" onClick={onSkip}>Skip for now</button>
+          <Button kind="ghost" onClick={onSkip}>Skip for now</Button>
           <span className="acct-skip-hint">You can always sign up later.</span>
         </div>
       </div>
@@ -177,44 +181,42 @@ function LoginForm({ onLogin, onCreateNew, onGuest, onGoHome }) {
           <p className="wizard-sub">Enter your Candyland Bank username and password.</p>
           <form className="acct-form" onSubmit={handleSubmit} noValidate>
             <div className="field-group">
-              <label className="field-label" htmlFor="login-username">Username</label>
-              <input
+              <TextInput
                 id="login-username"
-                className={`field-input${error ? ' field-input--error' : ''}`}
-                type="text"
+                labelText="Username"
                 placeholder="Your username"
                 autoComplete="username"
                 value={form.username}
                 onChange={(e) => patch('username', e.target.value)}
+                invalid={!!error}
               />
             </div>
             <div className="field-group">
-              <label className="field-label" htmlFor="login-password">Password</label>
-              <input
+              <PasswordInput
                 id="login-password"
-                className={`field-input${error ? ' field-input--error' : ''}`}
-                type="password"
+                labelText="Password"
                 placeholder="Your password"
                 autoComplete="current-password"
                 value={form.password}
                 onChange={(e) => patch('password', e.target.value)}
+                invalid={!!error}
+                invalidText={error}
               />
-              {error && <span className="field-error">{error}</span>}
             </div>
             <div className="acct-form-footer">
-              <button type="submit" className="btn btn-primary acct-submit-btn" disabled={busy}>
+              <Button type="submit" kind="primary" className="acct-submit-btn" disabled={busy}>
                 {busy ? 'Signing in…' : 'Sign in →'}
-              </button>
+              </Button>
             </div>
           </form>
         </div>
         <div className="wizard-footer">
-          <button type="button" className="btn btn-ghost" onClick={onCreateNew}>
+          <Button kind="ghost" onClick={onCreateNew}>
             Create new account
-          </button>
-          <button type="button" className="nav-pill" onClick={onGuest}>
+          </Button>
+          <Button kind="tertiary" onClick={onGuest}>
             Continue as guest
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -249,9 +251,9 @@ function HomePage({ onGetStarted, isLoggedIn, onGoToChat, onSignIn, username }) 
                 {ctaLabel} <span className="cta-btn-arrow">→</span>
               </button>
             ) : (
-              <button className="nav-pill home-hero-signin" onClick={onSignIn}>
+              <Button kind="tertiary" className="home-hero-signin" onClick={onSignIn}>
                 Sign in
-              </button>
+              </Button>
             )}
           </div>
         </section>
@@ -326,7 +328,7 @@ function HomePage({ onGetStarted, isLoggedIn, onGoToChat, onSignIn, username }) 
               <span className="contact-card-icon">💬</span>
               <h3 className="contact-card-title">Live chat</h3>
               <p className="contact-card-desc">Chat with your AI assistant directly inside the app.</p>
-              <button className="contact-link-btn" onClick={ctaAction}>Open the app →</button>
+              <Button kind="ghost" className="contact-link-btn" onClick={ctaAction}>Open the app →</Button>
             </div>
             <div className="contact-card">
               <span className="contact-card-icon">📞</span>
@@ -513,17 +515,24 @@ function ChatView({ profile, username }) {
 
       {/* ── History sidebar ───────────────────────────────────────────────── */}
       <aside className="chat-history-sidebar">
-        <button className="chat-history-new-btn" onClick={newChat}>
-          <svg viewBox="0 0 16 16" fill="none" width="14" height="14" xmlns="http://www.w3.org/2000/svg">
-            <path d="M8 1v14M1 8h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-          </svg>
+        <Button
+          kind="tertiary"
+          size="sm"
+          className="chat-history-new-btn"
+          onClick={newChat}
+          renderIcon={() => (
+            <svg viewBox="0 0 16 16" fill="none" width="14" height="14" xmlns="http://www.w3.org/2000/svg">
+              <path d="M8 1v14M1 8h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+          )}
+        >
           New chat
-        </button>
+        </Button>
         <div className="chat-history-list">
           {sessions.some((s) => s.pinned) && (
             <span className="chat-history-group-label">Pinned</span>
           )}
-          {sessions.filter((s) => s.pinned).map((s, i) => (
+          {sessions.filter((s) => s.pinned).map((s) => (
             <div
               key={s.id}
               className={`chat-history-item${sessions.indexOf(s) === activeIdx ? ' chat-history-item--active' : ''}`}
@@ -601,7 +610,10 @@ function ChatView({ profile, username }) {
                 <span className="chat-row-label">{SENDER_LABEL[msg.sender]}</span>
                 {editingIdx === i ? (
                   <div className="chat-edit-wrap">
-                    <textarea
+                    <TextArea
+                      id={`chat-edit-${i}`}
+                      labelText=""
+                      hideLabel
                       className="chat-edit-textarea"
                       value={editDraft}
                       onChange={(e) => setEditDraft(e.target.value)}
@@ -619,7 +631,9 @@ function ChatView({ profile, username }) {
                       autoFocus
                     />
                     <div className="chat-edit-actions">
-                      <button
+                      <Button
+                        kind="primary"
+                        size="sm"
                         className="chat-edit-save"
                         onClick={() => {
                           if (editDraft.trim()) {
@@ -628,11 +642,13 @@ function ChatView({ profile, username }) {
                             send(editDraft.trim(), prior);
                           }
                         }}
-                      >Save</button>
-                      <button
+                      >Save</Button>
+                      <Button
+                        kind="ghost"
+                        size="sm"
                         className="chat-edit-cancel"
                         onClick={() => setEditingIdx(null)}
-                      >Cancel</button>
+                      >Cancel</Button>
                     </div>
                   </div>
                 ) : (
@@ -664,20 +680,24 @@ function ChatView({ profile, username }) {
           {messages.length <= 1 && (
             <div className="chat-inline-suggestions">
               {SUGGESTED_PROMPTS.map((p) => (
-                <button
+                <Tag
                   key={p}
+                  type="blue"
                   className="chat-inline-suggestion-btn"
-                  onClick={() => send(p)}
-                  disabled={loading}
+                  onClick={() => !loading && send(p)}
+                  style={{ cursor: loading ? 'not-allowed' : 'pointer' }}
                 >
                   {p}
-                </button>
+                </Tag>
               ))}
             </div>
           )}
           <div className="chat-input-wrap">
-            <textarea
+            <TextArea
               ref={inputRef}
+              id="chat-input"
+              labelText=""
+              hideLabel
               className="chat-textarea"
               rows={1}
               placeholder={loading ? 'Gumdrop is thinking…' : 'Ask me anything about investing…'}
@@ -686,16 +706,21 @@ function ChatView({ profile, username }) {
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={handleKey}
             />
-            <button
+            <Button
+              kind="primary"
+              size="sm"
               className="chat-send-btn"
               onClick={() => send(draft)}
               disabled={loading || !draft.trim()}
               aria-label="Send message"
-            >
-              <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="18">
-                <path d="M2 10L18 2L12 10L18 18L2 10Z" fill="currentColor" />
-              </svg>
-            </button>
+              hasIconOnly
+              iconDescription="Send message"
+              renderIcon={() => (
+                <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="18">
+                  <path d="M2 10L18 2L12 10L18 18L2 10Z" fill="currentColor" />
+                </svg>
+              )}
+            />
           </div>
           <p className="chat-input-hint">Press Enter to send · Shift+Enter for new line</p>
         </div>
@@ -722,16 +747,17 @@ function NavShell({ children, username, onLogout, onGoHome }) {
           />
         </HeaderName>
         {username && (
-          <div className="nav-pill-group" role="navigation" aria-label="Main navigation">
-            <button className="nav-pill" onClick={onGoHome}>Home</button>
-            <button
-              className="nav-pill"
+          <HeaderNavigation aria-label="Main navigation">
+            <HeaderMenuItem onClick={onGoHome}>Home</HeaderMenuItem>
+            <HeaderMenuItem
               onClick={() => document.getElementById('chat')?.scrollIntoView({ behavior: 'smooth' })}
             >
               Chat
-            </button>
-            <button className="nav-pill nav-pill--danger" onClick={onLogout}>Sign out</button>
-          </div>
+            </HeaderMenuItem>
+            <HeaderMenuItem onClick={onLogout} className="nav-danger">
+              Sign out
+            </HeaderMenuItem>
+          </HeaderNavigation>
         )}
       </Header>
       {children}
@@ -767,19 +793,22 @@ function PasswordGate({ children }) {
       <div className="pin-card">
         <img src={candylandTitle} alt="Candyland Bank" className="pin-logo" />
         <p className="pin-label">Enter the site password to continue</p>
-        <input
+        <PasswordInput
+          id="pin-input"
+          labelText=""
+          hideLabel
           className={`pin-input${error ? ' pin-input--error' : ''}`}
-          type="password"
           placeholder="••••••••"
           value={value}
           autoFocus
           onChange={(e) => { setValue(e.target.value); setError(false); }}
           onKeyDown={(e) => e.key === 'Enter' && value && attempt()}
+          invalid={error}
+          invalidText="Incorrect password — try again"
         />
-        {error && <p className="pin-error">Incorrect password — try again</p>}
-        <button className="pin-btn" onClick={attempt} disabled={!value}>
+        <Button kind="primary" className="pin-btn" onClick={attempt} disabled={!value}>
           Enter
-        </button>
+        </Button>
       </div>
     </div>
   );
