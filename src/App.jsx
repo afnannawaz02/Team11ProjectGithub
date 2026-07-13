@@ -939,14 +939,13 @@ function PanelTrades() {
 
 // ── Dashboard Page ─────────────────────────────────────────────────────────────
 function DashboardPage({ profile, username, onStartQuestionnaire, onLogout }) {
-  const [activePanel, setActivePanel] = useState('portfolio');
+  const [activePanel, setActivePanel] = useState('assets');
   const [menuOpen, setMenuOpen]       = useState(false);
 
   const NAV = [
-    { id: 'assets',    label: 'Assets',           icon: '💼' },
-    { id: 'spending',  label: 'Spending History',  icon: '💳' },
-    { id: 'portfolio', label: 'Portfolio Breakdown', icon: '📊' },
-    { id: 'trades',    label: 'Trade History',     icon: '📈' },
+    { id: 'assets',   label: 'Assets',          icon: '💼' },
+    { id: 'spending', label: 'Spending History', icon: '💳' },
+    { id: 'trades',   label: 'Trade History',    icon: '📈' },
   ];
 
   const activeLabel = NAV.find((n) => n.id === activePanel)?.label;
@@ -1456,10 +1455,28 @@ function ChatView({ profile, username }) {
 }
 
 // ── Profile Page ───────────────────────────────────────────────────────────────
-function ProfilePage({ username, onLogout, onBack }) {
+function ProfilePage({ username, profile, onLogout, onBack }) {
+  const RISK_DESC    = { conservative: 'Low risk, stable returns', moderate: 'Balanced growth & safety', aggressive: 'High risk, high reward' };
+  const HORIZON_DESC = { short: 'Under 3 years', medium: '3 – 10 years', long: '10+ years' };
+  const goals = (profile?.goals ?? []).map((g) => GOAL_LABELS[g] ?? g);
+  const profileRows = [
+    { label: 'Goals',           value: goals.length ? goals.join(', ') : 'None set' },
+    { label: 'Risk appetite',   value: profile?.risk ? `${profile.risk} — ${RISK_DESC[profile.risk] ?? ''}` : 'Not set' },
+    { label: 'Time horizon',    value: profile?.horizon ? `${profile.horizon} — ${HORIZON_DESC[profile.horizon] ?? ''}` : 'Not set' },
+    { label: 'Annual income',   value: profile?.annualIncome ? `$${Number(profile.annualIncome).toLocaleString()}` : 'Not set' },
+    { label: 'Monthly savings', value: profile?.monthlySavings ? `$${Number(profile.monthlySavings).toLocaleString()}` : 'Not set' },
+    { label: 'Emergency fund',  value: profile?.emergencyFund ?? 'Not set' },
+    { label: 'Employment',      value: profile?.employmentStatus ?? 'Not set' },
+    { label: 'Marital status',  value: profile?.maritalStatus ?? 'Not set' },
+    { label: 'Credit score',    value: profile?.creditScore ?? 'Not set' },
+    { label: 'Location',        value: profile?.city && profile?.usState ? `${profile.city}, ${profile.usState}` : profile?.usState ?? 'Not set' },
+    { label: 'Veteran status',  value: profile?.veteranStatus ?? 'Not set' },
+    { label: 'Preferences',     value: (profile?.preferences ?? []).join(', ') || 'None' },
+  ];
+
   return (
-    <div className="wizard-page">
-      <div className="wizard-card" style={{ maxWidth: '32rem' }}>
+    <div className="wizard-page" style={{ alignItems: 'flex-start', paddingTop: '2rem' }}>
+      <div className="wizard-card" style={{ maxWidth: '36rem', width: '100%' }}>
         <div className="wizard-progress-bar">
           <div className="wizard-progress-fill" style={{ width: '100%' }} />
         </div>
@@ -1484,6 +1501,25 @@ function ProfilePage({ username, onLogout, onBack }) {
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--cds-text-secondary)' }}>
               Your account is secured with IBM email verification and two-factor authentication via OTP.
             </p>
+          </div>
+
+          {/* ── Investor profile ── */}
+          <div style={{ borderTop: '1px solid #fbc4d9', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <p style={{ margin: 0, fontWeight: 600, fontSize: '0.9rem' }}>Investor profile</p>
+            {!profile ? (
+              <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--cds-text-secondary)' }}>
+                No questionnaire completed yet. Use "Retake questionnaire" in the dashboard to build your profile.
+              </p>
+            ) : (
+              <div className="db-kv-grid">
+                {profileRows.map(({ label, value }) => (
+                  <div key={label} className="db-kv-row">
+                    <span className="db-kv-label">{label}</span>
+                    <span className="db-kv-value">{value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* ── Linked accounts ── */}
@@ -1633,6 +1669,7 @@ export default function App() {
       <NavShell heroHeader username={username} onGoProfile={() => setPage('profile')} onGoHome={() => setPage('home')}>
         <ProfilePage
           username={username}
+          profile={profile}
           onLogout={handleLogout}
           onBack={() => setPage('dashboard')}
         />
