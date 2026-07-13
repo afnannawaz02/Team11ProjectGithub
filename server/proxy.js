@@ -29,7 +29,7 @@ const {
   WATSONX_REGION       = 'us-south',
   WATSONX_MODEL_ID     = 'ibm/granite-3-8b-instruct',
   RESEND_API_KEY,
-  RESEND_FROM          = 'noreply@candylandbank.com',
+  RESEND_FROM          = 'noreply@team11.uk',
   ALLOWED_EMAIL_DOMAIN = 'ibm.com',
   ALPHA_VANTAGE_API_KEY,
 } = process.env;
