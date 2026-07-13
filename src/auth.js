@@ -1,147 +1,113 @@
 /**
- * src/auth.js — local account cache (demo / localhost only)
+ * src/auth.js — API-backed auth (D1 + HttpOnly session cookie)
  *
- * Storage layout in localStorage:
- *   cb_accounts  — JSON array of { username, passwordHash, profile }
- *   cb_session   — JSON { username } when someone is logged in
+ * All account data lives in Cloudflare D1 via /api/auth.
+ * The browser holds only an HttpOnly session cookie — no passwords or
+ * account data ever touch localStorage.
  *
- * Passwords are hashed with SHA-256 via the Web Crypto API before storage.
- * This is NOT production-grade security — it is appropriate for a local demo
- * where no data leaves the browser.
+ * Chat session titles/pins are still kept in localStorage as a lightweight
+ * UI-only cache (no sensitive data).
  */
 
-const ACCOUNTS_KEY = 'cb_accounts';
-const SESSION_KEY  = 'cb_session';
+const BASE = '/api/auth';
 
-// ── Hashing ───────────────────────────────────────────────────────────────────
-async function sha256(text) {
-  const buf = await crypto.subtle.digest(
-    'SHA-256',
-    new TextEncoder().encode(text)
-  );
-  return Array.from(new Uint8Array(buf))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-}
-
-// ── Raw store helpers ─────────────────────────────────────────────────────────
-function loadAccounts() {
-  try {
-    return JSON.parse(localStorage.getItem(ACCOUNTS_KEY) || '[]');
-  } catch {
-    return [];
-  }
-}
-
-function saveAccounts(accounts) {
-  localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
+async function call(action, body, method = 'POST') {
+  const res = await fetch(`${BASE}?action=${action}`, {
+    method,
+    credentials: 'same-origin',
+    headers: body ? { 'Content-Type': 'application/json' } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, status: res.status, ...data };
 }
 
 // ── Public API ─────────────────────────────────────────────────────────────────
 
 /**
- * createAccount(username, password, profile)
- * Returns { ok: true } or { ok: false, error: string }
+ * createAccount(username, password, email, profile)
+ * Registers via D1. Returns { ok, username } or { ok: false, error }.
  */
-export async function createAccount(username, password, profile) {
-  const accounts = loadAccounts();
-
-  if (accounts.some((a) => a.username.toLowerCase() === username.toLowerCase())) {
-    return { ok: false, error: 'That username is already taken.' };
-  }
-
-  const passwordHash = await sha256(password);
-  accounts.push({ username, passwordHash, profile });
-  saveAccounts(accounts);
-
-  // Auto-login after creation
-  localStorage.setItem(SESSION_KEY, JSON.stringify({ username }));
-
-  return { ok: true };
+export async function createAccount(username, password, email, profile) {
+  return call('register', { username, password, email, profile });
 }
 
 /**
  * login(username, password)
- * Returns { ok: true, account } or { ok: false, error: string }
+ * Returns { ok, username, profile } or { ok: false, error }.
  */
 export async function login(username, password) {
-  const accounts = loadAccounts();
-  const account  = accounts.find(
-    (a) => a.username.toLowerCase() === username.toLowerCase()
-  );
-
-  if (!account) {
-    return { ok: false, error: 'No account found with that username.' };
+  const res = await call('login', { username, password });
+  if (res.ok) {
+    // Cache username for quick UI reads (no sensitive data)
+    sessionStorage.setItem('cb_user', JSON.stringify({ username: res.username }));
   }
-
-  const passwordHash = await sha256(password);
-  if (passwordHash !== account.passwordHash) {
-    return { ok: false, error: 'Incorrect password.' };
-  }
-
-  localStorage.setItem(SESSION_KEY, JSON.stringify({ username: account.username }));
-  return { ok: true, account };
+  return res;
 }
 
 /**
- * logout() — clears the active session (keeps the account in the store)
+ * logout() — invalidates the server session and clears local cache.
  */
-export function logout() {
-  localStorage.removeItem(SESSION_KEY);
+export async function logout() {
+  sessionStorage.removeItem('cb_user');
+  await call('logout', null);
 }
 
 /**
- * getSession() — returns { username } if logged in, or null
+ * getSession() — returns { username } from in-memory cache, or null.
+ * For page-load restoration, call restoreSession() instead.
  */
 export function getSession() {
   try {
-    return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+    return JSON.parse(sessionStorage.getItem('cb_user') || 'null');
   } catch {
     return null;
   }
 }
 
 /**
- * getAccountByUsername(username) — returns the full account object or null
+ * restoreSession() — validates the HttpOnly cookie with the server.
+ * Returns { ok, username, profile } or { ok: false }.
+ * Call once on app boot.
  */
-export function getAccountByUsername(username) {
-  return loadAccounts().find(
-    (a) => a.username.toLowerCase() === username.toLowerCase()
-  ) ?? null;
+export async function restoreSession() {
+  const res = await fetch(`${BASE}?action=me`, {
+    method: 'GET',
+    credentials: 'same-origin',
+  }).then((r) => r.json()).catch(() => ({ ok: false }));
+
+  if (res.ok) {
+    sessionStorage.setItem('cb_user', JSON.stringify({ username: res.username }));
+  } else {
+    sessionStorage.removeItem('cb_user');
+  }
+  return res;
 }
 
 /**
- * hasAnyAccount() — true if at least one account has been created
+ * hasAnyAccount() — can't know without a server call when using D1.
+ * Returns false so the UI always shows the "create account" path.
  */
 export function hasAnyAccount() {
-  return loadAccounts().length > 0;
+  return !!getSession();
 }
 
 /**
- * updateProfile(username, profile) — saves an updated investor profile
+ * getAccountByUsername() — not needed with server-side sessions.
+ * Kept for compatibility; returns null.
  */
-export function updateProfile(username, profile) {
-  const accounts = loadAccounts();
-  const idx = accounts.findIndex(
-    (a) => a.username.toLowerCase() === username.toLowerCase()
-  );
-  if (idx !== -1) {
-    accounts[idx].profile = profile;
-    saveAccounts(accounts);
-  }
+export function getAccountByUsername() {
+  return null;
 }
 
 /**
- * saveSessions(username, sessions) — persists chat sessions for a user
+ * saveSessions / loadSessions — chat history UI cache (localStorage, non-sensitive)
  */
 export function saveSessions(username, sessions) {
   if (!username) return;
   localStorage.setItem(`cb_sessions_${username.toLowerCase()}`, JSON.stringify(sessions));
 }
 
-/**
- * loadSessions(username) — returns persisted chat sessions or null
- */
 export function loadSessions(username) {
   if (!username) return null;
   try {

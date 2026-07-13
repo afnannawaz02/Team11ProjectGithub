@@ -12,3 +12,8 @@ pages_build_output_dir = "dist"
 [[kv_namespaces]]
 binding = "OTP_STORE"
 id      = "f17959f2f94a4c7799dd2a9c8608bf39"
+
+[[d1_databases]]
+binding       = "DB"
+database_name = "candyland-db"
+database_id   = "effb499d-cbb7-4fa9-b5cf-9ea2ca8ad81a"

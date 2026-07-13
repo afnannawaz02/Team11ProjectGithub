@@ -26,7 +26,7 @@ import {
   login,
   logout,
   getSession,
-  getAccountByUsername,
+  restoreSession,
   hasAnyAccount,
   saveSessions,
   loadSessions,
@@ -50,10 +50,13 @@ const SENDER_LABEL = { system: 'Gumdrop', bot: 'Gumdrop', user: 'You' };
 
 // ── Account Signup ─────────────────────────────────────────────────────────────
 function AccountSignup({ investorProfile, onComplete, onSkip, isGuest }) {
-  const [form, setForm]     = useState({ username: '', password: '', confirm: '' });
+  // step: 'form' | 'otp' | 'done'
+  const [step, setStep]     = useState('form');
+  const [form, setForm]     = useState({ username: '', password: '', confirm: '', email: '' });
+  const [otp, setOtp]       = useState('');
   const [errors, setErrors] = useState({});
   const [busy, setBusy]     = useState(false);
-  const [done, setDone]     = useState(false);
+  const [otpError, setOtpError] = useState('');
 
   const patch = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -62,22 +65,49 @@ function AccountSignup({ investorProfile, onComplete, onSkip, isGuest }) {
 
   const validate = () => {
     const e = {};
-    if (!form.username.trim())         e.username = 'Username is required.';
-    else if (form.username.length < 3) e.username = 'Username must be at least 3 characters.';
-    if (form.password.length < 6)      e.password = 'Password must be at least 6 characters.';
-    if (form.password !== form.confirm) e.confirm  = 'Passwords do not match.';
+    if (!form.username.trim())              e.username = 'Username is required.';
+    else if (form.username.length < 3)      e.username = 'Username must be at least 3 characters.';
+    if (form.password.length < 6)           e.password = 'Password must be at least 6 characters.';
+    if (form.password !== form.confirm)     e.confirm  = 'Passwords do not match.';
+    if (!form.email.trim())                 e.email    = 'IBM email is required.';
+    else if (!form.email.endsWith('@ibm.com')) e.email  = 'Must be an @ibm.com address.';
     return e;
   };
 
-  const handleSubmit = async (e) => {
+  // Step 1: validate form → send OTP
+  const handleSendOtp = async (e) => {
     e.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
     setBusy(true);
-    const result = await createAccount(form.username.trim(), form.password, investorProfile);
+    const res = await fetch('/send-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: form.email.trim().toLowerCase() }),
+    }).then((r) => r.json()).catch(() => ({ error: 'Network error' }));
     setBusy(false);
-    if (!result.ok) { setErrors({ username: result.error }); return; }
-    setDone(true);
+    if (!res.ok) { setErrors({ email: res.error || 'Failed to send code.' }); return; }
+    setStep('otp');
+  };
+
+  // Step 2: verify OTP → create account
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    if (!otp.trim()) { setOtpError('Please enter the code.'); return; }
+    setBusy(true);
+    // Verify OTP
+    const vRes = await fetch('/verify-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: form.email.trim().toLowerCase(), code: otp.trim() }),
+    }).then((r) => r.json()).catch(() => ({ error: 'Network error' }));
+    if (!vRes.ok) { setBusy(false); setOtpError(vRes.error || 'Invalid code.'); return; }
+
+    // Create account in D1
+    const result = await createAccount(form.username.trim(), form.password, form.email.trim().toLowerCase(), investorProfile);
+    setBusy(false);
+    if (!result.ok) { setOtpError(result.error || 'Failed to create account.'); return; }
+    setStep('done');
     setTimeout(() => onComplete(form.username.trim()), 1000);
   };
 
@@ -91,18 +121,31 @@ function AccountSignup({ investorProfile, onComplete, onSkip, isGuest }) {
           <div className="acct-badge">{isGuest ? 'Save your work' : 'Almost there!'}</div>
           <h2 className="wizard-heading">Create your account</h2>
           <p className="wizard-sub">
-            {isGuest
-              ? 'Your profile is ready — create an account to save it. Without one your data will be lost when you close the tab.'
-              : 'Pick a username and password to save your profile locally. No email needed.'}
+            {step === 'otp'
+              ? `We sent a 6-digit code to ${form.email}. Enter it below to verify your IBM email.`
+              : 'Create an account with your IBM email to save your profile securely.'}
           </p>
 
-          {done ? (
+          {step === 'done' && (
             <div className="acct-success">
               <span className="acct-success-icon">✓</span>
               <p>Account created! Taking you to your dashboard…</p>
             </div>
-          ) : (
-            <form className="auth-fields" onSubmit={handleSubmit} noValidate>
+          )}
+
+          {step === 'form' && (
+            <form className="auth-fields" onSubmit={handleSendOtp} noValidate>
+              <TextInput
+                id="acct-email"
+                labelText="IBM email"
+                placeholder="you@ibm.com"
+                type="email"
+                autoComplete="email"
+                value={form.email}
+                onChange={(e) => patch('email', e.target.value)}
+                invalid={!!errors.email}
+                invalidText={errors.email}
+              />
               <TextInput
                 id="acct-username"
                 labelText="Username"
@@ -134,8 +177,28 @@ function AccountSignup({ investorProfile, onComplete, onSkip, isGuest }) {
                 invalidText={errors.confirm}
               />
               <Button type="submit" kind="primary" disabled={busy}>
-                {busy ? 'Saving…' : 'Create account'}
+                {busy ? 'Sending code…' : 'Send verification code'}
               </Button>
+            </form>
+          )}
+
+          {step === 'otp' && (
+            <form className="auth-fields" onSubmit={handleVerifyOtp} noValidate>
+              {otpError && (
+                <InlineNotification kind="error" title="Error" subtitle={otpError} lowContrast hideCloseButton />
+              )}
+              <TextInput
+                id="acct-otp"
+                labelText="Verification code"
+                placeholder="6-digit code"
+                value={otp}
+                onChange={(e) => { setOtp(e.target.value); setOtpError(''); }}
+                autoFocus
+              />
+              <Button type="submit" kind="primary" disabled={busy}>
+                {busy ? 'Verifying…' : 'Verify & create account'}
+              </Button>
+              <Button kind="ghost" disabled={busy} onClick={() => setStep('form')}>← Back</Button>
             </form>
           )}
         </div>
@@ -150,7 +213,11 @@ function AccountSignup({ investorProfile, onComplete, onSkip, isGuest }) {
 
 // ── Login Form ─────────────────────────────────────────────────────────────────
 function LoginForm({ onLogin, onCreateNew, onGuest, onGoHome }) {
+  // step: 'form' | 'otp'
+  const [step, setStep]   = useState('form');
   const [form, setForm]   = useState({ username: '', password: '' });
+  const [email, setEmail] = useState('');
+  const [otp, setOtp]     = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy]   = useState(false);
 
@@ -159,6 +226,7 @@ function LoginForm({ onLogin, onCreateNew, onGuest, onGoHome }) {
     setError('');
   };
 
+  // Step 1: verify password → send OTP
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.username.trim() || !form.password) {
@@ -169,7 +237,42 @@ function LoginForm({ onLogin, onCreateNew, onGuest, onGoHome }) {
     const result = await login(form.username.trim(), form.password);
     setBusy(false);
     if (!result.ok) { setError(result.error); return; }
-    onLogin(result.account);
+
+    // Send OTP to their registered email
+    const emailAddr = result.email || '';
+    setEmail(emailAddr);
+    if (emailAddr) {
+      const otpRes = await fetch('/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailAddr }),
+      }).then((r) => r.json()).catch(() => ({}));
+      if (!otpRes.ok) {
+        // If OTP fails (e.g. no email on old account), skip 2FA
+        onLogin(result);
+        return;
+      }
+      setStep('otp');
+    } else {
+      onLogin(result);
+    }
+  };
+
+  // Step 2: verify OTP → complete login
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    if (!otp.trim()) { setError('Please enter the code.'); return; }
+    setBusy(true);
+    const vRes = await fetch('/verify-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code: otp.trim() }),
+    }).then((r) => r.json()).catch(() => ({ error: 'Network error' }));
+    setBusy(false);
+    if (!vRes.ok) { setError(vRes.error || 'Invalid code.'); return; }
+    // Re-fetch full session to get profile
+    const meRes = await fetch('/api/auth?action=me', { credentials: 'same-origin' }).then((r) => r.json()).catch(() => ({}));
+    onLogin(meRes.ok ? meRes : { username: form.username.trim() });
   };
 
   return (
@@ -181,39 +284,56 @@ function LoginForm({ onLogin, onCreateNew, onGuest, onGoHome }) {
         <div className="wizard-inner">
           <div className="acct-badge">Welcome back</div>
           <h2 className="wizard-heading">Sign in</h2>
-          <p className="wizard-sub">Enter your Candyland Bank username and password.</p>
+          <p className="wizard-sub">
+            {step === 'otp'
+              ? `Enter the 6-digit code sent to ${email}.`
+              : 'Enter your Candyland Bank username and password.'}
+          </p>
 
           {error && (
-            <InlineNotification
-              kind="error"
-              title="Sign-in failed"
-              subtitle={error}
-              lowContrast
-              hideCloseButton
-            />
+            <InlineNotification kind="error" title="Sign-in failed" subtitle={error} lowContrast hideCloseButton />
           )}
 
-          <form className="auth-fields" onSubmit={handleSubmit} noValidate>
-            <TextInput
-              id="login-username"
-              labelText="Username"
-              placeholder="Your username"
-              autoComplete="username"
-              value={form.username}
-              onChange={(e) => patch('username', e.target.value)}
-            />
-            <PasswordInput
-              id="login-password"
-              labelText="Password"
-              placeholder="Your password"
-              autoComplete="current-password"
-              value={form.password}
-              onChange={(e) => patch('password', e.target.value)}
-            />
-            <Button type="submit" kind="primary" disabled={busy}>
-              {busy ? 'Signing in…' : 'Sign in'}
-            </Button>
-          </form>
+          {step === 'form' && (
+            <form className="auth-fields" onSubmit={handleSubmit} noValidate>
+              <TextInput
+                id="login-username"
+                labelText="Username"
+                placeholder="Your username"
+                autoComplete="username"
+                value={form.username}
+                onChange={(e) => patch('username', e.target.value)}
+              />
+              <PasswordInput
+                id="login-password"
+                labelText="Password"
+                placeholder="Your password"
+                autoComplete="current-password"
+                value={form.password}
+                onChange={(e) => patch('password', e.target.value)}
+              />
+              <Button type="submit" kind="primary" disabled={busy}>
+                {busy ? 'Signing in…' : 'Sign in'}
+              </Button>
+            </form>
+          )}
+
+          {step === 'otp' && (
+            <form className="auth-fields" onSubmit={handleVerifyOtp} noValidate>
+              <TextInput
+                id="login-otp"
+                labelText="Verification code"
+                placeholder="6-digit code"
+                value={otp}
+                onChange={(e) => { setOtp(e.target.value); setError(''); }}
+                autoFocus
+              />
+              <Button type="submit" kind="primary" disabled={busy}>
+                {busy ? 'Verifying…' : 'Verify & sign in'}
+              </Button>
+              <Button kind="ghost" disabled={busy} onClick={() => setStep('form')}>← Back</Button>
+            </form>
+          )}
         </div>
         <div className="wizard-footer">
           <Button kind="ghost" onClick={onCreateNew}>Create new account</Button>
@@ -1284,26 +1404,33 @@ function PasswordGate({ children }) {
 
 // ── App ────────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [page, setPage] = useState('home');
-
-  const [profile, setProfile] = useState(() => {
-    const session = getSession();
-    if (session) {
-      const account = getAccountByUsername(session.username);
-      if (account) return account.profile;
-    }
-    return null;
-  });
+  const [page, setPage]         = useState('home');
+  const [profile, setProfile]   = useState(null);
   const [username, setUsername] = useState(() => getSession()?.username ?? null);
   const [isGuest, setIsGuest]   = useState(false);
+  const [booting, setBooting]   = useState(true);
 
-  const handleLogout = () => {
-    logout();
+  // Restore session from HttpOnly cookie on page load
+  useEffect(() => {
+    restoreSession().then((res) => {
+      if (res.ok) {
+        setUsername(res.username);
+        setProfile(res.profile ?? null);
+        setPage('dashboard');
+      }
+      setBooting(false);
+    });
+  }, []);
+
+  const handleLogout = async () => {
+    await logout();
     setUsername(null);
     setProfile(null);
     setIsGuest(false);
-    setPage('login');
+    setPage('home');
   };
+
+  if (booting) return null; // wait for session check before rendering
 
   let content;
 
@@ -1311,9 +1438,9 @@ export default function App() {
     content = (
       <NavShell heroHeader onGoHome={() => setPage('home')}>
         <LoginForm
-          onLogin={(account) => {
-            setProfile(account.profile);
-            setUsername(account.username);
+          onLogin={(res) => {
+            setProfile(res.profile ?? null);
+            setUsername(res.username);
             setIsGuest(false);
             setPage('dashboard');
           }}
