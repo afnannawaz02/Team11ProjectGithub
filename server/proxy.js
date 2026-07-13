@@ -31,6 +31,7 @@ const {
   RESEND_API_KEY,
   RESEND_FROM          = 'noreply@candylandbank.com',
   ALLOWED_EMAIL_DOMAIN = 'ibm.com',
+  ALPHA_VANTAGE_API_KEY,
 } = process.env;
 
 const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
@@ -79,6 +80,43 @@ app.use(express.json({ limit: '64kb' }));
 
 // Health check
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+
+/**
+ * GET /api/stock?ticker=AAPL&function=GLOBAL_QUOTE
+ * GET /api/stock?ticker=AAPL&function=TIME_SERIES_DAILY&outputsize=compact
+ * GET /api/stock?ticker=AAPL&function=OVERVIEW
+ * GET /api/stock?query=apple&function=SYMBOL_SEARCH
+ *
+ * Proxies Alpha Vantage so the API key stays server-side.
+ */
+app.get('/api/stock', async (req, res) => {
+  if (!ALPHA_VANTAGE_API_KEY) {
+    return res.status(503).json({ error: 'ALPHA_VANTAGE_API_KEY not configured on the server.' });
+  }
+
+  const { function: fn = 'GLOBAL_QUOTE', ticker, query } = req.query;
+  const params = new URLSearchParams({
+    function: fn,
+    apikey: ALPHA_VANTAGE_API_KEY,
+  });
+  if (ticker) params.set('symbol', ticker.toUpperCase());
+  if (query)  params.set('keywords', query);
+  if (fn === 'TIME_SERIES_DAILY') params.set('outputsize', 'compact');
+
+  try {
+    const avRes = await fetch(`https://www.alphavantage.co/query?${params}`);
+    if (!avRes.ok) return res.status(502).json({ error: 'Alpha Vantage request failed.' });
+    const data = await avRes.json();
+    // Alpha Vantage returns a Note field when rate-limited
+    if (data.Note || data.Information) {
+      return res.status(429).json({ error: data.Note || data.Information });
+    }
+    res.json(data);
+  } catch (err) {
+    console.error('Alpha Vantage proxy error:', err.message);
+    res.status(500).json({ error: 'Stock data fetch failed.' });
+  }
+});
 
 /**
  * POST /send-otp

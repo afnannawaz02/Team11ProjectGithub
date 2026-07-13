@@ -71,10 +71,14 @@ export function getSession() {
  * Call once on app boot.
  */
 export async function restoreSession() {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4000);
   const res = await fetch(`${BASE}?action=me`, {
     method: 'GET',
     credentials: 'same-origin',
+    signal: controller.signal,
   }).then((r) => r.json()).catch(() => ({ ok: false }));
+  clearTimeout(timer);
 
   if (res.ok) {
     sessionStorage.setItem('cb_user', JSON.stringify({ username: res.username }));
