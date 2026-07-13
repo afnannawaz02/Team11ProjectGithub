@@ -445,12 +445,6 @@ function HomePage({ onGetStarted, isLoggedIn, onGoToChat, onSignIn, username }) 
                 <a className="contact-link" href="mailto:support@candylandbank.com">support@candylandbank.com</a>
               </div>
               <div className="contact-card">
-                <span className="contact-card-icon">💬</span>
-                <h3 className="contact-card-title">Live chat</h3>
-                <p className="contact-card-desc">Chat with your AI assistant directly inside the app.</p>
-                <Button kind="ghost" onClick={ctaAction}>Open the app</Button>
-              </div>
-              <div className="contact-card">
                 <span className="contact-card-icon">📞</span>
                 <h3 className="contact-card-title">Phone</h3>
                 <p className="contact-card-desc">Speak to a real person for urgent matters.</p>
@@ -900,7 +894,7 @@ function PanelTrades() {
 }
 
 // ── Dashboard Page ─────────────────────────────────────────────────────────────
-function DashboardPage({ profile, username }) {
+function DashboardPage({ profile, username, onStartQuestionnaire }) {
   const [activePanel, setActivePanel] = useState('portfolio');
   const [menuOpen, setMenuOpen]       = useState(false);
 
@@ -939,6 +933,11 @@ function DashboardPage({ profile, username }) {
             </button>
           ))}
         </nav>
+
+        <button className="db-nav-item" style={{ marginTop: 'auto', borderTop: '1px solid rgba(244,114,160,0.2)', paddingTop: '0.75rem' }} onClick={onStartQuestionnaire}>
+          <span className="db-nav-icon">📝</span>
+          Retake questionnaire
+        </button>
       </aside>
 
       {/* ── Main content ── */}
@@ -1500,6 +1499,7 @@ export default function App() {
         <DashboardPage
           profile={profile}
           username={username}
+          onStartQuestionnaire={() => setPage('wizard')}
         />
         <FloatingChat profile={profile} />
       </NavShell>
@@ -1564,6 +1564,7 @@ export default function App() {
         <DashboardPage
           profile={profile}
           username={username}
+          onStartQuestionnaire={() => setPage('wizard')}
         />
         <FloatingChat profile={profile} />
       </NavShell>
