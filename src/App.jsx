@@ -118,18 +118,18 @@ function AccountSignup({ investorProfile, onComplete, onSkip, isGuest }) {
           <div className="wizard-progress-fill" style={{ width: '100%' }} />
         </div>
         <div className="wizard-inner">
-          <div className="acct-badge">{isGuest ? 'Save your work' : 'Almost there!'}</div>
+          <div className="acct-badge">{isGuest ? 'Save your work' : 'Create account'}</div>
           <h2 className="wizard-heading">Create your account</h2>
           <p className="wizard-sub">
             {step === 'otp'
               ? `We sent a 6-digit code to ${form.email}. Enter it below to verify your IBM email.`
-              : 'Create an account with your IBM email to save your profile securely.'}
+              : 'Sign up with your IBM email (@ibm.com) to access Candyland Bank.'}
           </p>
 
           {step === 'done' && (
             <div className="acct-success">
               <span className="acct-success-icon">✓</span>
-              <p>Account created! Taking you to your dashboard…</p>
+              <p>{onSkip ? 'Account created! Taking you to your dashboard…' : 'Account created! Taking you to sign in…'}</p>
             </div>
           )}
 
@@ -202,10 +202,12 @@ function AccountSignup({ investorProfile, onComplete, onSkip, isGuest }) {
             </form>
           )}
         </div>
-        <div className="wizard-footer">
-          <Button kind="ghost" onClick={onSkip}>Skip for now</Button>
-          <span className="acct-skip-hint">You can always sign up later.</span>
-        </div>
+        {onSkip && (
+          <div className="wizard-footer">
+            <Button kind="ghost" onClick={onSkip}>Skip for now</Button>
+            <span className="acct-skip-hint">You can always sign up later.</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -337,7 +339,6 @@ function LoginForm({ onLogin, onCreateNew, onGuest, onGoHome }) {
         </div>
         <div className="wizard-footer">
           <Button kind="ghost" onClick={onCreateNew}>Create new account</Button>
-          <Button kind="tertiary" onClick={onGuest}>Continue as guest</Button>
         </div>
       </div>
     </div>
@@ -1478,11 +1479,8 @@ export default function App() {
             setPage('dashboard');
           }}
           onGoHome={() => setPage('home')}
-          onCreateNew={() => setPage('wizard')}
-          onGuest={() => {
-            setIsGuest(true);
-            setPage('wizard');
-          }}
+          onCreateNew={() => setPage('signup')}
+          onGuest={null}
         />
       </NavShell>
     );
@@ -1519,8 +1517,8 @@ export default function App() {
               setPage('wizard');
             }}
             onGoHome={() => setPage('home')}
-            onCreateNew={() => setPage('home')}
-            onGuest={() => setPage('home')}
+            onCreateNew={() => setPage('signup')}
+            onGuest={null}
           />
         </NavShell>
       );
@@ -1534,6 +1532,17 @@ export default function App() {
         </NavShell>
       );
     }
+  } else if (page === 'signup') {
+    content = (
+      <NavShell heroHeader onGoHome={() => setPage('home')}>
+        <AccountSignup
+          investorProfile={null}
+          isGuest={false}
+          onComplete={() => setPage('login')}
+          onSkip={null}
+        />
+      </NavShell>
+    );
   } else if (page === 'account') {
     content = (
       <NavShell heroHeader onGoHome={() => setPage('home')}>
