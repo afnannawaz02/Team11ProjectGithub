@@ -479,8 +479,11 @@ function seededRand(seed) {
 async function avFetch(params) {
   const qs = new URLSearchParams(params);
   const res = await fetch(`/api/stock?${qs}`);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  const data = await res.json();
+  // Alpha Vantage signals rate-limit via a top-level error field
+  if (data.error) throw new Error(data.error);
+  if (!res.ok)    throw new Error(`HTTP ${res.status}`);
+  return data;
 }
 
 function fmtBig(n) {
@@ -571,9 +574,9 @@ const DEFAULT_TICKERS = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA'];
 
 function PanelAssets() {
   const [tickers,    setTickers]    = useState(DEFAULT_TICKERS);
-  const [quotes,     setQuotes]     = useState({});   // ticker → quote data
-  const [overview,   setOverview]   = useState({});   // ticker → overview data
-  const [series,     setSeries]     = useState({});   // ticker-range → [{date,close,volume}]
+  const [quotes,     setQuotes]     = useState({});
+  const [overview,   setOverview]   = useState({});
+  const [series,     setSeries]     = useState({});
   const [active,     setActive]     = useState(DEFAULT_TICKERS[0]);
   const [range,      setRange]      = useState('1M');
   const [tab,        setTab]        = useState('buy');
@@ -585,9 +588,15 @@ function PanelAssets() {
   const [loadingC,   setLoadingC]   = useState(false);
   const [error,      setError]      = useState('');
 
-  // Fetch quote for a ticker if not cached
+  // Refs track what has already been fetched / is in-flight so stale
+  // closure values in async functions never cause duplicate requests.
+  const fetchedQuotes   = useRef(new Set());
+  const fetchedOverview = useRef(new Set());
+  const fetchedSeries   = useRef(new Set());
+
   const fetchQuote = async (ticker) => {
-    if (quotes[ticker]) return;
+    if (fetchedQuotes.current.has(ticker)) return;
+    fetchedQuotes.current.add(ticker);
     setLoadingQ(true);
     try {
       const data = await avFetch({ ticker, function: 'GLOBAL_QUOTE' });
@@ -595,37 +604,39 @@ function PanelAssets() {
       setQuotes((prev) => ({
         ...prev,
         [ticker]: {
-          price:  parseFloat(q['05. price'])         || 0,
-          change: parseFloat(q['09. change'])         || 0,
-          pct:    q['10. change percent']?.replace('%','').trim() || '0',
-          open:   parseFloat(q['02. open'])           || 0,
-          high:   parseFloat(q['03. high'])           || 0,
-          low:    parseFloat(q['04. low'])            || 0,
-          vol:    q['06. volume']                     || '0',
-          prevClose: parseFloat(q['08. previous close']) || 0,
+          price:     parseFloat(q['05. price'])                    || 0,
+          change:    parseFloat(q['09. change'])                   || 0,
+          pct:       q['10. change percent']?.replace('%','').trim() || '0',
+          vol:       q['06. volume']                               || '0',
+          prevClose: parseFloat(q['08. previous close'])           || 0,
         },
       }));
-    } catch { setError('Could not load quote.'); }
-    finally  { setLoadingQ(false); }
+    } catch (e) {
+      fetchedQuotes.current.delete(ticker); // allow retry
+      setError(e.message.includes('rate') ? 'Rate limit hit — wait 60 s and retry.' : 'Could not load quote.');
+    } finally { setLoadingQ(false); }
   };
 
-  // Fetch overview for a ticker if not cached
   const fetchOverview = async (ticker) => {
-    if (overview[ticker]) return;
+    if (fetchedOverview.current.has(ticker)) return;
+    fetchedOverview.current.add(ticker);
     try {
       const data = await avFetch({ ticker, function: 'OVERVIEW' });
       setOverview((prev) => ({ ...prev, [ticker]: data }));
-    } catch { /* non-critical */ }
+    } catch (e) {
+      fetchedOverview.current.delete(ticker);
+    }
   };
 
-  // Fetch daily time series, sliced to range
   const fetchSeries = async (ticker, r) => {
     const key = `${ticker}-${r}`;
-    if (series[key]) return;
+    if (fetchedSeries.current.has(key)) return;
+    fetchedSeries.current.add(key);
     setLoadingC(true);
     try {
       const data = await avFetch({ ticker, function: 'TIME_SERIES_DAILY' });
       const ts   = data['Time Series (Daily)'] || {};
+      if (!Object.keys(ts).length) throw new Error('No series data');
       const days = r === '1W' ? 7 : r === '1M' ? 30 : 90;
       const entries = Object.entries(ts)
         .sort(([a], [b]) => a.localeCompare(b))
@@ -636,16 +647,21 @@ function PanelAssets() {
           volume: parseFloat(v['5. volume']),
         }));
       setSeries((prev) => ({ ...prev, [key]: entries }));
-    } catch { setError('Could not load chart data.'); }
-    finally  { setLoadingC(false); }
+    } catch (e) {
+      fetchedSeries.current.delete(key);
+      setError(e.message.includes('rate') ? 'Rate limit hit — wait 60 s and retry.' : 'Could not load chart data.');
+    } finally { setLoadingC(false); }
   };
 
-  // On active ticker or range change, fetch data
+  // Fetch sequentially (quote → series → overview) to avoid burst rate-limiting
   useEffect(() => {
     setError('');
-    fetchQuote(active);
-    fetchOverview(active);
-    fetchSeries(active, range);
+    const run = async () => {
+      await fetchQuote(active);
+      await fetchSeries(active, range);
+      fetchOverview(active); // non-critical, fire and forget
+    };
+    run();
   }, [active, range]);
 
   // Symbol search
