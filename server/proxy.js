@@ -31,7 +31,7 @@ const {
   RESEND_API_KEY,
   RESEND_FROM          = 'noreply@team11.uk',
   ALLOWED_EMAIL_DOMAIN = 'ibm.com',
-  ALPHA_VANTAGE_API_KEY,
+  ALPHAVANTAGE_API_KEY,
 } = process.env;
 
 const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
@@ -90,14 +90,14 @@ app.get('/health', (_req, res) => res.json({ status: 'ok' }));
  * Proxies Alpha Vantage so the API key stays server-side.
  */
 app.get('/api/stock', async (req, res) => {
-  if (!ALPHA_VANTAGE_API_KEY) {
-    return res.status(503).json({ error: 'ALPHA_VANTAGE_API_KEY not configured on the server.' });
+  if (!ALPHAVANTAGE_API_KEY) {
+    return res.status(503).json({ error: 'ALPHAVANTAGE_API_KEY not configured on the server.' });
   }
 
   const { function: fn = 'GLOBAL_QUOTE', ticker, query } = req.query;
   const params = new URLSearchParams({
     function: fn,
-    apikey: ALPHA_VANTAGE_API_KEY,
+    apikey: ALPHAVANTAGE_API_KEY,
   });
   if (ticker) params.set('symbol', ticker.toUpperCase());
   if (query)  params.set('keywords', query);
