@@ -91,9 +91,9 @@ app.get('/health', (_req, res) => res.json({ status: 'ok' }));
  */
 const FH_BASE = 'https://finnhub.io/api/v1';
 function fhRangeParams(range) {
-  const now  = Math.floor(Date.now() / 1000);
-  const days = range === '1W' ? 7 : range === '1M' ? 30 : 90;
-  return { resolution: 'D', from: now - days * 86400, to: now };
+  const to   = Math.floor(Date.now() / 1000);
+  const days = range === '1W' ? 14 : range === '1M' ? 45 : 120;
+  return { resolution: 'D', from: to - days * 86400, to };
 }
 
 app.get('/api/stock', async (req, res) => {
@@ -265,19 +265,19 @@ app.post('/chat', async (req, res) => {
     if (!wxRes.ok) {
       const body = await wxRes.text();
       console.error('watsonx error:', wxRes.status, body);
-      return res.status(502).json({ error: 'AI service error. Please try again.' });
+      return res.json({ reply: `AI error ${wxRes.status} — ${body.slice(0, 120)}` });
     }
 
     const wxJson = await wxRes.json();
-    const reply  = wxJson.results?.[0]?.generated_text?.trim()
-      ?? wxJson.choices?.[0]?.message?.content?.trim()
-      ?? 'Sorry, I could not generate a response. Please try again.';
+    const reply  = wxJson.choices?.[0]?.message?.content?.trim()
+      ?? wxJson.results?.[0]?.generated_text?.trim()
+      ?? JSON.stringify(wxJson).slice(0, 200);
 
     res.json({ reply });
 
   } catch (err) {
     console.error('Proxy error:', err.message);
-    res.status(500).json({ error: 'Internal proxy error. Check the server logs.' });
+    res.json({ reply: `Server error: ${err.message}` });
   }
 });
 

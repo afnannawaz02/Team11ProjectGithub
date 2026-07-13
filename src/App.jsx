@@ -20,6 +20,27 @@ import {
   Loading,
   ClickableTile,
 } from '@carbon/react';
+import {
+  Analytics,
+  ChatBot,
+  ChartLine,
+  Locked,
+  Flash,
+  Growth,
+  Portfolio,
+  Finance,
+  Notebook,
+  Logout,
+  Checkmark,
+  Email,
+  Phone,
+  Pin,
+  PinFilled,
+  TrashCan,
+  Sprout,
+  Task,
+  Close,
+} from '@carbon/icons-react';
 import SignupWizard from './SignupWizard';
 import {
   createAccount,
@@ -128,7 +149,7 @@ function AccountSignup({ investorProfile, onComplete, onSkip, isGuest }) {
 
           {step === 'done' && (
             <div className="acct-success">
-              <span className="acct-success-icon">✓</span>
+              <Checkmark size={20} className="acct-success-icon" />
               <p>{onSkip ? 'Account created! Taking you to your dashboard…' : 'Account created! Taking you to sign in…'}</p>
             </div>
           )}
@@ -385,15 +406,15 @@ function HomePage({ onGetStarted, isLoggedIn, onGoToChat, onSignIn, username }) 
           <Column sm={4} md={8} lg={16}>
             <div className="home-features-grid">
               {[
-                { icon: '🎯', title: 'Goal-based planning',    desc: "Whether you're saving for retirement, a home, or education — we tailor every recommendation to your specific goals." },
-                { icon: '🤖', title: 'AI chat assistant',      desc: 'Ask anything about your investments. Your assistant knows your profile and gives contextual, personalised answers.' },
-                { icon: '📊', title: 'Risk-matched strategies', desc: 'From conservative to aggressive, your strategy is built around your risk tolerance and time horizon.' },
-                { icon: '🔒', title: 'Secure & private',        desc: 'Your financial data never leaves your session. No account required to get started.' },
-                { icon: '⚡', title: 'Instant profile',         desc: 'Answer 7 quick questions and get a complete investor profile with personalised insights straight away.' },
-                { icon: '📈', title: 'Track your horizon',      desc: 'Short-term or long-term, we keep you focused on what matters most for your timeline.' },
-              ].map(({ icon, title, desc }) => (
+                { Icon: Analytics, title: 'Goal-based planning',    desc: "Whether you're saving for retirement, a home, or education — we tailor every recommendation to your specific goals." },
+                { Icon: ChatBot,   title: 'AI chat assistant',      desc: 'Ask anything about your investments. Your assistant knows your profile and gives contextual, personalised answers.' },
+                { Icon: ChartLine, title: 'Risk-matched strategies', desc: 'From conservative to aggressive, your strategy is built around your risk tolerance and time horizon.' },
+                { Icon: Locked,    title: 'Secure & private',        desc: 'Your financial data never leaves your session. No account required to get started.' },
+                { Icon: Flash,     title: 'Instant profile',         desc: 'Answer 7 quick questions and get a complete investor profile with personalised insights straight away.' },
+                { Icon: Growth,    title: 'Track your horizon',      desc: 'Short-term or long-term, we keep you focused on what matters most for your timeline.' },
+              ].map(({ Icon, title, desc }) => (
                 <div key={title} className="home-feature-card">
-                  <span className="home-feature-icon">{icon}</span>
+                  <Icon size={32} className="home-feature-icon" aria-hidden="true" />
                   <h3 className="home-feature-title">{title}</h3>
                   <p className="home-feature-desc">{desc}</p>
                 </div>
@@ -439,13 +460,13 @@ function HomePage({ onGetStarted, isLoggedIn, onGoToChat, onSignIn, username }) 
           <Column sm={4} md={8} lg={16}>
             <div className="contact-cards">
               <div className="contact-card">
-                <span className="contact-card-icon">✉️</span>
+                <Email size={32} className="contact-card-icon" aria-hidden="true" />
                 <h3 className="contact-card-title">Email support</h3>
                 <p className="contact-card-desc">For general enquiries and account questions.</p>
                 <a className="contact-link" href="mailto:support@candylandbank.com">support@candylandbank.com</a>
               </div>
               <div className="contact-card">
-                <span className="contact-card-icon">📞</span>
+                <Phone size={32} className="contact-card-icon" aria-hidden="true" />
                 <h3 className="contact-card-title">Phone</h3>
                 <p className="contact-card-desc">Speak to a real person for urgent matters.</p>
                 <a className="contact-link" href="tel:+18005550100">+1 800 555 0100</a>
@@ -479,6 +500,10 @@ function seededRand(seed) {
 async function fhFetch(params) {
   const qs  = new URLSearchParams(params);
   const res = await fetch(`/api/stock?${qs}`);
+  const ct  = res.headers.get('content-type') || '';
+  if (!ct.includes('application/json')) {
+    throw new Error(`Stock API returned non-JSON (${res.status}) — check FINNHUB_API_KEY is set in Cloudflare env vars`);
+  }
   const data = await res.json();
   if (data.error) throw new Error(data.error);
   if (!res.ok)    throw new Error(`HTTP ${res.status}`);
@@ -899,9 +924,9 @@ function DashboardPage({ profile, username, onStartQuestionnaire, onLogout }) {
   const [menuOpen, setMenuOpen]       = useState(false);
 
   const NAV = [
-    { id: 'assets',   label: 'Assets',          icon: '💼' },
-    { id: 'spending', label: 'Spending History', icon: '💳' },
-    { id: 'trades',   label: 'Trade History',    icon: '📈' },
+    { id: 'assets',   label: 'Assets',          Icon: Portfolio },
+    { id: 'spending', label: 'Spending History', Icon: Finance   },
+    { id: 'trades',   label: 'Trade History',    Icon: Growth    },
   ];
 
   const activeLabel = NAV.find((n) => n.id === activePanel)?.label;
@@ -921,13 +946,13 @@ function DashboardPage({ profile, username, onStartQuestionnaire, onLogout }) {
         </button>
 
         <nav className={`db-nav${menuOpen ? ' db-nav--open' : ''}`}>
-          {NAV.map(({ id, label, icon }) => (
+          {NAV.map(({ id, label, Icon }) => (
             <button
               key={id}
               className={`db-nav-item${activePanel === id ? ' db-nav-item--active' : ''}`}
               onClick={() => { setActivePanel(id); setMenuOpen(false); }}
             >
-              <span className="db-nav-icon">{icon}</span>
+              <Icon size={16} className="db-nav-icon" aria-hidden="true" />
               {label}
             </button>
           ))}
@@ -935,11 +960,11 @@ function DashboardPage({ profile, username, onStartQuestionnaire, onLogout }) {
 
         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', borderTop: '1px solid rgba(244,114,160,0.2)' }}>
           <button className="db-nav-item" style={{ paddingTop: '0.75rem' }} onClick={onStartQuestionnaire}>
-            <span className="db-nav-icon">📝</span>
+            <Notebook size={16} className="db-nav-icon" aria-hidden="true" />
             Retake questionnaire
           </button>
           <button className="db-nav-item" style={{ color: '#da1e28' }} onClick={onLogout}>
-            <span className="db-nav-icon">→</span>
+            <Logout size={16} className="db-nav-icon" aria-hidden="true" />
             Sign out
           </button>
         </div>
@@ -997,7 +1022,7 @@ function FloatingChat({ profile }) {
         <div className="fc-window">
           <div className="fc-header">
             <span className="fc-title">Gumdrop</span>
-            <button className="fc-close" onClick={() => setOpen(false)} aria-label="Close chat">✕</button>
+            <button className="fc-close" onClick={() => setOpen(false)} aria-label="Close chat"><Close size={16} /></button>
           </div>
           <div className="fc-messages">
             {messages.map((m, i) => (
@@ -1045,8 +1070,12 @@ const SUGGESTED_PROMPTS = [
 ];
 
 const GOAL_ICONS = {
-  retirement: '🏖', home: '🏠', education: '🎓',
-  wealth: '📈', short_term: '⚡', long_term: '🌱',
+  retirement: <Growth   size={16} aria-hidden="true" />,
+  home:       <Finance  size={16} aria-hidden="true" />,
+  education:  <Analytics size={16} aria-hidden="true" />,
+  wealth:     <Growth   size={16} aria-hidden="true" />,
+  short_term: <Flash    size={16} aria-hidden="true" />,
+  long_term:  <Sprout   size={16} aria-hidden="true" />,
 };
 
 function TypingDots() {
@@ -1235,13 +1264,13 @@ function ChatView({ profile, username }) {
                   onClick={(e) => togglePin(e, s.id)}
                   aria-label="Unpin chat"
                   title="Unpin"
-                >📌</button>
+                ><PinFilled size={14} /></button>
                 <button
                   className="chat-history-del-btn"
                   onClick={(e) => deleteSession(e, s.id)}
                   aria-label="Delete chat"
                   title="Delete"
-                >🗑</button>
+                ><TrashCan size={14} /></button>
               </div>
             </div>
           ))}
@@ -1267,13 +1296,13 @@ function ChatView({ profile, username }) {
                   onClick={(e) => togglePin(e, s.id)}
                   aria-label="Pin chat"
                   title="Pin"
-                >📌</button>
+                ><Pin size={14} /></button>
                 <button
                   className="chat-history-del-btn"
                   onClick={(e) => deleteSession(e, s.id)}
                   aria-label="Delete chat"
                   title="Delete"
-                >🗑</button>
+                ><TrashCan size={14} /></button>
               </div>
             </div>
           ))}

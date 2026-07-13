@@ -13,12 +13,12 @@
 const BASE = 'https://finnhub.io/api/v1';
 
 // Convert range label to Finnhub resolution + from-timestamp
+// Add 7-day buffer on both ends so weekends/holidays don't cause no_data
 function rangeParams(range) {
-  const now   = Math.floor(Date.now() / 1000);
-  const day   = 86400;
-  const days  = range === '1W' ? 7 : range === '1M' ? 30 : 90;
-  // Use daily candles ('D') for all ranges
-  return { resolution: 'D', from: now - days * day, to: now };
+  const day  = 86400;
+  const to   = Math.floor(Date.now() / 1000);
+  const days = range === '1W' ? 14 : range === '1M' ? 45 : 120; // extra buffer
+  return { resolution: 'D', from: to - days * day, to };
 }
 
 export async function onRequestGet({ request, env }) {

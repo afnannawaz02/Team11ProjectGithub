@@ -20,6 +20,7 @@
     "cf:dev": "wrangler pages dev dist --live-reload"
   },
   "dependencies": {
+    "@carbon/icons-react": "^11.83.0",
     "@carbon/react": "^1.111.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

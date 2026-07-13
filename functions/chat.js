@@ -102,19 +102,22 @@ export async function onRequestPost({ request, env }) {
     });
 
     if (!wxRes.ok) {
-      console.error('watsonx error:', wxRes.status, await wxRes.text());
-      return Response.json({ error: 'AI service error. Please try again.' }, { status: 502 });
+      const errBody = await wxRes.text();
+      console.error('watsonx error:', wxRes.status, errBody);
+      return Response.json({ reply: `AI error ${wxRes.status} — ${errBody.slice(0, 120)}` }, { status: 200 });
     }
 
     const wxJson = await wxRes.json();
-    const reply  = wxJson.results?.[0]?.generated_text?.trim()
-      ?? wxJson.choices?.[0]?.message?.content?.trim()
-      ?? 'Sorry, I could not generate a response.';
+    // watsonx chat API: choices[0].message.content
+    // watsonx generate API fallback: results[0].generated_text
+    const reply = wxJson.choices?.[0]?.message?.content?.trim()
+      ?? wxJson.results?.[0]?.generated_text?.trim()
+      ?? JSON.stringify(wxJson).slice(0, 200);
 
     return Response.json({ reply });
 
   } catch (err) {
     console.error('Function error:', err.message);
-    return Response.json({ error: 'Internal error. Check function logs.' }, { status: 500 });
+    return Response.json({ reply: `Server error: ${err.message}` }, { status: 200 });
   }
 }
