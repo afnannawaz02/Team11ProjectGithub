@@ -34,7 +34,7 @@ export async function onRequestPost({ request, env }) {
   // Store in KV with a 10-minute TTL
   await env.OTP_STORE.put(normalised, JSON.stringify({ code, expiresAt }), { expirationTtl: 600 });
 
-  const from = env.RESEND_FROM || 'onboarding@resend.dev';
+  const from = env.RESEND_FROM || 'noreply@team11.uk';
 
   const emailRes = await fetch('https://api.resend.com/emails', {
     method: 'POST',
