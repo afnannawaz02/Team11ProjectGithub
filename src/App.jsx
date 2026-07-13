@@ -570,7 +570,9 @@ function StockLineChart({ ticker, seriesData }) {
   );
 }
 
-const DEFAULT_TICKERS = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA'];
+const DEFAULT_TICKERS = ['AAPL', 'MSFT', 'GOOGL', 'TSLA'];
+const AV_DELAY_MS = 13000; // 13 s between calls → stays under 5 req/min free tier
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function PanelAssets() {
   const [tickers,    setTickers]    = useState(DEFAULT_TICKERS);
@@ -604,16 +606,16 @@ function PanelAssets() {
       setQuotes((prev) => ({
         ...prev,
         [ticker]: {
-          price:     parseFloat(q['05. price'])                    || 0,
-          change:    parseFloat(q['09. change'])                   || 0,
+          price:     parseFloat(q['05. price'])                      || 0,
+          change:    parseFloat(q['09. change'])                     || 0,
           pct:       q['10. change percent']?.replace('%','').trim() || '0',
-          vol:       q['06. volume']                               || '0',
-          prevClose: parseFloat(q['08. previous close'])           || 0,
+          vol:       q['06. volume']                                 || '0',
+          prevClose: parseFloat(q['08. previous close'])             || 0,
         },
       }));
     } catch (e) {
-      fetchedQuotes.current.delete(ticker); // allow retry
-      setError(e.message.includes('rate') ? 'Rate limit hit — wait 60 s and retry.' : 'Could not load quote.');
+      fetchedQuotes.current.delete(ticker);
+      setError('ratelimit');
     } finally { setLoadingQ(false); }
   };
 
@@ -623,7 +625,7 @@ function PanelAssets() {
     try {
       const data = await avFetch({ ticker, function: 'OVERVIEW' });
       setOverview((prev) => ({ ...prev, [ticker]: data }));
-    } catch (e) {
+    } catch {
       fetchedOverview.current.delete(ticker);
     }
   };
@@ -636,7 +638,7 @@ function PanelAssets() {
     try {
       const data = await avFetch({ ticker, function: 'TIME_SERIES_DAILY' });
       const ts   = data['Time Series (Daily)'] || {};
-      if (!Object.keys(ts).length) throw new Error('No series data');
+      if (!Object.keys(ts).length) throw new Error('empty');
       const days = r === '1W' ? 7 : r === '1M' ? 30 : 90;
       const entries = Object.entries(ts)
         .sort(([a], [b]) => a.localeCompare(b))
@@ -649,17 +651,33 @@ function PanelAssets() {
       setSeries((prev) => ({ ...prev, [key]: entries }));
     } catch (e) {
       fetchedSeries.current.delete(key);
-      setError(e.message.includes('rate') ? 'Rate limit hit — wait 60 s and retry.' : 'Could not load chart data.');
+      if (e.message !== 'empty') setError('ratelimit');
     } finally { setLoadingC(false); }
   };
 
-  // Fetch sequentially (quote → series → overview) to avoid burst rate-limiting
+  const retryActive = () => {
+    fetchedQuotes.current.delete(active);
+    fetchedSeries.current.delete(`${active}-${range}`);
+    setError('');
+    const run = async () => {
+      await fetchQuote(active);
+      await sleep(AV_DELAY_MS);
+      await fetchSeries(active, range);
+      await sleep(AV_DELAY_MS);
+      fetchOverview(active);
+    };
+    run();
+  };
+
+  // On ticker/range change: fetch quote first, wait, then series
   useEffect(() => {
     setError('');
     const run = async () => {
       await fetchQuote(active);
+      await sleep(AV_DELAY_MS);
       await fetchSeries(active, range);
-      fetchOverview(active); // non-critical, fire and forget
+      await sleep(AV_DELAY_MS);
+      fetchOverview(active);
     };
     run();
   }, [active, range]);
@@ -717,7 +735,17 @@ function PanelAssets() {
         )}
       </div>
 
-      {error && <p style={{ color:'#da1e28', fontSize:'0.85rem', marginBottom:'0.75rem' }}>{error}</p>}
+      {error === 'ratelimit' && (
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'1rem', padding:'0.6rem 0.85rem', marginBottom:'0.75rem', background:'#fff1f1', border:'1px solid #ffd7d9', borderRadius:'0.5rem', fontSize:'0.85rem', color:'#a2191f' }}>
+          <span>⚠ Alpha Vantage rate limit reached. The free tier allows 5 requests/min and 25/day.</span>
+          <button onClick={retryActive} style={{ flexShrink:0, padding:'0.3rem 0.75rem', background:'#da1e28', color:'#fff', border:'none', borderRadius:'0.375rem', cursor:'pointer', fontSize:'0.8rem', fontWeight:600 }}>
+            Retry
+          </button>
+        </div>
+      )}
+      {error && error !== 'ratelimit' && (
+        <p style={{ color:'#da1e28', fontSize:'0.85rem', marginBottom:'0.75rem' }}>{error}</p>
+      )}
 
       {/* ── Ticker pills ── */}
       <div className="st-tickers">
@@ -910,7 +938,7 @@ function PanelTrades() {
 }
 
 // ── Dashboard Page ─────────────────────────────────────────────────────────────
-function DashboardPage({ profile, username, onStartQuestionnaire }) {
+function DashboardPage({ profile, username, onStartQuestionnaire, onLogout }) {
   const [activePanel, setActivePanel] = useState('portfolio');
   const [menuOpen, setMenuOpen]       = useState(false);
 
@@ -950,10 +978,16 @@ function DashboardPage({ profile, username, onStartQuestionnaire }) {
           ))}
         </nav>
 
-        <button className="db-nav-item" style={{ marginTop: 'auto', borderTop: '1px solid rgba(244,114,160,0.2)', paddingTop: '0.75rem' }} onClick={onStartQuestionnaire}>
-          <span className="db-nav-icon">📝</span>
-          Retake questionnaire
-        </button>
+        <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', borderTop: '1px solid rgba(244,114,160,0.2)' }}>
+          <button className="db-nav-item" style={{ paddingTop: '0.75rem' }} onClick={onStartQuestionnaire}>
+            <span className="db-nav-icon">📝</span>
+            Retake questionnaire
+          </button>
+          <button className="db-nav-item" style={{ color: '#da1e28' }} onClick={onLogout}>
+            <span className="db-nav-icon">→</span>
+            Sign out
+          </button>
+        </div>
       </aside>
 
       {/* ── Main content ── */}
@@ -1421,8 +1455,93 @@ function ChatView({ profile, username }) {
   );
 }
 
+// ── Profile Page ───────────────────────────────────────────────────────────────
+function ProfilePage({ username, onLogout, onBack }) {
+  return (
+    <div className="wizard-page">
+      <div className="wizard-card" style={{ maxWidth: '32rem' }}>
+        <div className="wizard-progress-bar">
+          <div className="wizard-progress-fill" style={{ width: '100%' }} />
+        </div>
+        <div className="wizard-inner">
+          <div className="acct-badge">Account</div>
+          <h2 className="wizard-heading">Profile settings</h2>
+
+          {/* Avatar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ width: '4rem', height: '4rem', borderRadius: '50%', background: 'linear-gradient(135deg, #f472a0, #c0356a)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span style={{ fontSize: '1.75rem', fontWeight: 700, color: '#fff' }}>
+                {username?.[0]?.toUpperCase() ?? '?'}
+              </span>
+            </div>
+            <div>
+              <p style={{ margin: 0, fontWeight: 600, fontSize: '1rem' }}>{username}</p>
+              <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--cds-text-secondary)' }}>Candyland Bank member</p>
+            </div>
+          </div>
+
+          <div style={{ borderTop: '1px solid #fbc4d9', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--cds-text-secondary)' }}>
+              Your account is secured with IBM email verification and two-factor authentication via OTP.
+            </p>
+          </div>
+
+          {/* ── Linked accounts ── */}
+          <div style={{ borderTop: '1px solid #fbc4d9', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <p style={{ margin: 0, fontWeight: 600, fontSize: '0.9rem' }}>Linked accounts</p>
+            <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--cds-text-secondary)' }}>
+              Connect your bank and crypto accounts for a unified view of your finances.
+            </p>
+
+            {/* Plaid */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle-01)', borderRadius: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ width: '2rem', height: '2rem', borderRadius: '0.4rem', background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="18" height="18" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="4" fill="#000"/><path d="M7 8h4v4H7zm5 0h4v4h-4zm5 0h4v4h-4zm-10 5h4v4H7zm5 0h4v4h-4zm5 0h4v4h-4zm-10 5h4v4H7zm5 0h4v4h-4zm5 0h4v4h-4z" fill="#fff"/></svg>
+                </div>
+                <div>
+                  <p style={{ margin: 0, fontWeight: 600, fontSize: '0.875rem' }}>Plaid</p>
+                  <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>Bank accounts &amp; transactions</p>
+                </div>
+              </div>
+              <button
+                onClick={() => window.open('https://plaid.com/products/transactions/', '_blank', 'noopener')}
+                style={{ padding: '0.35rem 0.85rem', background: '#000', color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>
+                Connect
+              </button>
+            </div>
+
+            {/* Coinbase */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle-01)', borderRadius: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ width: '2rem', height: '2rem', borderRadius: '0.4rem', background: '#0052FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="18" height="18" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="16" fill="#0052FF"/><path d="M16 6C10.477 6 6 10.477 6 16s4.477 10 10 10 10-4.477 10-10S21.523 6 16 6zm0 16.5a6.5 6.5 0 110-13 6.5 6.5 0 010 13z" fill="#fff"/></svg>
+                </div>
+                <div>
+                  <p style={{ margin: 0, fontWeight: 600, fontSize: '0.875rem' }}>Coinbase</p>
+                  <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>Crypto portfolio &amp; balances</p>
+                </div>
+              </div>
+              <button
+                onClick={() => window.open('https://www.coinbase.com/settings/api', '_blank', 'noopener')}
+                style={{ padding: '0.35rem 0.85rem', background: '#0052FF', color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>
+                Connect
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="wizard-footer" style={{ justifyContent: 'space-between' }}>
+          <Button kind="ghost" onClick={onBack}>← Back</Button>
+          <Button kind="danger" onClick={onLogout}>Sign out</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Shared nav shell ───────────────────────────────────────────────────────────
-function NavShell({ children, username, onLogout, onGoHome, heroHeader }) {
+function NavShell({ children, username, onGoProfile, onGoHome, heroHeader }) {
   return (
     <div className="app-shell">
       <Header aria-label="Candyland Bank" className={heroHeader ? 'cds--header--hero' : undefined}>
@@ -1433,7 +1552,7 @@ function NavShell({ children, username, onLogout, onGoHome, heroHeader }) {
         </HeaderName>
         {username && (
           <HeaderGlobalBar>
-            <button className="avatar-btn" aria-label={`Sign out (${username})`} onClick={onLogout}>
+            <button className="avatar-btn" aria-label={`Profile (${username})`} onClick={onGoProfile}>
               <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" width="32" height="32">
                 <circle cx="16" cy="16" r="14" stroke="currentColor" strokeWidth="2"/>
                 <text x="16" y="21" textAnchor="middle" fontSize="14" fill="currentColor" fontWeight="700">
@@ -1509,13 +1628,24 @@ export default function App() {
         onSignIn={() => setPage('login')}
       />
     );
+  } else if (page === 'profile') {
+    content = (
+      <NavShell heroHeader username={username} onGoProfile={() => setPage('profile')} onGoHome={() => setPage('home')}>
+        <ProfilePage
+          username={username}
+          onLogout={handleLogout}
+          onBack={() => setPage('dashboard')}
+        />
+      </NavShell>
+    );
   } else if (page === 'dashboard') {
     content = (
-      <NavShell heroHeader username={username} onLogout={handleLogout} onGoHome={() => setPage('home')}>
+      <NavShell heroHeader username={username} onGoProfile={() => setPage('profile')} onGoHome={() => setPage('home')}>
         <DashboardPage
           profile={profile}
           username={username}
           onStartQuestionnaire={() => setPage('wizard')}
+          onLogout={handleLogout}
         />
         <FloatingChat profile={profile} />
       </NavShell>
@@ -1540,7 +1670,7 @@ export default function App() {
       );
     } else {
       content = (
-        <NavShell heroHeader username={username} onLogout={handleLogout} onGoHome={() => setPage('home')}>
+        <NavShell heroHeader username={username} onGoProfile={() => setPage('profile')} onGoHome={() => setPage('home')}>
           <SignupWizard
             onComplete={(p) => { setProfile(p); setPage('account'); }}
             onExit={() => setPage('dashboard')}
@@ -1576,11 +1706,12 @@ export default function App() {
     );
   } else {
     content = (
-      <NavShell heroHeader username={username} onLogout={handleLogout} onGoHome={() => setPage('home')}>
+      <NavShell heroHeader username={username} onGoProfile={() => setPage('profile')} onGoHome={() => setPage('home')}>
         <DashboardPage
           profile={profile}
           username={username}
           onStartQuestionnaire={() => setPage('wizard')}
+          onLogout={handleLogout}
         />
         <FloatingChat profile={profile} />
       </NavShell>
