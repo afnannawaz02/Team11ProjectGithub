@@ -475,12 +475,11 @@ function seededRand(seed) {
   return () => { s = (s * 16807 + 0) % 2147483647; return (s - 1) / 2147483646; };
 }
 
-// ── Alpha Vantage helpers ──────────────────────────────────────────────────────
-async function avFetch(params) {
-  const qs = new URLSearchParams(params);
+// ── Finnhub helpers ────────────────────────────────────────────────────────────
+async function fhFetch(params) {
+  const qs  = new URLSearchParams(params);
   const res = await fetch(`/api/stock?${qs}`);
   const data = await res.json();
-  // Alpha Vantage signals rate-limit via a top-level error field
   if (data.error) throw new Error(data.error);
   if (!res.ok)    throw new Error(`HTTP ${res.status}`);
   return data;
@@ -571,29 +570,23 @@ function StockLineChart({ ticker, seriesData }) {
 }
 
 const DEFAULT_TICKERS = ['AAPL', 'MSFT', 'GOOGL', 'TSLA'];
-const AV_DELAY_MS = 13000; // 13 s between calls → stays under 5 req/min free tier
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function PanelAssets() {
-  const [tickers,    setTickers]    = useState(DEFAULT_TICKERS);
-  const [quotes,     setQuotes]     = useState({});
-  const [overview,   setOverview]   = useState({});
-  const [series,     setSeries]     = useState({});
-  const [active,     setActive]     = useState(DEFAULT_TICKERS[0]);
-  const [range,      setRange]      = useState('1M');
-  const [tab,        setTab]        = useState('buy');
-  const [shares,     setShares]     = useState('');
-  const [search,     setSearch]     = useState('');
-  const [searching,  setSearching]  = useState(false);
-  const [results,    setResults]    = useState([]);
-  const [loadingQ,   setLoadingQ]   = useState(false);
-  const [loadingC,   setLoadingC]   = useState(false);
-  const [error,      setError]      = useState('');
+  const [tickers,   setTickers]   = useState(DEFAULT_TICKERS);
+  const [quotes,    setQuotes]    = useState({});
+  const [profiles,  setProfiles]  = useState({});
+  const [series,    setSeries]    = useState({});
+  const [active,    setActive]    = useState(DEFAULT_TICKERS[0]);
+  const [range,     setRange]     = useState('1M');
+  const [search,    setSearch]    = useState('');
+  const [searching, setSearching] = useState(false);
+  const [results,   setResults]   = useState([]);
+  const [loadingQ,  setLoadingQ]  = useState(false);
+  const [loadingC,  setLoadingC]  = useState(false);
+  const [error,     setError]     = useState('');
 
-  // Refs track what has already been fetched / is in-flight so stale
-  // closure values in async functions never cause duplicate requests.
   const fetchedQuotes   = useRef(new Set());
-  const fetchedOverview = useRef(new Set());
+  const fetchedProfiles = useRef(new Set());
   const fetchedSeries   = useRef(new Set());
 
   const fetchQuote = async (ticker) => {
@@ -601,32 +594,35 @@ function PanelAssets() {
     fetchedQuotes.current.add(ticker);
     setLoadingQ(true);
     try {
-      const data = await avFetch({ ticker, function: 'GLOBAL_QUOTE' });
-      const q = data['Global Quote'] || {};
+      // Finnhub /quote → { c: price, d: change, dp: pct, h, l, o, pc, v }
+      const data = await fhFetch({ type: 'quote', ticker });
       setQuotes((prev) => ({
         ...prev,
         [ticker]: {
-          price:     parseFloat(q['05. price'])                      || 0,
-          change:    parseFloat(q['09. change'])                     || 0,
-          pct:       q['10. change percent']?.replace('%','').trim() || '0',
-          vol:       q['06. volume']                                 || '0',
-          prevClose: parseFloat(q['08. previous close'])             || 0,
+          price:  data.c  || 0,
+          change: data.d  || 0,
+          pct:    data.dp || 0,   // already a number, e.g. 1.23
+          high:   data.h  || 0,
+          low:    data.l  || 0,
+          open:   data.o  || 0,
+          prevClose: data.pc || 0,
         },
       }));
     } catch (e) {
       fetchedQuotes.current.delete(ticker);
-      setError('ratelimit');
+      setError(e.message || 'Could not load quote.');
     } finally { setLoadingQ(false); }
   };
 
-  const fetchOverview = async (ticker) => {
-    if (fetchedOverview.current.has(ticker)) return;
-    fetchedOverview.current.add(ticker);
+  const fetchProfile = async (ticker) => {
+    if (fetchedProfiles.current.has(ticker)) return;
+    fetchedProfiles.current.add(ticker);
     try {
-      const data = await avFetch({ ticker, function: 'OVERVIEW' });
-      setOverview((prev) => ({ ...prev, [ticker]: data }));
+      // Finnhub /stock/profile2 → { name, marketCapitalization, shareOutstanding, ... }
+      const data = await fhFetch({ type: 'profile', ticker });
+      setProfiles((prev) => ({ ...prev, [ticker]: data }));
     } catch {
-      fetchedOverview.current.delete(ticker);
+      fetchedProfiles.current.delete(ticker);
     }
   };
 
@@ -636,22 +632,18 @@ function PanelAssets() {
     fetchedSeries.current.add(key);
     setLoadingC(true);
     try {
-      const data = await avFetch({ ticker, function: 'TIME_SERIES_DAILY' });
-      const ts   = data['Time Series (Daily)'] || {};
-      if (!Object.keys(ts).length) throw new Error('empty');
-      const days = r === '1W' ? 7 : r === '1M' ? 30 : 90;
-      const entries = Object.entries(ts)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .slice(-days)
-        .map(([date, v]) => ({
-          date,
-          close:  parseFloat(v['4. close']),
-          volume: parseFloat(v['5. volume']),
-        }));
+      // Finnhub /stock/candle → { s, t:[], c:[], v:[] }
+      const data = await fhFetch({ type: 'candle', ticker, range: r });
+      if (!data.t?.length) throw new Error('empty');
+      const entries = data.t.map((ts, i) => ({
+        date:   new Date(ts * 1000).toISOString().slice(0, 10),
+        close:  data.c[i],
+        volume: data.v[i],
+      }));
       setSeries((prev) => ({ ...prev, [key]: entries }));
     } catch (e) {
       fetchedSeries.current.delete(key);
-      if (e.message !== 'empty') setError('ratelimit');
+      if (e.message !== 'empty') setError(e.message || 'Could not load chart.');
     } finally { setLoadingC(false); }
   };
 
@@ -659,37 +651,26 @@ function PanelAssets() {
     fetchedQuotes.current.delete(active);
     fetchedSeries.current.delete(`${active}-${range}`);
     setError('');
-    const run = async () => {
-      await fetchQuote(active);
-      await sleep(AV_DELAY_MS);
-      await fetchSeries(active, range);
-      await sleep(AV_DELAY_MS);
-      fetchOverview(active);
-    };
-    run();
+    fetchQuote(active);
+    fetchSeries(active, range);
+    fetchProfile(active);
   };
 
-  // On ticker/range change: fetch quote first, wait, then series
   useEffect(() => {
     setError('');
-    const run = async () => {
-      await fetchQuote(active);
-      await sleep(AV_DELAY_MS);
-      await fetchSeries(active, range);
-      await sleep(AV_DELAY_MS);
-      fetchOverview(active);
-    };
-    run();
+    fetchQuote(active);
+    fetchSeries(active, range);
+    fetchProfile(active);
   }, [active, range]);
 
-  // Symbol search
+  // Finnhub symbol search → { count, result: [{ description, displaySymbol, symbol, type }] }
   const handleSearch = async () => {
     if (!search.trim()) return;
     setSearching(true);
     setResults([]);
     try {
-      const data = await avFetch({ query: search.trim(), function: 'SYMBOL_SEARCH' });
-      setResults((data.bestMatches || []).slice(0, 6));
+      const data = await fhFetch({ type: 'search', query: search.trim() });
+      setResults((data.result || []).slice(0, 6));
     } catch { setError('Symbol search failed.'); }
     finally  { setSearching(false); }
   };
@@ -701,11 +682,14 @@ function PanelAssets() {
     setResults([]);
   };
 
-  const q    = quotes[active]   || {};
-  const ov   = overview[active] || {};
+  const q   = quotes[active]   || {};
+  const pr  = profiles[active] || {};
   const sKey = `${active}-${range}`;
   const seriesArr = series[sKey] || [];
   const priceUp   = (q.change || 0) >= 0;
+
+  // Finnhub profile2: marketCapitalization is in millions
+  const mktCap = pr.marketCapitalization ? fmtBig(pr.marketCapitalization * 1e6) : '—';
 
   return (
     <div className="st-wrap">
@@ -726,25 +710,22 @@ function PanelAssets() {
         {results.length > 0 && (
           <div style={{ position:'absolute', top:'100%', left:0, right:0, zIndex:10, background:'var(--cds-layer-01)', border:'1px solid var(--cds-border-subtle-01)', borderRadius:'0.5rem', marginTop:'0.25rem', overflow:'hidden' }}>
             {results.map((r) => (
-              <button key={r['1. symbol']} onClick={() => addTicker(r['1. symbol'])}
+              <button key={r.symbol} onClick={() => addTicker(r.symbol)}
                 style={{ display:'block', width:'100%', textAlign:'left', padding:'0.5rem 0.75rem', background:'none', border:'none', cursor:'pointer', borderBottom:'1px solid var(--cds-border-subtle-01)', fontSize:'0.85rem' }}>
-                <strong>{r['1. symbol']}</strong> — {r['2. name']} <span style={{ color:'var(--cds-text-secondary)', fontSize:'0.75rem' }}>({r['4. region']})</span>
+                <strong>{r.displaySymbol}</strong> — {r.description}
               </button>
             ))}
           </div>
         )}
       </div>
 
-      {error === 'ratelimit' && (
+      {error && (
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'1rem', padding:'0.6rem 0.85rem', marginBottom:'0.75rem', background:'#fff1f1', border:'1px solid #ffd7d9', borderRadius:'0.5rem', fontSize:'0.85rem', color:'#a2191f' }}>
-          <span>⚠ Alpha Vantage rate limit reached. The free tier allows 5 requests/min and 25/day.</span>
+          <span>⚠ {error}</span>
           <button onClick={retryActive} style={{ flexShrink:0, padding:'0.3rem 0.75rem', background:'#da1e28', color:'#fff', border:'none', borderRadius:'0.375rem', cursor:'pointer', fontSize:'0.8rem', fontWeight:600 }}>
             Retry
           </button>
         </div>
-      )}
-      {error && error !== 'ratelimit' && (
-        <p style={{ color:'#da1e28', fontSize:'0.85rem', marginBottom:'0.75rem' }}>{error}</p>
       )}
 
       {/* ── Ticker pills ── */}
@@ -752,7 +733,7 @@ function PanelAssets() {
         {tickers.map((t) => {
           const tq = quotes[t];
           const up = tq ? tq.change >= 0 : true;
-          const pct = tq ? `${tq.change >= 0 ? '+' : ''}${parseFloat(tq.pct).toFixed(2)}%` : '—';
+          const pct = tq ? `${tq.change >= 0 ? '+' : ''}${Number(tq.pct).toFixed(2)}%` : '—';
           return (
             <button key={t}
               className={`st-pill${active === t ? ' st-pill--active' : ''} ${up ? 'st-pill--up' : 'st-pill--down'}`}
@@ -766,12 +747,12 @@ function PanelAssets() {
       {/* ── Stock detail ── */}
       <div className="st-detail">
         <div className="st-detail-left">
-          <h2 className="st-name">{ov.Name || active}</h2>
+          <h2 className="st-name">{pr.name || active}</h2>
           <div className="st-price">
             {loadingQ ? '…' : q.price ? `$${q.price.toFixed(2)}` : '—'}
           </div>
           <div className={`st-change ${priceUp ? 'st-up' : 'st-down'}`}>
-            {q.price ? `${priceUp ? '↗' : '↘'} ${priceUp ? '+' : ''}${q.change?.toFixed(2)} (${priceUp ? '+' : ''}${parseFloat(q.pct || 0).toFixed(2)}%)` : ''}
+            {q.price ? `${priceUp ? '↗' : '↘'} ${priceUp ? '+' : ''}${q.change?.toFixed(2)} (${priceUp ? '+' : ''}${Number(q.pct || 0).toFixed(2)}%)` : ''}
           </div>
         </div>
         <div className="st-range-btns">
@@ -790,43 +771,18 @@ function PanelAssets() {
       {/* ── Stat grid ── */}
       <div className="st-stats-grid">
         {[
-          { label: 'Volume',     value: fmtVol(q.vol) },
-          { label: 'Market Cap', value: fmtBig(ov.MarketCapitalization) },
-          { label: '52W High',   value: ov['52WeekHigh']  ? `$${parseFloat(ov['52WeekHigh']).toFixed(2)}`  : '—' },
-          { label: '52W Low',    value: ov['52WeekLow']   ? `$${parseFloat(ov['52WeekLow']).toFixed(2)}`   : '—' },
-          { label: 'P/E Ratio',  value: ov.PERatio        ? `${parseFloat(ov.PERatio).toFixed(1)}x`        : '—' },
-          { label: 'Dividend',   value: ov.DividendYield  ? `${(parseFloat(ov.DividendYield)*100).toFixed(2)}%` : '—' },
+          { label: 'High',       value: q.high  ? `$${q.high.toFixed(2)}`  : '—' },
+          { label: 'Low',        value: q.low   ? `$${q.low.toFixed(2)}`   : '—' },
+          { label: 'Open',       value: q.open  ? `$${q.open.toFixed(2)}`  : '—' },
+          { label: 'Prev Close', value: q.prevClose ? `$${q.prevClose.toFixed(2)}` : '—' },
+          { label: 'Market Cap', value: mktCap },
+          { label: 'Exchange',   value: pr.exchange || '—' },
         ].map(({ label, value }) => (
           <div key={label} className="st-stat-card">
             <span className="st-stat-label">{label}</span>
             <span className="st-stat-value">{value}</span>
           </div>
         ))}
-      </div>
-
-      {/* ── Place order ── */}
-      <div className="st-order">
-        <h3 className="st-order-heading">Place Order</h3>
-        <div className="st-order-tabs">
-          <button className={`st-order-tab st-order-tab--buy${tab === 'buy' ? ' active' : ''}`} onClick={() => setTab('buy')}>Buy</button>
-          <button className={`st-order-tab st-order-tab--sell${tab === 'sell' ? ' active' : ''}`} onClick={() => setTab('sell')}>Sell</button>
-        </div>
-        <div className="st-order-body">
-          <label className="st-order-label">Number of shares</label>
-          <input
-            className="st-order-input"
-            type="number" min="1" placeholder="0"
-            value={shares} onChange={(e) => setShares(e.target.value)}
-          />
-          {shares > 0 && q.price > 0 && (
-            <p className="st-order-est">
-              Estimated {tab === 'buy' ? 'cost' : 'proceeds'}: <strong>${(shares * q.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-            </p>
-          )}
-          <button className={`st-order-submit st-order-submit--${tab}`}>
-            {tab === 'buy' ? 'Buy' : 'Sell'} {active}
-          </button>
-        </div>
       </div>
 
     </div>

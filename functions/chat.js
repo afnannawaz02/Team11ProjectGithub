@@ -48,7 +48,8 @@ export async function onRequestPost({ request, env }) {
   const WATSONX_MODEL_ID   = env.WATSONX_MODEL_ID   || 'ibm/granite-3-8b-instruct';
 
   if (!WATSONX_API_KEY || !WATSONX_PROJECT_ID) {
-    return Response.json({ reply: 'The AI service is not configured yet — check back soon!' }, { status: 200 });
+    const missing = [!WATSONX_API_KEY && 'WATSONX_API_KEY', !WATSONX_PROJECT_ID && 'WATSONX_PROJECT_ID'].filter(Boolean).join(', ');
+    return Response.json({ reply: `AI service not configured — missing Cloudflare env var(s): ${missing}. Add them in Pages → Settings → Environment variables and redeploy.` }, { status: 200 });
   }
 
   const { messages = [], profile = {}, userMessage = '' } =

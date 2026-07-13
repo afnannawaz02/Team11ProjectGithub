@@ -31,7 +31,7 @@ const {
   RESEND_API_KEY,
   RESEND_FROM          = 'noreply@team11.uk',
   ALLOWED_EMAIL_DOMAIN = 'ibm.com',
-  ALPHAVANTAGE_API_KEY,
+  FINNHUB_API_KEY,
 } = process.env;
 
 const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
@@ -82,38 +82,51 @@ app.use(express.json({ limit: '64kb' }));
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
 /**
- * GET /api/stock?ticker=AAPL&function=GLOBAL_QUOTE
- * GET /api/stock?ticker=AAPL&function=TIME_SERIES_DAILY&outputsize=compact
- * GET /api/stock?ticker=AAPL&function=OVERVIEW
- * GET /api/stock?query=apple&function=SYMBOL_SEARCH
+ * GET /api/stock?type=quote&ticker=AAPL
+ * GET /api/stock?type=candle&ticker=AAPL&range=1M
+ * GET /api/stock?type=profile&ticker=AAPL
+ * GET /api/stock?type=search&query=apple
  *
- * Proxies Alpha Vantage so the API key stays server-side.
+ * Proxies Finnhub so the API key stays server-side.
  */
+const FH_BASE = 'https://finnhub.io/api/v1';
+function fhRangeParams(range) {
+  const now  = Math.floor(Date.now() / 1000);
+  const days = range === '1W' ? 7 : range === '1M' ? 30 : 90;
+  return { resolution: 'D', from: now - days * 86400, to: now };
+}
+
 app.get('/api/stock', async (req, res) => {
-  if (!ALPHAVANTAGE_API_KEY) {
-    return res.status(503).json({ error: 'ALPHAVANTAGE_API_KEY not configured on the server.' });
+  if (!FINNHUB_API_KEY) {
+    return res.status(503).json({ error: 'FINNHUB_API_KEY not configured on the server.' });
   }
 
-  const { function: fn = 'GLOBAL_QUOTE', ticker, query } = req.query;
-  const params = new URLSearchParams({
-    function: fn,
-    apikey: ALPHAVANTAGE_API_KEY,
-  });
-  if (ticker) params.set('symbol', ticker.toUpperCase());
-  if (query)  params.set('keywords', query);
-  if (fn === 'TIME_SERIES_DAILY') params.set('outputsize', 'compact');
+  const { type = 'quote', ticker = '', query = '', range = '1M' } = req.query;
+  const sym = ticker.toUpperCase();
+  const key = FINNHUB_API_KEY;
+
+  let endpoint;
+  if (type === 'quote') {
+    endpoint = `${FH_BASE}/quote?symbol=${sym}&token=${key}`;
+  } else if (type === 'candle') {
+    const { resolution, from, to } = fhRangeParams(range);
+    endpoint = `${FH_BASE}/stock/candle?symbol=${sym}&resolution=${resolution}&from=${from}&to=${to}&token=${key}`;
+  } else if (type === 'profile') {
+    endpoint = `${FH_BASE}/stock/profile2?symbol=${sym}&token=${key}`;
+  } else if (type === 'search') {
+    endpoint = `${FH_BASE}/search?q=${encodeURIComponent(query)}&token=${key}`;
+  } else {
+    return res.status(400).json({ error: 'Unknown type.' });
+  }
 
   try {
-    const avRes = await fetch(`https://www.alphavantage.co/query?${params}`);
-    if (!avRes.ok) return res.status(502).json({ error: 'Alpha Vantage request failed.' });
-    const data = await avRes.json();
-    // Alpha Vantage returns a Note field when rate-limited
-    if (data.Note || data.Information) {
-      return res.status(429).json({ error: data.Note || data.Information });
-    }
+    const fhRes = await fetch(endpoint, { headers: { 'X-Finnhub-Token': key } });
+    if (!fhRes.ok) return res.status(502).json({ error: `Finnhub error ${fhRes.status}` });
+    const data = await fhRes.json();
+    if (data.s === 'no_data') return res.status(404).json({ error: 'No data available.' });
     res.json(data);
   } catch (err) {
-    console.error('Alpha Vantage proxy error:', err.message);
+    console.error('Finnhub proxy error:', err.message);
     res.status(500).json({ error: 'Stock data fetch failed.' });
   }
 });
