@@ -777,6 +777,14 @@ body {
   display: flex;
   flex-direction: column;
   gap: $spacing-05;
+  align-items: center;
+
+  // Inputs should still be full width
+  .cds--form-item,
+  .cds--text-input-wrapper,
+  .cds--password-input-wrapper {
+    width: 100%;
+  }
 }
 
 .auth-success {

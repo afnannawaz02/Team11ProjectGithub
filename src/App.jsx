@@ -362,11 +362,6 @@ function HomePage({ onGetStarted, isLoggedIn, onGoToChat, onSignIn, username }) 
               <Button kind="primary" size="lg" onClick={ctaAction} style={{ justifyContent: 'center', textAlign: 'center', minWidth: '16rem', paddingRight: '1rem', paddingLeft: '1rem' }}>
                 {ctaLabel}
               </Button>
-              {!isLoggedIn && (
-                <Button kind="tertiary" size="lg" onClick={onSignIn}>
-                  Sign in
-                </Button>
-              )}
             </div>
             <p className="home-hero-sub">
               {isLoggedIn
@@ -1354,54 +1349,6 @@ function NavShell({ children, username, onLogout, onGoHome, heroHeader }) {
   );
 }
 
-// ── Password gate ──────────────────────────────────────────────────────────────
-const GATE_KEY      = 'cb_gate_ok';
-const SITE_PASSWORD = 'candyland2025';
-
-function PasswordGate({ children }) {
-  const [unlocked, setUnlocked] = useState(
-    () => sessionStorage.getItem(GATE_KEY) === '1'
-  );
-  const [value, setValue] = useState('');
-  const [error, setError] = useState(false);
-
-  const attempt = () => {
-    if (value === SITE_PASSWORD) {
-      sessionStorage.setItem(GATE_KEY, '1');
-      setUnlocked(true);
-    } else {
-      setError(true);
-      setValue('');
-    }
-  };
-
-  if (unlocked) return children;
-
-  return (
-    <div className="pin-gate">
-      <div className="pin-card">
-        <BrandLogo className="pin-brand-logo" aria-label="Candyland Bank × IBM" />
-        <p className="pin-label">Enter the site password to continue</p>
-        <PasswordInput
-          id="pin-input"
-          labelText="Site password"
-          hideLabel
-          placeholder="••••••••"
-          value={value}
-          autoFocus
-          onChange={(e) => { setValue(e.target.value); setError(false); }}
-          onKeyDown={(e) => e.key === 'Enter' && value && attempt()}
-          invalid={error}
-          invalidText="Incorrect password — try again"
-        />
-        <Button kind="primary" onClick={attempt} disabled={!value}>
-          Enter
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 // ── App ────────────────────────────────────────────────────────────────────────
 export default function App() {
   const [page, setPage]         = useState('home');
@@ -1474,14 +1421,33 @@ export default function App() {
       </NavShell>
     );
   } else if (page === 'wizard') {
-    content = (
-      <NavShell heroHeader onGoHome={() => setPage(hasAnyAccount() ? 'login' : 'home')}>
-        <SignupWizard
-          onComplete={(p) => { setProfile(p); setPage('account'); }}
-          onExit={() => setPage(hasAnyAccount() ? 'login' : 'home')}
-        />
-      </NavShell>
-    );
+    if (!username) {
+      // Questionnaire requires a signed-up account — redirect to login
+      content = (
+        <NavShell heroHeader onGoHome={() => setPage('home')}>
+          <LoginForm
+            onLogin={(res) => {
+              setProfile(res.profile ?? null);
+              setUsername(res.username);
+              setIsGuest(false);
+              setPage('wizard');
+            }}
+            onGoHome={() => setPage('home')}
+            onCreateNew={() => setPage('home')}
+            onGuest={() => setPage('home')}
+          />
+        </NavShell>
+      );
+    } else {
+      content = (
+        <NavShell heroHeader username={username} onLogout={handleLogout} onGoHome={() => setPage('home')}>
+          <SignupWizard
+            onComplete={(p) => { setProfile(p); setPage('account'); }}
+            onExit={() => setPage('dashboard')}
+          />
+        </NavShell>
+      );
+    }
   } else if (page === 'account') {
     content = (
       <NavShell heroHeader onGoHome={() => setPage('home')}>
@@ -1511,11 +1477,9 @@ export default function App() {
 
   return (
     <Theme theme="g10">
-      <PasswordGate>
-        <div key={page} className="page-transition">
-          {content}
-        </div>
-      </PasswordGate>
+      <div key={page} className="page-transition">
+        {content}
+      </div>
     </Theme>
   );
 }
