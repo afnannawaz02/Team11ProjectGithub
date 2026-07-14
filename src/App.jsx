@@ -884,35 +884,56 @@ function PanelPortfolio({ profile }) {
   );
 }
 
-function PanelTrades() {
-  const items = [
-    { date: 'Jun 28', action: 'Buy',  ticker: 'VTI',  qty: 5,   price: '$225.40', total: '$1,127.00' },
-    { date: 'Jun 25', action: 'Sell', ticker: 'AAPL', qty: 2,   price: '$189.20', total: '$378.40'   },
-    { date: 'Jun 20', action: 'Buy',  ticker: 'BND',  qty: 10,  price: '$73.15',  total: '$731.50'   },
-    { date: 'Jun 15', action: 'Buy',  ticker: 'VXUS', qty: 8,   price: '$57.80',  total: '$462.40'   },
-    { date: 'Jun 10', action: 'Sell', ticker: 'TSLA', qty: 1,   price: '$245.00', total: '$245.00'   },
-    { date: 'Jun 05', action: 'Buy',  ticker: 'VNQ',  qty: 4,   price: '$82.30',  total: '$329.20'   },
+function PanelPortfolioPie() {
+  const slices = [
+    { label: 'US Stocks',    pct: 42, color: '#f472a0' },
+    { label: 'Intl Stocks',  pct: 18, color: '#c0356a' },
+    { label: 'Bonds',        pct: 20, color: '#9d2256' },
+    { label: 'Real Estate',  pct: 10, color: '#f9a8b8' },
+    { label: 'Cash',         pct:  6, color: '#fbc4d9' },
+    { label: 'Crypto',       pct:  4, color: '#6b2040' },
   ];
+
+  // Build SVG pie slices
+  const R = 120;
+  const CX = 160;
+  const CY = 160;
+  let cumulative = 0;
+  const paths = slices.map((s) => {
+    const start = (cumulative / 100) * 2 * Math.PI - Math.PI / 2;
+    cumulative += s.pct;
+    const end   = (cumulative / 100) * 2 * Math.PI - Math.PI / 2;
+    const x1 = CX + R * Math.cos(start);
+    const y1 = CY + R * Math.sin(start);
+    const x2 = CX + R * Math.cos(end);
+    const y2 = CY + R * Math.sin(end);
+    const large = s.pct > 50 ? 1 : 0;
+    return { ...s, d: `M${CX},${CY} L${x1},${y1} A${R},${R},0,${large},1,${x2},${y2} Z` };
+  });
+
   return (
-    <div className="db-panel">
-      <h2 className="db-panel-heading">Trade History</h2>
-      <p className="db-panel-sub">Recent stock trades on your account.</p>
-      <div className="db-table-wrap">
-        <table className="db-table">
-          <thead><tr><th>Date</th><th>Action</th><th>Ticker</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
-          <tbody>
-            {items.map((r, i) => (
-              <tr key={i}>
-                <td>{r.date}</td>
-                <td><span className={`db-badge db-badge--${r.action.toLowerCase()}`}>{r.action}</span></td>
-                <td><span className="db-ticker">{r.ticker}</span></td>
-                <td>{r.qty}</td>
-                <td>{r.price}</td>
-                <td>{r.total}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <div className="db-panel db-panel--pie">
+      <h2 className="db-panel-heading">Portfolio</h2>
+      <p className="db-panel-sub">Your current asset allocation by category.</p>
+      <div className="db-pie-wrap">
+        <svg viewBox="0 0 320 320" width="280" height="280" aria-hidden="true">
+          {paths.map((p) => (
+            <path key={p.label} d={p.d} fill={p.color} stroke="#ffffff" strokeWidth="2" />
+          ))}
+          {/* donut hole */}
+          <circle cx={CX} cy={CY} r={60} fill="var(--cds-layer-01)" />
+          <text x={CX} y={CY - 8} textAnchor="middle" fontSize="13" fill="var(--cds-text-secondary)" fontFamily="inherit">Total</text>
+          <text x={CX} y={CY + 12} textAnchor="middle" fontSize="15" fontWeight="700" fill="var(--cds-text-primary)" fontFamily="inherit">$12,450</text>
+        </svg>
+        <ul className="db-pie-legend">
+          {slices.map((s) => (
+            <li key={s.label} className="db-pie-legend-item">
+              <span className="db-pie-legend-dot" style={{ background: s.color }} />
+              <span className="db-pie-legend-label">{s.label}</span>
+              <span className="db-pie-legend-pct">{s.pct}%</span>
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   );
@@ -926,7 +947,7 @@ function DashboardPage({ profile, username, onStartQuestionnaire, onLogout }) {
   const NAV = [
     { id: 'assets',   label: 'Assets',          Icon: Portfolio },
     { id: 'spending', label: 'Spending History', Icon: Finance   },
-    { id: 'trades',   label: 'Trade History',    Icon: Growth    },
+    { id: 'trades',   label: 'Portfolio',        Icon: Growth    },
   ];
 
   const activeLabel = NAV.find((n) => n.id === activePanel)?.label;
@@ -975,7 +996,7 @@ function DashboardPage({ profile, username, onStartQuestionnaire, onLogout }) {
         {activePanel === 'assets'    && <PanelAssets />}
         {activePanel === 'spending'  && <PanelSpending />}
         {activePanel === 'portfolio' && <PanelPortfolio profile={profile} />}
-        {activePanel === 'trades'    && <PanelTrades />}
+        {activePanel === 'trades'    && <PanelPortfolioPie />}
       </main>
     </div>
   );
