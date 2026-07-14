@@ -2200,6 +2200,7 @@ body {
   .home-footer { background: #161616; border-top-color: #3d3d3d; p { color: #8d8d8d; } }
   .home-feature-card { background: #262626; border-color: #3d3d3d; &:hover { background: #2e2e2e; } }
   .home-cta { background: linear-gradient(135deg, #6b1a34 0%, #3d0f20 100%); }
+  .contact-card { background: linear-gradient(145deg, #262626 0%, #2a2020 100%); border-color: #3d3d3d; }
 
   .auth-page    { background: linear-gradient(160deg, #1c1c1c 0%, #262626 50%, #1e1e2e 100%); }
   .wizard-page  { background: linear-gradient(160deg, #1c1c1c 0%, #262626 50%, #1e1e2e 100%); }
@@ -2209,7 +2210,7 @@ body {
 
   .db-layout { background: linear-gradient(160deg, #161616 0%, #1c1c1c 50%, #1a1a2e 100%); }
   .db-sidebar { background: #1c1c1c !important; border-right-color: #3d3d3d !important; }
-  .db-panel   { background: #262626; border-color: #3d3d3d; }
+  .db-panel:not(.db-panel--pie) { background: #262626; border-color: #3d3d3d; }
   .db-table th { background: #2e2e2e; }
   .db-table td { border-bottom-color: #3d3d3d; }
 
