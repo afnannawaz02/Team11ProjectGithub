@@ -1560,8 +1560,8 @@ body {
   align-items: center;
   gap: $spacing-03;
   padding: $spacing-04 $spacing-05;
-  border-top: 1px solid #fbc4d9;
-  background: #fff8fa;
+  border-top: 1px solid var(--cds-border-subtle-01);
+  background: var(--cds-layer-01);
 }
 
 .fc-input {
