@@ -1190,6 +1190,8 @@ body {
   overflow: visible;
 }
 
+.st-line-svg { cursor: crosshair; }
+
 .st-vol-label {
   @include type-style('label-01');
   color: var(--cds-text-secondary);

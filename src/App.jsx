@@ -528,6 +528,9 @@ function fmtVol(n) {
 }
 
 function StockLineChart({ ticker, seriesData }) {
+  const [hoverIdx, setHoverIdx] = useState(null);
+  const svgRef = useRef(null);
+
   const W = 600, H = 180, VH = 80, PAD = { top: 8, right: 8, bottom: 28, left: 56 };
   const cW = W - PAD.left - PAD.right;
   const cH = H - PAD.top  - PAD.bottom;
@@ -561,16 +564,51 @@ function StockLineChart({ ticker, seriesData }) {
   const maxVol  = Math.max(...vols) || 1;
   const volBarW = Math.max(2, cW / POINTS - 1);
   const priceUp = prices[POINTS - 1] >= prices[0];
+  const lineColor = priceUp ? '#24a148' : '#da1e28';
+
+  // Map a mouse x (in SVG coords) to the nearest data index
+  const xToIdx = (svgX) => {
+    const raw = (svgX - PAD.left) / cW * (POINTS - 1);
+    return Math.max(0, Math.min(POINTS - 1, Math.round(raw)));
+  };
+
+  const handleMouseMove = (e) => {
+    if (!svgRef.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const svgX = ((e.clientX - rect.left) / rect.width) * W;
+    setHoverIdx(xToIdx(svgX));
+  };
+
+  // Hover data
+  const hIdx   = hoverIdx ?? POINTS - 1;
+  const hPrice = prices[hIdx];
+  const hDate  = seriesData[hIdx].date;
+  const hPct   = ((hPrice - prices[0]) / prices[0]) * 100;
+  const hX     = scX(hIdx);
+  const hY     = scY(hPrice);
+  // Keep tooltip inside chart bounds
+  const tipW = 110, tipH = 52, tipPad = 8;
+  const tipX = hX + tipPad + tipW > W - PAD.right ? hX - tipW - tipPad : hX + tipPad;
+  const tipY = Math.max(PAD.top, Math.min(hY - tipH / 2, PAD.top + cH - tipH));
 
   return (
     <div className="st-chart-wrap">
-      <svg viewBox={`0 0 ${W} ${H}`} className="st-line-svg" aria-label={`${ticker} price chart`}>
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${W} ${H}`}
+        className="st-line-svg"
+        aria-label={`${ticker} price chart`}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => setHoverIdx(null)}
+      >
         <defs>
           <linearGradient id={`fill-${ticker}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%"   stopColor={priceUp ? '#24a148' : '#da1e28'} stopOpacity="0.18"/>
-            <stop offset="100%" stopColor={priceUp ? '#24a148' : '#da1e28'} stopOpacity="0.02"/>
+            <stop offset="0%"   stopColor={lineColor} stopOpacity="0.18"/>
+            <stop offset="100%" stopColor={lineColor} stopOpacity="0.02"/>
           </linearGradient>
         </defs>
+
+        {/* Grid + y-axis labels */}
         {yTicks.map(({ y, label }) => (
           <g key={label}>
             <line x1={PAD.left} y1={y} x2={PAD.left + cW} y2={y} stroke="#e8e8e8" strokeWidth="1"/>
@@ -580,14 +618,50 @@ function StockLineChart({ ticker, seriesData }) {
         {xTicks.map(({ x, label }) => (
           <text key={label} x={x} y={PAD.top + cH + 18} textAnchor="middle" fontSize="10" fill="#9e5a72">{label}</text>
         ))}
+
+        {/* Area + line */}
         <path d={areaPath} fill={`url(#fill-${ticker})`}/>
-        <polyline points={linePts} fill="none" stroke={priceUp ? '#24a148' : '#da1e28'} strokeWidth="2" strokeLinejoin="round"/>
+        <polyline points={linePts} fill="none" stroke={lineColor} strokeWidth="2" strokeLinejoin="round"/>
+
+        {/* Crosshair + tooltip (always visible, snaps to nearest point) */}
+        {/* Vertical crosshair line */}
+        <line
+          x1={hX} y1={PAD.top} x2={hX} y2={PAD.top + cH}
+          stroke={lineColor} strokeWidth="1" strokeDasharray="4 3" opacity={hoverIdx !== null ? 0.7 : 0}
+        />
+        {/* Dot on line */}
+        <circle
+          cx={hX} cy={hY} r="4"
+          fill={lineColor} stroke="#ffffff" strokeWidth="2"
+          opacity={hoverIdx !== null ? 1 : 0}
+        />
+        {/* Tooltip box */}
+        {hoverIdx !== null && (
+          <g>
+            <rect x={tipX} y={tipY} width={tipW} height={tipH} rx="5"
+              fill="var(--cds-layer-01, #ffffff)" stroke={lineColor} strokeWidth="1.2" filter="url(#tip-shadow)"/>
+            <text x={tipX + 8} y={tipY + 16} fontSize="10" fill="#9e5a72">{hDate}</text>
+            <text x={tipX + 8} y={tipY + 31} fontSize="13" fontWeight="700" fill="var(--cds-text-primary, #161616)">${hPrice.toFixed(2)}</text>
+            <text x={tipX + 8} y={tipY + 46} fontSize="10" fontWeight="600"
+              fill={hPct >= 0 ? '#24a148' : '#da1e28'}>
+              {hPct >= 0 ? '+' : ''}{hPct.toFixed(2)}%
+            </text>
+            <defs>
+              <filter id="tip-shadow" x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.10"/>
+              </filter>
+            </defs>
+          </g>
+        )}
       </svg>
+
       <div className="st-vol-label">Volume</div>
       <svg viewBox={`0 0 ${W} ${VH}`} className="st-vol-svg" aria-label="Volume">
         {vols.map((v, i) => (
-          <rect key={i} x={PAD.left + (i / POINTS) * cW} y={VH - (v / maxVol) * (VH - 4)}
-            width={volBarW} height={(v / maxVol) * (VH - 4)} fill="#fbc4d9" rx="1"/>
+          <rect key={i}
+            x={PAD.left + (i / POINTS) * cW} y={VH - (v / maxVol) * (VH - 4)}
+            width={volBarW} height={(v / maxVol) * (VH - 4)}
+            fill={hoverIdx === i ? lineColor : '#fbc4d9'} rx="1"/>
         ))}
       </svg>
     </div>
