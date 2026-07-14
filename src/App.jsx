@@ -1074,19 +1074,36 @@ function DashboardPage({ profile, username }) {
     { id: 'trades',   label: 'Portfolio',        Icon: Growth    },
   ];
 
+  const isChat = activePanel === 'chat';
+
   return (
     <div className="db-layout">
       {/* ── Main content ── */}
-      <main className="db-content">
-        <p className="db-sidebar-greeting">Welcome{username ? `, ${username}` : ''}.</p>
+      <main className={`db-content${isChat ? ' db-content--chat' : ''}`}>
+        {!isChat && <p className="db-sidebar-greeting">Welcome{username ? `, ${username}` : ''}.</p>}
         {activePanel === 'assets'    && <PanelAssets />}
         {activePanel === 'spending'  && <PanelSpending />}
         {activePanel === 'portfolio' && <PanelPortfolio profile={profile} />}
         {activePanel === 'trades'    && <PanelPortfolioPie />}
+        {activePanel === 'chat'      && <ChatView profile={profile} username={username} />}
       </main>
 
       {/* ── Bottom navigation bar ── */}
       <nav className="db-bottom-nav">
+        {/* Gumdrop chat button — sits above the nav bar */}
+        <button
+          className={`db-bottom-nav-item db-bottom-nav-item--chat${isChat ? ' db-bottom-nav-item--active' : ''}`}
+          onClick={() => setActivePanel('chat')}
+          aria-label="Gumdrop AI chat"
+        >
+          <svg viewBox="0 0 32 32" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M28 4H4a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h6l6 4 6-4h6a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
+            <circle cx="10" cy="14" r="1.5" fill="currentColor"/>
+            <circle cx="16" cy="14" r="1.5" fill="currentColor"/>
+            <circle cx="22" cy="14" r="1.5" fill="currentColor"/>
+          </svg>
+          <span>Gumdrop</span>
+        </button>
         {NAV.map(({ id, label, Icon }) => (
           <button
             key={id}
@@ -1826,7 +1843,6 @@ export default function App() {
           onStartQuestionnaire={() => setPage('wizard')}
           onLogout={handleLogout}
         />
-        <FloatingChat profile={profile} />
       </NavShell>
     );
   } else if (page === 'wizard') {
@@ -1892,7 +1908,6 @@ export default function App() {
           onStartQuestionnaire={() => setPage('wizard')}
           onLogout={handleLogout}
         />
-        <FloatingChat profile={profile} />
       </NavShell>
     );
   }

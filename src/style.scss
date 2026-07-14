@@ -840,6 +840,17 @@ body {
   align-items: center;
 
   @include breakpoint-down(sm) { padding: $spacing-05 $spacing-05 calc(#{$spacing-09} + 4rem); }
+
+  // Chat fullscreen mode — remove padding, let ChatView fill everything
+  &--chat {
+    padding: 0;
+    overflow: hidden;
+
+    // ChatView fills the space so its own scroll handles overflow
+    > .chat-page {
+      height: 100%;
+    }
+  }
 }
 
 // Bottom navigation bar
@@ -886,6 +897,24 @@ body {
 
   &--danger { color: #da1e28; }
   &--danger:hover { background: rgba(218, 30, 40, 0.06); }
+
+  // Gumdrop chat button — pink accent, slightly larger icon
+  &--chat {
+    color: #c0356a;
+    font-weight: 600;
+
+    &.db-bottom-nav-item--active {
+      background: linear-gradient(135deg, #f472a0, #c0356a);
+      color: #ffffff;
+      border-top-color: transparent;
+
+      span { color: #ffffff; }
+    }
+
+    &:hover:not(.db-bottom-nav-item--active) {
+      background: rgba(244, 114, 160, 0.12);
+    }
+  }
 }
 
 // Panel shared styles
@@ -1604,7 +1633,8 @@ body {
 
 .chat-page {
   display: flex;
-  height: 100%;
+  height: calc(100vh - 4rem - 4rem); // viewport minus header minus bottom nav
+  min-height: 0;
   background: linear-gradient(135deg, #fff0f4 0%, #f5eeff 100%);
 }
 
@@ -2212,6 +2242,7 @@ body {
 
   .db-layout { background: linear-gradient(160deg, #161616 0%, #1c1c1c 50%, #1a1a2e 100%); }
   .db-bottom-nav { background: linear-gradient(180deg, #1c1c1c 0%, #161616 100%); border-top-color: #3d3d3d; }
+  .db-bottom-nav-item--chat.db-bottom-nav-item--active { background: linear-gradient(135deg, #6b1a34, #3d0f20); }
   .db-panel:not(.db-panel--pie) { background: #262626; border-color: #3d3d3d; }
   .db-table th { background: #2e2e2e; }
   .db-table td { border-bottom-color: #3d3d3d; }
