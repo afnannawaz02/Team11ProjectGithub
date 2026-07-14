@@ -1581,12 +1581,9 @@ function ProfilePage({ username, profile, onLogout, onBack, theme, onToggleTheme
   ];
 
   return (
-    <div className="wizard-page" style={{ alignItems: 'flex-start', paddingTop: '2rem' }}>
-      <div className="wizard-card" style={{ maxWidth: '36rem', width: '100%' }}>
-        <div className="wizard-progress-bar">
-          <div className="wizard-progress-fill" style={{ width: '100%' }} />
-        </div>
-        <div className="wizard-inner">
+    <div className="db-layout" style={{ alignItems: 'center', paddingTop: '2rem', paddingBottom: '2rem' }}>
+      <div style={{ width: '100%', maxWidth: '36rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '0 1rem' }}>
+        <div className="wizard-inner" style={{ padding: 0 }}>
           <div className="acct-badge">Account</div>
           <h2 className="wizard-heading">Profile settings</h2>
 
@@ -1696,7 +1693,7 @@ function ProfilePage({ username, profile, onLogout, onBack, theme, onToggleTheme
           </div>
         </div>
 
-        <div className="wizard-footer" style={{ justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.5rem' }}>
           <Button kind="ghost" onClick={onBack}>← Back</Button>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <Button kind="tertiary" onClick={onStartQuestionnaire}>

@@ -967,7 +967,6 @@ body {
   overflow-x: auto;
   border: 1px solid var(--cds-border-subtle-01);
   border-radius: 0.75rem;
-  background: var(--cds-layer-01);
 }
 
 .db-table {
@@ -1015,6 +1014,7 @@ body {
   flex-direction: column;
   gap: $spacing-05;
   max-width: 52rem;
+  width: 100%;
 }
 
 // Top 4 stat cards
@@ -1060,6 +1060,7 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: $spacing-03;
+  min-height: 2rem;   // stops layout shift when pills appear/disappear
 }
 
 .st-pill {
