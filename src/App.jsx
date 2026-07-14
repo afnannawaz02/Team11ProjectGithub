@@ -529,6 +529,12 @@ function fmtVol(n) {
   return String(v);
 }
 
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function fmtDate(iso) {
+  const [, m, d] = iso.split('-');
+  return `${MONTHS[parseInt(m, 10) - 1]} ${parseInt(d, 10)}`;
+}
+
 function StockLineChart({ ticker, seriesData }) {
   const [hoverIdx, setHoverIdx] = useState(null);
   const svgRef = useRef(null);
@@ -554,7 +560,7 @@ function StockLineChart({ ticker, seriesData }) {
 
   const xTicks = [0, 1, 2, 3].map((k) => {
     const idx = Math.round((k / 3) * (POINTS - 1));
-    return { x: scX(idx), label: seriesData[idx].date };
+    return { x: scX(idx), label: fmtDate(seriesData[idx].date) };
   });
 
   const linePts  = prices.map((p, i) => `${scX(i)},${scY(p)}`).join(' ');
@@ -581,7 +587,7 @@ function StockLineChart({ ticker, seriesData }) {
   // Hover data
   const hIdx   = hoverIdx ?? POINTS - 1;
   const hPrice = prices[hIdx];
-  const hDate  = seriesData[hIdx].date;
+  const hDate  = fmtDate(seriesData[hIdx].date);
   const hPct   = ((hPrice - prices[0]) / prices[0]) * 100;
   const hX     = scX(hIdx);
   const hY     = scY(hPrice);
@@ -897,12 +903,11 @@ function PanelAssets() {
         </div>
         <div className="st-range-btns">
           {['1W','1M','3M'].map((r) => (
-            <Button
+            <button
               key={r}
-              kind={range === r ? 'primary' : 'ghost'}
-              size="sm"
+              className={`st-pill${range === r ? ' st-pill--active' : ''}`}
               onClick={() => setRange(r)}
-            >{r}</Button>
+            >{r}</button>
           ))}
         </div>
       </div>
