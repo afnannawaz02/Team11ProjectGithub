@@ -819,101 +819,73 @@ body {
 // ── Dashboard layout ───────────────────────────────────────────────────────────
 .db-layout {
   display: flex;
+  flex-direction: column;
   min-height: calc(100vh - 4rem);
   background: linear-gradient(160deg, #fff0f4 0%, #fce7f3 50%, #f5eeff 100%);
-}
-
-// Left sidebar
-.db-sidebar {
-  width: 14rem;
-  flex-shrink: 0;
-  background: linear-gradient(180deg, #fff0f4 0%, #fce7f3 100%);
-  border-right: 1px solid #fbc4d9;
-  display: flex;
-  flex-direction: column;
-  padding: $spacing-06 0;
-  gap: $spacing-04;
-
-  @include breakpoint-down(md) {
-    width: 100%;
-    border-right: none;
-    border-bottom: 1px solid #fbc4d9;
-    padding: $spacing-04 $spacing-05;
-  }
 }
 
 .db-sidebar-greeting {
   @include type-style('label-01');
   color: var(--cds-text-secondary);
-  padding: 0 $spacing-05;
-  margin: 0;
+  margin: 0 0 $spacing-05;
 }
 
-// Mobile toggle button — hidden on desktop
-.db-menu-toggle {
-  display: none;
-  width: 100%;
-  background: var(--cds-layer-01);
-  border: 1px solid #fbc4d9;
-  border-radius: 0.5rem;
-  padding: $spacing-03 $spacing-04;
-  @include type-style('body-01');
-  color: var(--cds-text-primary);
-  cursor: pointer;
-  align-items: center;
-  justify-content: space-between;
-
-  @include breakpoint-down(md) { display: flex; }
-}
-
-.db-nav {
-  display: flex;
-  flex-direction: column;
-
-  @include breakpoint-down(md) {
-    display: none;
-    &--open { display: flex; }
-  }
-}
-
-.db-nav-item {
-  display: flex;
-  align-items: center;
-  gap: $spacing-03;
-  width: 100%;
-  background: transparent;
-  border: none;
-  padding: $spacing-04 $spacing-05;
-  @include type-style('body-01');
-  color: var(--cds-text-primary);
-  cursor: pointer;
-  text-align: left;
-  border-left: 3px solid transparent;
-  transition: background 120ms ease, border-color 120ms ease;
-
-  &:hover { background: rgba(244, 114, 160, 0.08); }
-  &:focus, &:focus-visible { outline: none; }
-
-  &--active {
-    background: rgba(244, 114, 160, 0.12);
-    border-left-color: #c0356a;
-    color: #c0356a;
-    font-weight: 600;
-  }
-}
-
-.db-nav-icon { font-size: 1rem; flex-shrink: 0; }
-
-// Main content area
+// Main content area — fills space above bottom nav
 .db-content {
   flex: 1;
   overflow-y: auto;
-  padding: $spacing-07 $spacing-07 $spacing-10;
+  padding: $spacing-07 $spacing-07 calc(#{$spacing-10} + 4rem);
   display: flex;
   flex-direction: column;
   align-items: center;
 
-  @include breakpoint-down(sm) { padding: $spacing-05 $spacing-05 $spacing-09; }
+  @include breakpoint-down(sm) { padding: $spacing-05 $spacing-05 calc(#{$spacing-09} + 4rem); }
+}
+
+// Bottom navigation bar
+.db-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: stretch;
+  background: linear-gradient(180deg, #fff0f4 0%, #fce7f3 100%);
+  border-top: 1px solid #fbc4d9;
+  height: 4rem;
+}
+
+.db-bottom-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--cds-text-secondary);
+  @include type-style('label-01');
+  transition: background 120ms ease, color 120ms ease;
+  border-top: 2px solid transparent;
+  padding: 0 $spacing-02;
+
+  span { font-size: 0.65rem; font-weight: 500; }
+
+  &:hover { background: rgba(244, 114, 160, 0.08); color: var(--cds-text-primary); }
+  &:focus, &:focus-visible { outline: none; }
+
+  &--active {
+    color: #c0356a;
+    border-top-color: #c0356a;
+    background: rgba(244, 114, 160, 0.08);
+    font-weight: 600;
+  }
+
+  &--danger { color: #da1e28; }
+  &--danger:hover { background: rgba(218, 30, 40, 0.06); }
 }
 
 // Panel shared styles
@@ -2210,7 +2182,7 @@ body {
   .wizard-footer { border-top-color: #3d2030; background: transparent; }
 
   .db-layout { background: linear-gradient(160deg, #161616 0%, #1c1c1c 50%, #1a1a2e 100%); }
-  .db-sidebar { background: #1c1c1c !important; border-right-color: #3d3d3d !important; }
+  .db-bottom-nav { background: linear-gradient(180deg, #1c1c1c 0%, #161616 100%); border-top-color: #3d3d3d; }
   .db-panel:not(.db-panel--pie) { background: #262626; border-color: #3d3d3d; }
   .db-table th { background: #2e2e2e; }
   .db-table td { border-bottom-color: #3d3d3d; }

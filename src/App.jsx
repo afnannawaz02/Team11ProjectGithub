@@ -1057,15 +1057,12 @@ function PanelPortfolioPie() {
 // ── Dashboard Page ─────────────────────────────────────────────────────────────
 function DashboardPage({ profile, username, onStartQuestionnaire, onLogout }) {
   const [activePanel, setActivePanel] = useState('assets');
-  const [menuOpen, setMenuOpen]       = useState(false);
 
   const NAV = [
     { id: 'assets',   label: 'Assets',          Icon: Portfolio },
     { id: 'spending', label: 'Spending History', Icon: Finance   },
     { id: 'trades',   label: 'Portfolio',        Icon: Growth    },
   ];
-
-  const activeLabel = NAV.find((n) => n.id === activePanel)?.label;
 
   return (
     <div className="db-layout">
