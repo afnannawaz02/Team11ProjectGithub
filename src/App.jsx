@@ -531,7 +531,7 @@ function StockLineChart({ ticker, seriesData }) {
   const [hoverIdx, setHoverIdx] = useState(null);
   const svgRef = useRef(null);
 
-  const W = 600, H = 180, VH = 80, PAD = { top: 8, right: 8, bottom: 28, left: 56 };
+  const W = 600, H = 180, PAD = { top: 8, right: 8, bottom: 28, left: 56 };
   const cW = W - PAD.left - PAD.right;
   const cH = H - PAD.top  - PAD.bottom;
 
@@ -560,9 +560,6 @@ function StockLineChart({ ticker, seriesData }) {
     + prices.map((p, i) => `L${scX(i)},${scY(p)}`).join(' ')
     + ` L${scX(POINTS-1)},${PAD.top + cH} L${scX(0)},${PAD.top + cH} Z`;
 
-  const vols    = seriesData.map((d) => d.volume);
-  const maxVol  = Math.max(...vols) || 1;
-  const volBarW = Math.max(2, cW / POINTS - 1);
   const priceUp = prices[POINTS - 1] >= prices[0];
   const lineColor = priceUp ? '#24a148' : '#da1e28';
 
@@ -653,16 +650,6 @@ function StockLineChart({ ticker, seriesData }) {
             </defs>
           </g>
         )}
-      </svg>
-
-      <div className="st-vol-label">Volume</div>
-      <svg viewBox={`0 0 ${W} ${VH}`} className="st-vol-svg" aria-label="Volume">
-        {vols.map((v, i) => (
-          <rect key={i}
-            x={PAD.left + (i / POINTS) * cW} y={VH - (v / maxVol) * (VH - 4)}
-            width={volBarW} height={(v / maxVol) * (VH - 4)}
-            fill={hoverIdx === i ? lineColor : '#fbc4d9'} rx="1"/>
-        ))}
       </svg>
     </div>
   );

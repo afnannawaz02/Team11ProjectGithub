@@ -1192,12 +1192,6 @@ body {
 
 .st-line-svg { cursor: crosshair; }
 
-.st-vol-label {
-  @include type-style('label-01');
-  color: var(--cds-text-secondary);
-  margin-top: $spacing-02;
-}
-
 // Bottom 6 stat cards
 .st-stats-grid {
   display: grid;
