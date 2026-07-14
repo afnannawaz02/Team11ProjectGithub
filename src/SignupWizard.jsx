@@ -498,6 +498,9 @@ export default function SignupWizard({ onComplete, onExit }) {
 
   return (
     <div className="wizard-page">
+      <div className="wizard-hero-banner">
+        <img src="/grouped-logo.svg" alt="Candyland Bank" />
+      </div>
       <div className="wizard-card">
         {/* Progress bar */}
         <div

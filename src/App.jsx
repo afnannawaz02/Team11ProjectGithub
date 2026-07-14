@@ -134,6 +134,9 @@ function AccountSignup({ investorProfile, onComplete, onSkip, isGuest }) {
 
   return (
     <div className="wizard-page">
+      <div className="wizard-hero-banner">
+        <img src="/grouped-logo.svg" alt="Candyland Bank" />
+      </div>
       <div className="wizard-card">
         <div className="wizard-progress-bar">
           <div className="wizard-progress-fill" style={{ width: '100%' }} />
@@ -300,6 +303,9 @@ function LoginForm({ onLogin, onCreateNew, onGuest, onGoHome }) {
 
   return (
     <div className="wizard-page">
+      <div className="wizard-hero-banner">
+        <img src="/grouped-logo.svg" alt="Candyland Bank" />
+      </div>
       <div className="wizard-card">
         <div className="wizard-progress-bar">
           <div className="wizard-progress-fill" style={{ width: '100%' }} />
@@ -1625,7 +1631,7 @@ export default function App() {
 
   if (page === 'login') {
     content = (
-      <NavShell heroHeader onGoHome={() => setPage('home')}>
+      <NavShell onGoHome={() => setPage('home')}>
         <LoginForm
           onLogin={(res) => {
             setProfile(res.profile ?? null);
@@ -1676,7 +1682,7 @@ export default function App() {
     if (!username) {
       // Questionnaire requires a signed-up account — redirect to login
       content = (
-        <NavShell heroHeader onGoHome={() => setPage('home')}>
+        <NavShell onGoHome={() => setPage('home')}>
           <LoginForm
             onLogin={(res) => {
               setProfile(res.profile ?? null);
@@ -1692,7 +1698,7 @@ export default function App() {
       );
     } else {
       content = (
-        <NavShell heroHeader username={username} onGoProfile={() => setPage('profile')} onGoHome={() => setPage('home')}>
+        <NavShell username={username} onGoProfile={() => setPage('profile')} onGoHome={() => setPage('home')}>
           <SignupWizard
             onComplete={(p) => { setProfile(p); setPage('account'); }}
             onExit={() => setPage('dashboard')}
@@ -1702,7 +1708,7 @@ export default function App() {
     }
   } else if (page === 'signup') {
     content = (
-      <NavShell heroHeader onGoHome={() => setPage('home')}>
+      <NavShell onGoHome={() => setPage('home')}>
         <AccountSignup
           investorProfile={null}
           isGuest={false}
@@ -1713,7 +1719,7 @@ export default function App() {
     );
   } else if (page === 'account') {
     content = (
-      <NavShell heroHeader onGoHome={() => setPage('home')}>
+      <NavShell onGoHome={() => setPage('home')}>
         <AccountSignup
           investorProfile={profile}
           isGuest={isGuest}

@@ -1822,11 +1822,33 @@ body {
 // ── Wizard ────────────────────────────────────────────────────────────────────
 .wizard-page {
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: calc(100vh - 3rem);
+  background: linear-gradient(160deg, #fff0f4 0%, #fce7f3 50%, #ede9fe 100%);
+}
+
+// Mini hero banner shown at top of goals wizard / sign-in / account pages
+.wizard-hero-banner {
+  width: 100%;
+  background: linear-gradient(135deg, #f472a0 0%, #c0356a 60%, #9d2256 100%);
+  display: flex;
   align-items: center;
   justify-content: center;
-  padding: $spacing-07 $spacing-05;
-  min-height: calc(100vh - 4rem);
-  background: linear-gradient(160deg, #fff0f4 0%, #fce7f3 50%, #ede9fe 100%);
+  padding: $spacing-06 $spacing-05;
+
+  img {
+    height: 2.75rem;
+    width: auto;
+    display: block;
+    filter: brightness(0) invert(1);
+  }
+}
+
+.wizard-page > .wizard-card {
+  margin-top: $spacing-07;
+  margin-bottom: $spacing-07;
 }
 
 .wizard-card {
