@@ -862,11 +862,24 @@ function PanelAssets() {
           const up = tq ? tq.change >= 0 : true;
           const pct = tq ? `${tq.change >= 0 ? '+' : ''}${Number(tq.pct).toFixed(2)}%` : '—';
           return (
-            <button key={t}
-              className={`st-pill${active === t ? ' st-pill--active' : ''} ${up ? 'st-pill--up' : 'st-pill--down'}`}
-              onClick={() => setActive(t)}>
-              {t} <span>{pct}</span>
-            </button>
+            <span key={t} className={`st-pill${active === t ? ' st-pill--active' : ''} ${up ? 'st-pill--up' : 'st-pill--down'}`}>
+              <button className="st-pill-label" onClick={() => setActive(t)}>
+                {t} <span>{pct}</span>
+              </button>
+              {tickers.length > 1 && (
+                <button
+                  className="st-pill-remove"
+                  aria-label={`Remove ${t}`}
+                  onClick={() => {
+                    const next = tickers.filter((x) => x !== t);
+                    setTickers(next);
+                    if (active === t) setActive(next[0]);
+                  }}
+                >
+                  <Close size={10} />
+                </button>
+              )}
+            </span>
           );
         })}
       </div>
@@ -1056,50 +1069,36 @@ function DashboardPage({ profile, username, onStartQuestionnaire, onLogout }) {
 
   return (
     <div className="db-layout">
-      {/* ── Left sidebar ── */}
-      <aside className="db-sidebar">
-        <p className="db-sidebar-greeting">Welcome{username ? `, ${username}` : ''}.</p>
-
-        {/* Mobile dropdown toggle */}
-        <button className="db-menu-toggle" onClick={() => setMenuOpen((o) => !o)}>
-          <span>{activeLabel}</span>
-          <svg viewBox="0 0 16 16" width="14" height="14" fill="none">
-            <path d={menuOpen ? 'M2 11L8 5L14 11' : 'M2 5L8 11L14 5'} stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-          </svg>
-        </button>
-
-        <nav className={`db-nav${menuOpen ? ' db-nav--open' : ''}`}>
-          {NAV.map(({ id, label, Icon }) => (
-            <button
-              key={id}
-              className={`db-nav-item${activePanel === id ? ' db-nav-item--active' : ''}`}
-              onClick={() => { setActivePanel(id); setMenuOpen(false); }}
-            >
-              <Icon size={16} className="db-nav-icon" aria-hidden="true" />
-              {label}
-            </button>
-          ))}
-        </nav>
-
-        <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', borderTop: '1px solid rgba(244,114,160,0.2)' }}>
-          <button className="db-nav-item" style={{ paddingTop: '0.75rem' }} onClick={onStartQuestionnaire}>
-            <Notebook size={16} className="db-nav-icon" aria-hidden="true" />
-            Retake questionnaire
-          </button>
-          <button className="db-nav-item" style={{ color: '#da1e28' }} onClick={onLogout}>
-            <Logout size={16} className="db-nav-icon" aria-hidden="true" />
-            Sign out
-          </button>
-        </div>
-      </aside>
-
       {/* ── Main content ── */}
       <main className="db-content">
+        <p className="db-sidebar-greeting">Welcome{username ? `, ${username}` : ''}.</p>
         {activePanel === 'assets'    && <PanelAssets />}
         {activePanel === 'spending'  && <PanelSpending />}
         {activePanel === 'portfolio' && <PanelPortfolio profile={profile} />}
         {activePanel === 'trades'    && <PanelPortfolioPie />}
       </main>
+
+      {/* ── Bottom navigation bar ── */}
+      <nav className="db-bottom-nav">
+        {NAV.map(({ id, label, Icon }) => (
+          <button
+            key={id}
+            className={`db-bottom-nav-item${activePanel === id ? ' db-bottom-nav-item--active' : ''}`}
+            onClick={() => setActivePanel(id)}
+          >
+            <Icon size={20} aria-hidden="true" />
+            <span>{label}</span>
+          </button>
+        ))}
+        <button className="db-bottom-nav-item" onClick={onStartQuestionnaire}>
+          <Notebook size={20} aria-hidden="true" />
+          <span>Questionnaire</span>
+        </button>
+        <button className="db-bottom-nav-item db-bottom-nav-item--danger" onClick={onLogout}>
+          <Logout size={20} aria-hidden="true" />
+          <span>Sign out</span>
+        </button>
+      </nav>
     </div>
   );
 }
