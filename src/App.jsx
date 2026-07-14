@@ -134,9 +134,6 @@ function AccountSignup({ investorProfile, onComplete, onSkip, isGuest }) {
 
   return (
     <div className="wizard-page">
-      <div className="wizard-hero-banner">
-        <img src="/grouped-logo.svg" alt="Candyland Bank" />
-      </div>
       <div className="wizard-card">
         <div className="wizard-progress-bar">
           <div className="wizard-progress-fill" style={{ width: '100%' }} />
@@ -303,9 +300,6 @@ function LoginForm({ onLogin, onCreateNew, onGuest, onGoHome }) {
 
   return (
     <div className="wizard-page">
-      <div className="wizard-hero-banner">
-        <img src="/grouped-logo.svg" alt="Candyland Bank" />
-      </div>
       <div className="wizard-card">
         <div className="wizard-progress-bar">
           <div className="wizard-progress-fill" style={{ width: '100%' }} />
@@ -1446,7 +1440,7 @@ function ChatView({ profile, username }) {
 }
 
 // ── Profile Page ───────────────────────────────────────────────────────────────
-function ProfilePage({ username, profile, onLogout, onBack }) {
+function ProfilePage({ username, profile, onLogout, onBack, theme, onToggleTheme }) {
   const RISK_DESC    = { conservative: 'Low risk, stable returns', moderate: 'Balanced growth & safety', aggressive: 'High risk, high reward' };
   const HORIZON_DESC = { short: 'Under 3 years', medium: '3 – 10 years', long: '10+ years' };
   const goals = (profile?.goals ?? []).map((g) => GOAL_LABELS[g] ?? g);
@@ -1511,6 +1505,29 @@ function ProfilePage({ username, profile, onLogout, onBack }) {
                 ))}
               </div>
             )}
+          </div>
+
+          {/* ── Appearance ── */}
+          <div style={{ borderTop: '1px solid #fbc4d9', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <p style={{ margin: 0, fontWeight: 600, fontSize: '0.9rem' }}>Appearance</p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle-01)', borderRadius: '0.75rem' }}>
+              <div>
+                <p style={{ margin: 0, fontWeight: 600, fontSize: '0.875rem' }}>
+                  {theme === 'g100' ? '🌙 Dark mode' : '☀️ Light mode'}
+                </p>
+                <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>
+                  {theme === 'g100' ? 'Switch to light mode' : 'Switch to dark mode'}
+                </p>
+              </div>
+              <button
+                onClick={onToggleTheme}
+                aria-label="Toggle colour theme"
+                className="theme-toggle-btn"
+                data-dark={theme === 'g100' ? 'true' : 'false'}
+              >
+                <span className="theme-toggle-knob" />
+              </button>
+            </div>
           </div>
 
           {/* ── Linked accounts ── */}
@@ -1604,6 +1621,13 @@ export default function App() {
   const [username, setUsername] = useState(() => getSession()?.username ?? null);
   const [isGuest, setIsGuest]   = useState(false);
   const [booting, setBooting]   = useState(true);
+  const [theme, setTheme]       = useState(() => localStorage.getItem('cb-theme') ?? 'g10');
+
+  const toggleTheme = () => {
+    const next = theme === 'g10' ? 'g100' : 'g10';
+    setTheme(next);
+    localStorage.setItem('cb-theme', next);
+  };
 
   // Restore session from HttpOnly cookie on page load
   useEffect(() => {
@@ -1631,7 +1655,7 @@ export default function App() {
 
   if (page === 'login') {
     content = (
-      <NavShell onGoHome={() => setPage('home')}>
+      <NavShell heroHeader onGoHome={() => setPage('home')}>
         <LoginForm
           onLogin={(res) => {
             setProfile(res.profile ?? null);
@@ -1663,6 +1687,8 @@ export default function App() {
           profile={profile}
           onLogout={handleLogout}
           onBack={() => setPage('dashboard')}
+          theme={theme}
+          onToggleTheme={toggleTheme}
         />
       </NavShell>
     );
@@ -1682,7 +1708,7 @@ export default function App() {
     if (!username) {
       // Questionnaire requires a signed-up account — redirect to login
       content = (
-        <NavShell onGoHome={() => setPage('home')}>
+        <NavShell heroHeader onGoHome={() => setPage('home')}>
           <LoginForm
             onLogin={(res) => {
               setProfile(res.profile ?? null);
@@ -1698,7 +1724,7 @@ export default function App() {
       );
     } else {
       content = (
-        <NavShell username={username} onGoProfile={() => setPage('profile')} onGoHome={() => setPage('home')}>
+        <NavShell heroHeader username={username} onGoProfile={() => setPage('profile')} onGoHome={() => setPage('home')}>
           <SignupWizard
             onComplete={(p) => { setProfile(p); setPage('account'); }}
             onExit={() => setPage('dashboard')}
@@ -1708,7 +1734,7 @@ export default function App() {
     }
   } else if (page === 'signup') {
     content = (
-      <NavShell onGoHome={() => setPage('home')}>
+      <NavShell heroHeader onGoHome={() => setPage('home')}>
         <AccountSignup
           investorProfile={null}
           isGuest={false}
@@ -1719,7 +1745,7 @@ export default function App() {
     );
   } else if (page === 'account') {
     content = (
-      <NavShell onGoHome={() => setPage('home')}>
+      <NavShell heroHeader onGoHome={() => setPage('home')}>
         <AccountSignup
           investorProfile={profile}
           isGuest={isGuest}
@@ -1747,8 +1773,8 @@ export default function App() {
   }
 
   return (
-    <Theme theme="g10">
-      <div key={page} className="page-transition">
+    <Theme theme={theme}>
+      <div key={page} className={`page-transition${theme === 'g100' ? ' theme-dark' : ''}`}>
         {content}
       </div>
     </Theme>
