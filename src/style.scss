@@ -1527,8 +1527,9 @@ body {
   line-height: 1.5;
 
   &--bot {
-    background: #fce7f3;
+    background: var(--cds-layer-01);
     color: var(--cds-text-primary);
+    border: 1px solid var(--cds-border-subtle-01);
     align-self: flex-start;
     border-bottom-left-radius: 0.25rem;
   }
@@ -1792,8 +1793,8 @@ body {
 }
 
 .chat-bubble-new {
-  background: #fff8fa;
-  border: 1px solid #fbc4d9;
+  background: var(--cds-layer-01);
+  border: 1px solid var(--cds-border-subtle-01);
   border-radius: 1rem 1rem 1rem 0.25rem;
   padding: $spacing-04 $spacing-05;
   @include type-style('body-01');
@@ -1814,7 +1815,7 @@ body {
 }
 
 .chat-bubble-new--pending {
-  background: #fff8fa;
+  background: var(--cds-layer-01);
 }
 
 .chat-edit-btn {
@@ -2217,7 +2218,6 @@ body {
   .chat-page { background: linear-gradient(160deg, #161616 0%, #1c1c1c 50%, #1a1a2e 100%); }
   .chat-history-sidebar { background: #1c1c1c; border-right-color: #3d3d3d; }
   .chat-main  { background: transparent; }
-  .chat-bubble-new { background: #262626; }
   .chat-bubble-new--user { background: linear-gradient(135deg, #5a0e28, #3d0f20); }
   .chat-input-area { background: #1c1c1c; border-top-color: #3d3d3d; }
   .chat-input-wrap { background: #262626; border-color: #3d3d3d; &:focus-within { border-color: #f472a0; } }
