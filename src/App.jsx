@@ -40,6 +40,8 @@ import {
   Sprout,
   Task,
   Close,
+  Search,
+  Add,
 } from '@carbon/icons-react';
 import SignupWizard from './SignupWizard';
 import {
@@ -816,23 +818,22 @@ function PanelAssets() {
     <div className="st-wrap">
 
       {/* ── Search bar ── */}
-      <div style={{ display:'flex', gap:'0.5rem', marginBottom:'1rem', position:'relative' }}>
+      <div className="st-search-wrap">
+        <Search size={16} className="st-search-icon" aria-hidden="true" />
         <input
-          className="st-order-input"
-          style={{ flex: 1 }}
-          placeholder="Search ticker or company (e.g. AAPL, Tesla)"
+          className="st-search-input"
+          placeholder="Search ticker or company…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
         />
-        <button className="st-order-submit st-order-submit--buy" style={{ minWidth:'5rem' }} onClick={handleSearch} disabled={searching}>
-          {searching ? '…' : 'Search'}
+        <button className="st-search-btn" onClick={handleSearch} disabled={searching} aria-label="Search">
+          {searching ? '…' : <Add size={16} />}
         </button>
         {results.length > 0 && (
-          <div style={{ position:'absolute', top:'100%', left:0, right:0, zIndex:10, background:'var(--cds-layer-01)', border:'1px solid var(--cds-border-subtle-01)', borderRadius:'0.5rem', marginTop:'0.25rem', overflow:'hidden' }}>
+          <div className="st-search-dropdown">
             {results.map((r) => (
-              <button key={r.symbol} onClick={() => addTicker(r.symbol)}
-                style={{ display:'block', width:'100%', textAlign:'left', padding:'0.5rem 0.75rem', background:'none', border:'none', cursor:'pointer', borderBottom:'1px solid var(--cds-border-subtle-01)', fontSize:'0.85rem' }}>
+              <button key={r.symbol} onClick={() => addTicker(r.symbol)} className="st-search-result">
                 <strong>{r.displaySymbol}</strong> — {r.description}
               </button>
             ))}

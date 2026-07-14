@@ -1053,7 +1053,6 @@ body {
 }
 
 .st-card {
-  background: var(--cds-layer-01);
   border: 1px solid var(--cds-border-subtle-01);
   border-radius: 0.75rem;
   padding: $spacing-05;
@@ -1171,12 +1170,92 @@ body {
   &:focus, &:focus-visible { outline: none; }
 }
 
-// Charts
-.st-chart-wrap {
+// Search bar
+.st-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--cds-border-subtle-01);
+  border-radius: 0.625rem;
+  background: transparent;
+  overflow: visible;
+
+  &:focus-within {
+    border-color: #f472a0;
+  }
+}
+
+.st-search-icon {
+  position: absolute;
+  left: 0.75rem;
+  color: var(--cds-text-secondary);
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.st-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: $spacing-03 $spacing-03 $spacing-03 2.25rem;
+  @include type-style('body-01');
+  color: var(--cds-text-primary);
+  width: 100%;
+
+  &::placeholder { color: var(--cds-text-placeholder); }
+}
+
+.st-search-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--cds-border-subtle-01);
+  padding: $spacing-03 $spacing-04;
+  cursor: pointer;
+  color: #c0356a;
+  font-weight: 700;
+
+  &:hover { background: rgba(244, 114, 160, 0.08); }
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+  &:focus, &:focus-visible { outline: none; }
+}
+
+.st-search-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 10;
   background: var(--cds-layer-01);
   border: 1px solid var(--cds-border-subtle-01);
-  border-radius: 0.75rem;
-  padding: $spacing-04 $spacing-04 $spacing-03;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+}
+
+.st-search-result {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: $spacing-03 $spacing-04;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--cds-border-subtle-01);
+  cursor: pointer;
+  @include type-style('body-01');
+  color: var(--cds-text-primary);
+
+  &:last-child { border-bottom: none; }
+  &:hover { background: rgba(244, 114, 160, 0.06); }
+}
+
+// Charts
+.st-chart-wrap {
+  padding: $spacing-02 0;
   display: flex;
   flex-direction: column;
   gap: $spacing-02;
@@ -1202,7 +1281,6 @@ body {
 }
 
 .st-stat-card {
-  background: var(--cds-layer-01);
   border: 1px solid var(--cds-border-subtle-01);
   border-radius: 0.75rem;
   padding: $spacing-04 $spacing-05;
