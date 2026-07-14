@@ -897,7 +897,12 @@ function PanelAssets() {
         </div>
         <div className="st-range-btns">
           {['1W','1M','3M'].map((r) => (
-            <button key={r} className={`st-range-btn${range === r ? ' st-range-btn--active' : ''}`} onClick={() => setRange(r)}>{r}</button>
+            <Button
+              key={r}
+              kind={range === r ? 'primary' : 'ghost'}
+              size="sm"
+              onClick={() => setRange(r)}
+            >{r}</Button>
           ))}
         </div>
       </div>
@@ -1055,7 +1060,7 @@ function PanelPortfolioPie() {
 }
 
 // ── Dashboard Page ─────────────────────────────────────────────────────────────
-function DashboardPage({ profile, username, onStartQuestionnaire, onLogout }) {
+function DashboardPage({ profile, username }) {
   const [activePanel, setActivePanel] = useState('assets');
 
   const NAV = [
@@ -1087,14 +1092,6 @@ function DashboardPage({ profile, username, onStartQuestionnaire, onLogout }) {
             <span>{label}</span>
           </button>
         ))}
-        <button className="db-bottom-nav-item" onClick={onStartQuestionnaire}>
-          <Notebook size={20} aria-hidden="true" />
-          <span>Questionnaire</span>
-        </button>
-        <button className="db-bottom-nav-item db-bottom-nav-item--danger" onClick={onLogout}>
-          <Logout size={20} aria-hidden="true" />
-          <span>Sign out</span>
-        </button>
       </nav>
     </div>
   );
@@ -1559,7 +1556,7 @@ function ChatView({ profile, username }) {
 }
 
 // ── Profile Page ───────────────────────────────────────────────────────────────
-function ProfilePage({ username, profile, onLogout, onBack, theme, onToggleTheme }) {
+function ProfilePage({ username, profile, onLogout, onBack, theme, onToggleTheme, onStartQuestionnaire }) {
   const RISK_DESC    = { conservative: 'Low risk, stable returns', moderate: 'Balanced growth & safety', aggressive: 'High risk, high reward' };
   const HORIZON_DESC = { short: 'Under 3 years', medium: '3 – 10 years', long: '10+ years' };
   const goals = (profile?.goals ?? []).map((g) => GOAL_LABELS[g] ?? g);
@@ -1696,7 +1693,13 @@ function ProfilePage({ username, profile, onLogout, onBack, theme, onToggleTheme
 
         <div className="wizard-footer" style={{ justifyContent: 'space-between' }}>
           <Button kind="ghost" onClick={onBack}>← Back</Button>
-          <Button kind="danger" onClick={onLogout}>Sign out</Button>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <Button kind="tertiary" onClick={onStartQuestionnaire}>
+              <Notebook size={16} style={{ marginRight: '0.4rem' }} aria-hidden="true" />
+              Questionnaire
+            </Button>
+            <Button kind="danger" onClick={onLogout}>Sign out</Button>
+          </div>
         </div>
       </div>
     </div>
@@ -1808,6 +1811,7 @@ export default function App() {
           onBack={() => setPage('dashboard')}
           theme={theme}
           onToggleTheme={toggleTheme}
+          onStartQuestionnaire={() => setPage('wizard')}
         />
       </NavShell>
     );
