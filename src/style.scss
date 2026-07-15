@@ -839,7 +839,8 @@ body {
 .db-layout {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 4rem);
+  height: calc(100vh - 4rem);   // exact height: viewport minus top header
+  overflow: hidden;              // prevent layout from growing past viewport
   background: linear-gradient(160deg, #fff0f4 0%, #fce7f3 50%, #f5eeff 100%);
 }
 
@@ -852,6 +853,7 @@ body {
 // Main content area — fills space above bottom nav
 .db-content {
   flex: 1;
+  min-height: 0;                // allow flex child to shrink below content size
   overflow-y: auto;
   padding: $spacing-07 $spacing-07 calc(#{$spacing-10} + 4rem);
   display: flex;
@@ -865,9 +867,10 @@ body {
     padding: 0;
     overflow: hidden;
 
-    // ChatView fills the space so its own scroll handles overflow
+    // ChatView inherits the exact flex height — no viewport calc needed
     > .chat-page {
       height: 100%;
+      min-height: 0;
     }
   }
 }
@@ -1651,7 +1654,7 @@ body {
 
 .chat-page {
   display: flex;
-  height: calc(100vh - 4rem - 4rem); // viewport minus header minus bottom nav
+  height: 100%;    // fills whatever the flex parent gives it (db-content--chat)
   min-height: 0;
   background: linear-gradient(135deg, #fff0f4 0%, #f5eeff 100%);
 }
@@ -1925,14 +1928,14 @@ body {
 // Input area
 .chat-input-area {
   border-top: 1px solid #fbc4d9;
-  padding: $spacing-05 $spacing-07;
+  padding: $spacing-05 $spacing-07 calc(4rem + #{$spacing-04}) $spacing-07;
   display: flex;
   flex-direction: column;
   gap: $spacing-03;
   background: linear-gradient(135deg, #fff8fa 0%, #fce7f3 100%);
 
   @include breakpoint-down(sm) {
-    padding: $spacing-04 $spacing-05;
+    padding: $spacing-04 $spacing-05 calc(4rem + #{$spacing-03}) $spacing-05;
   }
 }
 
