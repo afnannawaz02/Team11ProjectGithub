@@ -1656,14 +1656,14 @@ body {
   display: flex;
   height: 100%;    // fills whatever the flex parent gives it (db-content--chat)
   min-height: 0;
-  background: linear-gradient(135deg, #fff0f4 0%, #f5eeff 100%);
+  background: transparent;
 }
 
 // Sidebar
 .chat-history-sidebar {
   width: 14rem;
   flex-shrink: 0;
-  background: linear-gradient(180deg, #fff0f4 0%, #fce7f3 100%);
+  background: transparent;
   border-right: 1px solid var(--cds-border-subtle-01);
   display: flex;
   flex-direction: column;
@@ -1932,7 +1932,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: $spacing-03;
-  background: linear-gradient(135deg, #fff8fa 0%, #fce7f3 100%);
+  background: transparent;
 
   @include breakpoint-down(sm) {
     padding: $spacing-04 $spacing-05 calc(4rem + #{$spacing-03}) $spacing-05;
@@ -2275,11 +2275,11 @@ body {
   .db-table th { background: #2e2e2e; }
   .db-table td { border-bottom-color: #3d3d3d; }
 
-  .chat-page { background: linear-gradient(160deg, #161616 0%, #1c1c1c 50%, #1a1a2e 100%); }
-  .chat-history-sidebar { background: #1c1c1c; border-right-color: #3d3d3d; }
+  .chat-page { background: transparent; }
+  .chat-history-sidebar { background: transparent; border-right-color: #3d3d3d; }
   .chat-main  { background: transparent; }
   .chat-bubble-new--user { background: linear-gradient(135deg, #5a0e28, #3d0f20); }
-  .chat-input-area { background: #1c1c1c; border-top-color: #3d3d3d; }
+  .chat-input-area { background: transparent; border-top-color: #3d3d3d; }
   .chat-input-wrap { background: #262626; border-color: #3d3d3d; &:focus-within { border-color: #f472a0; } }
 
   .fc-window { background: #262626; border-color: #3d3d3d; }
