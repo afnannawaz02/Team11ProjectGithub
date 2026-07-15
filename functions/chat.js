@@ -50,15 +50,15 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-export function onRequestOptions() {
-  return new Response(null, { status: 204, headers: CORS_HEADERS });
-}
+// Handle ALL methods — OPTIONS preflight, GET (browser prefetch), POST (actual chat)
+export async function onRequest({ request, env }) {
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: CORS_HEADERS });
+  }
+  if (request.method !== 'POST') {
+    return Response.json({ error: 'Use POST' }, { status: 405, headers: CORS_HEADERS });
+  }
 
-export function onRequestGet() {
-  return Response.json({ error: 'Use POST' }, { status: 405, headers: CORS_HEADERS });
-}
-
-export async function onRequestPost({ request, env }) {
   const WATSONX_API_KEY    = env.WATSONX_API_KEY;
   const WATSONX_PROJECT_ID = env.WATSONX_PROJECT_ID;
   const WATSONX_REGION     = env.WATSONX_REGION     || 'us-south';
