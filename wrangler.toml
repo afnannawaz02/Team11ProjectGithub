@@ -9,10 +9,12 @@ pages_build_output_dir = "dist"
 # ── Non-secret environment variables ─────────────────────────────────────────
 # These are safe to commit because they contain no credentials.
 [vars]
-WATSONX_REGION   = "us-south"
-WATSONX_MODEL_ID = "ibm/granite-3-8b-instruct"
+WATSONX_REGION       = "us-south"
+WATSONX_MODEL_ID     = "ibm/granite-3-8b-instruct"
 ALLOWED_EMAIL_DOMAIN = "ibm.com"
-RESEND_FROM      = "noreply@team11.uk"
+# RESEND_FROM is intentionally omitted — set it as a Pages Secret via:
+#   npx wrangler pages secret put RESEND_FROM --project-name gumdrop
+# or leave it to default to "noreply@team11.uk" in the function code.
 
 # ── KV namespace (OTP store) ──────────────────────────────────────────────────
 [[kv_namespaces]]
