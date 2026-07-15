@@ -1351,7 +1351,7 @@ function ChatView({ profile, username }) {
       setMessages((prev) => prev.map((m) => (m.pending ? { sender: 'bot', text: reply } : m)));
     } catch (err) {
       setMessages((prev) => prev.map((m) =>
-        m.pending ? { sender: 'bot', text: `Network error — ${err?.message || String(err)}. URL tried: ${PROXY_URL}/chat` } : m
+        m.pending ? { sender: 'bot', text: `Error: ${err?.message || String(err)}` } : m
       ));
     } finally {
       setLoading(false);

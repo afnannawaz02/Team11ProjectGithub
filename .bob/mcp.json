@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "ibm-cloud-logs": {
+      "command": "/usr/local/bin/ibmcloud",
+      "args": [
+        "--mcp-transport",
+        "stdio",
+        "--mcp-api-key",
+        "cpd-apikey-IBMid-693001QVJ1-2026-07-15T13:06:07Z",
+        "--mcp-tools",
+        "cloud-logs"
+      ],
+      "env": {
+        "LOGS_URL": "https://dashboard.us-south.logs.cloud.ibm.com/300b8b2d-4563-41ed-b263-3a63e7d92f5b/#/query-new/logs?id=OZrILALxBViLDo6Qaf0cX&page=0&querySyntax=lucene"
+      }
+    }
+  }
+}
