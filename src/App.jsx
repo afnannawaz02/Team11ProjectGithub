@@ -1349,9 +1349,9 @@ function ChatView({ profile, username }) {
         ? (data.reply  || 'Sorry, I received an empty response.')
         : (data.error  || 'Something went wrong. Please try again.');
       setMessages((prev) => prev.map((m) => (m.pending ? { sender: 'bot', text: reply } : m)));
-    } catch {
+    } catch (err) {
       setMessages((prev) => prev.map((m) =>
-        m.pending ? { sender: 'bot', text: 'Could not reach the AI server. In dev: run `npm run server` and set WATSONX_API_KEY + WATSONX_PROJECT_ID in .env.local. In production: add those as Cloudflare Pages secrets (Pages → Settings → Environment variables).' } : m
+        m.pending ? { sender: 'bot', text: `Network error — ${err?.message || String(err)}. URL tried: ${PROXY_URL}/chat` } : m
       ));
     } finally {
       setLoading(false);
