@@ -1954,6 +1954,9 @@ body {
   border-radius: 1.5rem;
   padding: $spacing-03 $spacing-03 $spacing-03 $spacing-05;
   transition: border-color 120ms ease, box-shadow 120ms ease;
+  width: 100%;    // always fill the input area — never grow beyond it
+  min-width: 0;
+  box-sizing: border-box;
 
   &:focus-within {
     border-color: #f472a0;
@@ -1983,7 +1986,9 @@ body {
 .chat-input-wrap .cds--text-area__wrapper,
 .chat-input-wrap .cds--form-item {
   flex: 1;
+  min-width: 0;   // prevent flex child from blowing out its container
   margin: 0;
+  width: 100%;
 }
 
 .chat-input-wrap .cds--text-area {
@@ -1995,6 +2000,8 @@ body {
   min-height: 1.5rem;
   max-height: 8rem;
   resize: none;
+  width: 100%;    // fill wrapper, never size to content
+  min-width: 0;
 }
 
 .chat-input-hint {
