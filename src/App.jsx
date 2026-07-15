@@ -57,11 +57,12 @@ import {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function buildGreeting(profile) {
+  if (!profile) return "Hi! I'm Gumdrop, your Candyland Bank AI advisor. Ask me anything about investing, saving, or your finances.";
   const goalMap = {
     retirement: 'retirement', home: 'buying a home', education: 'education',
     wealth: 'wealth growth', short_term: 'short-term goals', long_term: 'long-term goals',
   };
-  const goals = profile.goals.map((g) => goalMap[g] || g).join(', ');
+  const goals = (profile.goals ?? []).map((g) => goalMap[g] || g).join(', ');
   return `Welcome back! I've built your profile — focus: ${goals || 'general'}, risk appetite: ${profile.risk}, horizon: ${profile.horizon}. What would you like to explore first?`;
 }
 
@@ -1350,7 +1351,7 @@ function ChatView({ profile, username }) {
       setMessages((prev) => prev.map((m) => (m.pending ? { sender: 'bot', text: reply } : m)));
     } catch {
       setMessages((prev) => prev.map((m) =>
-        m.pending ? { sender: 'bot', text: 'Could not reach the AI server. Run `npm run server` in a separate terminal and make sure WATSONX_API_KEY and WATSONX_PROJECT_ID are set in .env.local.' } : m
+        m.pending ? { sender: 'bot', text: 'Could not reach the AI server. In dev: run `npm run server` and set WATSONX_API_KEY + WATSONX_PROJECT_ID in .env.local. In production: add those as Cloudflare Pages secrets (Pages → Settings → Environment variables).' } : m
       ));
     } finally {
       setLoading(false);
