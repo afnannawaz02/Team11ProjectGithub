@@ -898,21 +898,20 @@ body {
   &--danger { color: #da1e28; }
   &--danger:hover { background: rgba(218, 30, 40, 0.06); }
 
-  // Gumdrop chat button — pink accent, slightly larger icon
+  // Gumdrop chat button — matches other nav items by default, pink when active
   &--chat {
-    color: #c0356a;
-    font-weight: 600;
-
-    &.db-bottom-nav-item--active {
-      background: linear-gradient(135deg, #f472a0, #c0356a);
-      color: #ffffff;
-      border-top-color: transparent;
-
-      span { color: #ffffff; }
-    }
+    color: var(--cds-text-secondary);
 
     &:hover:not(.db-bottom-nav-item--active) {
-      background: rgba(244, 114, 160, 0.12);
+      color: #c0356a;
+      background: rgba(244, 114, 160, 0.08);
+    }
+
+    &.db-bottom-nav-item--active {
+      color: #c0356a;
+      border-top-color: #c0356a;
+      background: rgba(244, 114, 160, 0.08);
+      font-weight: 600;
     }
   }
 }

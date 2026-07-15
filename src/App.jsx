@@ -1350,7 +1350,7 @@ function ChatView({ profile, username }) {
       setMessages((prev) => prev.map((m) => (m.pending ? { sender: 'bot', text: reply } : m)));
     } catch {
       setMessages((prev) => prev.map((m) =>
-        m.pending ? { sender: 'bot', text: 'Could not reach the AI server. Make sure `npm run server` is running.' } : m
+        m.pending ? { sender: 'bot', text: 'Could not reach the AI server. Run `npm run server` in a separate terminal and make sure WATSONX_API_KEY and WATSONX_PROJECT_ID are set in .env.local.' } : m
       ));
     } finally {
       setLoading(false);
