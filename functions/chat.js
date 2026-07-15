@@ -44,6 +44,16 @@ async function getIAMToken(apiKey) {
   return json.access_token;
 }
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+export function onRequestOptions() {
+  return new Response(null, { status: 204, headers: CORS_HEADERS });
+}
+
 export async function onRequestPost({ request, env }) {
   const WATSONX_API_KEY    = env.WATSONX_API_KEY;
   const WATSONX_PROJECT_ID = env.WATSONX_PROJECT_ID;
@@ -52,7 +62,7 @@ export async function onRequestPost({ request, env }) {
 
   if (!WATSONX_API_KEY || !WATSONX_PROJECT_ID) {
     const missing = [!WATSONX_API_KEY && 'WATSONX_API_KEY', !WATSONX_PROJECT_ID && 'WATSONX_PROJECT_ID'].filter(Boolean).join(', ');
-    return Response.json({ reply: `AI service not configured — missing Cloudflare env var(s): ${missing}. Add them in Pages → Settings → Environment variables and redeploy.` }, { status: 200 });
+    return Response.json({ reply: `AI service not configured — missing Cloudflare env var(s): ${missing}. Add them in Pages → Settings → Environment variables and redeploy.` }, { status: 200, headers: CORS_HEADERS });
   }
 
   const { messages = [], profile = {}, userMessage = '' } =
@@ -117,10 +127,10 @@ export async function onRequestPost({ request, env }) {
       ?? wxJson.results?.[0]?.generated_text?.trim()
       ?? JSON.stringify(wxJson).slice(0, 200);
 
-    return Response.json({ reply });
+    return Response.json({ reply }, { headers: CORS_HEADERS });
 
   } catch (err) {
     console.error('Function error:', err.message);
-    return Response.json({ reply: `Server error: ${err.message}` }, { status: 200 });
+    return Response.json({ reply: `Server error: ${err.message}` }, { status: 200, headers: CORS_HEADERS });
   }
 }
