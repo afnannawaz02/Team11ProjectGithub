@@ -4,7 +4,10 @@
   "include": [
     "/verify-otp",
     "/send-otp",
-    "/chat"
+    "/debug",
+    "/chat",
+    "/api/stock",
+    "/api/auth"
   ],
   "exclude": []
 }

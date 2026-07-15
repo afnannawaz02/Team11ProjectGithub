@@ -1,19 +1,35 @@
-# wrangler.toml — Cloudflare Pages KV binding
-# This tells Cloudflare which KV namespace to bind as OTP_STORE.
-#
-# Steps to create the KV namespace:
-#   1. Cloudflare dashboard → Workers & Pages → KV → Create namespace → name it "OTP_STORE"
-#   2. Copy the namespace ID and paste it below
-#   3. Commit this file — Cloudflare reads it on deploy
+# wrangler.toml — Cloudflare Pages bindings & non-secret env vars
+# ⚠️  Never put API keys or secrets in this file — it is committed to git.
+#     Add secrets via: wrangler secret put SECRET_NAME
+#     Or via: Cloudflare Dashboard → Pages → Settings → Environment variables → Secrets
 
 name = "gumdrop"
 pages_build_output_dir = "dist"
 
+# ── Non-secret environment variables ─────────────────────────────────────────
+# These are safe to commit because they contain no credentials.
+[vars]
+WATSONX_REGION   = "us-south"
+WATSONX_MODEL_ID = "ibm/granite-3-8b-instruct"
+ALLOWED_EMAIL_DOMAIN = "ibm.com"
+RESEND_FROM      = "noreply@team11.uk"
+
+# ── KV namespace (OTP store) ──────────────────────────────────────────────────
 [[kv_namespaces]]
 binding = "OTP_STORE"
 id      = "f17959f2f94a4c7799dd2a9c8608bf39"
 
+# ── D1 database ───────────────────────────────────────────────────────────────
 [[d1_databases]]
 binding       = "DB"
 database_name = "candyland-db"
 database_id   = "effb499d-cbb7-4fa9-b5cf-9ea2ca8ad81a"
+
+# ── Secrets (DO NOT add values here) ─────────────────────────────────────────
+# Run these commands once from your terminal to store them encrypted:
+#
+#   npx wrangler pages secret put WATSONX_API_KEY    --project-name gumdrop
+#   npx wrangler pages secret put WATSONX_PROJECT_ID --project-name gumdrop
+#   npx wrangler pages secret put RESEND_API_KEY     --project-name gumdrop
+#
+# Wrangler will prompt you to paste the value — it is never written to disk.

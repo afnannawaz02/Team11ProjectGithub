@@ -1,6 +1,275 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
+// api/stock.js
+var BASE = "https://finnhub.io/api/v1";
+function rangeParams(range) {
+  const day = 86400;
+  const to = Math.floor(Date.now() / 1e3);
+  const days = range === "1W" ? 14 : range === "1M" ? 45 : 120;
+  return { resolution: "D", from: to - days * day, to };
+}
+__name(rangeParams, "rangeParams");
+async function onRequestGet({ request, env }) {
+  if (!env.FINNHUB_API_KEY) {
+    return Response.json({ error: "FINNHUB_API_KEY not configured." }, { status: 503 });
+  }
+  const url = new URL(request.url);
+  const type = url.searchParams.get("type") || "quote";
+  const ticker = (url.searchParams.get("ticker") || "").toUpperCase();
+  const query = url.searchParams.get("query") || "";
+  const range = url.searchParams.get("range") || "1M";
+  const key = env.FINNHUB_API_KEY;
+  try {
+    let endpoint;
+    if (type === "quote") {
+      endpoint = `${BASE}/quote?symbol=${ticker}&token=${key}`;
+    } else if (type === "candle") {
+      const { resolution, from, to } = rangeParams(range);
+      endpoint = `${BASE}/stock/candle?symbol=${ticker}&resolution=${resolution}&from=${from}&to=${to}&token=${key}`;
+    } else if (type === "profile") {
+      endpoint = `${BASE}/stock/profile2?symbol=${ticker}&token=${key}`;
+    } else if (type === "search") {
+      endpoint = `${BASE}/search?q=${encodeURIComponent(query)}&token=${key}`;
+    } else {
+      return Response.json({ error: "Unknown type." }, { status: 400 });
+    }
+    const r = await fetch(endpoint, { headers: { "X-Finnhub-Token": key } });
+    if (!r.ok) return Response.json({ error: `Finnhub error ${r.status}` }, { status: 502 });
+    const data = await r.json();
+    if (data.s === "no_data") return Response.json({ error: "No data available." }, { status: 404 });
+    return Response.json(data);
+  } catch (err) {
+    return Response.json({ error: "Stock data fetch failed." }, { status: 500 });
+  }
+}
+__name(onRequestGet, "onRequestGet");
+
+// api/auth.js
+var SESSION_TTL = 60 * 60 * 24 * 7;
+async function sha256hex(text) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+__name(sha256hex, "sha256hex");
+function randomToken() {
+  const arr = new Uint8Array(32);
+  crypto.getRandomValues(arr);
+  return Array.from(arr).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+__name(randomToken, "randomToken");
+function sessionCookie(token, clear = false) {
+  const val = clear ? "" : token;
+  const maxAge = clear ? 0 : SESSION_TTL;
+  return `cb_session=${val}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${maxAge}`;
+}
+__name(sessionCookie, "sessionCookie");
+function getSessionToken(request) {
+  const cookie = request.headers.get("cookie") || "";
+  const match2 = cookie.match(/cb_session=([a-f0-9]{64})/);
+  return match2 ? match2[1] : null;
+}
+__name(getSessionToken, "getSessionToken");
+function json(data, status = 200, headers = {}) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json", ...headers }
+  });
+}
+__name(json, "json");
+async function onRequest({ request, env }) {
+  const url = new URL(request.url);
+  const action = url.searchParams.get("action");
+  if (request.method === "OPTIONS") {
+    return new Response(null, { status: 204 });
+  }
+  try {
+    if (action === "register" && request.method === "POST") return register(request, env);
+    if (action === "login" && request.method === "POST") return loginHandler(request, env);
+    if (action === "me" && request.method === "GET") return me(request, env);
+    if (action === "logout" && request.method === "POST") return logoutHandler(request, env);
+    if (action === "profile" && request.method === "POST") return saveProfile(request, env);
+    return json({ error: "Not found" }, 404);
+  } catch (err) {
+    console.error("auth error", err);
+    return json({ error: "Internal server error" }, 500);
+  }
+}
+__name(onRequest, "onRequest");
+async function register(request, env) {
+  const { username, password, email, profile } = await request.json();
+  if (!username || username.length < 3) return json({ error: "Username must be at least 3 characters." }, 400);
+  if (!password || password.length < 6) return json({ error: "Password must be at least 6 characters." }, 400);
+  if (!email || !email.endsWith("@ibm.com")) return json({ error: "A verified @ibm.com email is required." }, 400);
+  const normalEmail = email.trim().toLowerCase();
+  const existing = await env.DB.prepare(
+    "SELECT id FROM users WHERE LOWER(username) = ?"
+  ).bind(username.toLowerCase()).first();
+  if (existing) return json({ error: "That username is already taken." }, 409);
+  const passwordHash = await sha256hex(password);
+  const result = await env.DB.prepare(
+    "INSERT INTO users (username, password_hash, email) VALUES (?, ?, ?) RETURNING id"
+  ).bind(username.trim(), passwordHash, normalEmail).first();
+  const userId = result.id;
+  if (profile) {
+    await env.DB.prepare(`
+      INSERT INTO profiles (user_id, goals, risk, horizon, annual_income, monthly_savings,
+        emergency_fund, current_investments, dob, marital_status, employment_status,
+        credit_score, us_state, city, veteran_status, preferences)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      userId,
+      JSON.stringify(profile.goals ?? []),
+      profile.risk ?? "",
+      profile.horizon ?? "",
+      profile.annualIncome ?? "",
+      profile.monthlySavings ?? "",
+      profile.emergencyFund ?? "",
+      JSON.stringify(profile.currentInvestments ?? []),
+      profile.dob ?? "",
+      profile.maritalStatus ?? "",
+      profile.employmentStatus ?? "",
+      profile.creditScore ?? "",
+      profile.usState ?? "",
+      profile.city ?? "",
+      profile.veteranStatus ?? "",
+      JSON.stringify(profile.preferences ?? [])
+    ).run();
+  }
+  const token = randomToken();
+  await env.DB.prepare(
+    'INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, datetime("now", "+7 days"))'
+  ).bind(token, userId).run();
+  return json({ ok: true, username: username.trim() }, 201, {
+    "Set-Cookie": sessionCookie(token)
+  });
+}
+__name(register, "register");
+async function loginHandler(request, env) {
+  const { username, password } = await request.json();
+  if (!username || !password) return json({ error: "Username and password required." }, 400);
+  const user = await env.DB.prepare(
+    "SELECT id, username, password_hash FROM users WHERE LOWER(username) = ?"
+  ).bind(username.toLowerCase()).first();
+  if (!user) return json({ error: "No account found with that username." }, 401);
+  const hash = await sha256hex(password);
+  if (hash !== user.password_hash) return json({ error: "Incorrect password." }, 401);
+  const profileRow = await env.DB.prepare(
+    "SELECT * FROM profiles WHERE user_id = ?"
+  ).bind(user.id).first();
+  const profile = profileRow ? {
+    goals: JSON.parse(profileRow.goals || "[]"),
+    risk: profileRow.risk,
+    horizon: profileRow.horizon,
+    annualIncome: profileRow.annual_income,
+    monthlySavings: profileRow.monthly_savings,
+    emergencyFund: profileRow.emergency_fund,
+    currentInvestments: JSON.parse(profileRow.current_investments || "[]"),
+    dob: profileRow.dob,
+    maritalStatus: profileRow.marital_status,
+    employmentStatus: profileRow.employment_status,
+    creditScore: profileRow.credit_score,
+    usState: profileRow.us_state,
+    city: profileRow.city,
+    veteranStatus: profileRow.veteran_status,
+    preferences: JSON.parse(profileRow.preferences || "[]")
+  } : null;
+  const token = randomToken();
+  await env.DB.prepare(
+    'INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, datetime("now", "+7 days"))'
+  ).bind(token, user.id).run();
+  return json({ ok: true, username: user.username, profile }, 200, {
+    "Set-Cookie": sessionCookie(token)
+  });
+}
+__name(loginHandler, "loginHandler");
+async function me(request, env) {
+  const token = getSessionToken(request);
+  if (!token) return json({ ok: false }, 401);
+  const session = await env.DB.prepare(`
+    SELECT users.id, users.username
+    FROM sessions
+    JOIN users ON users.id = sessions.user_id
+    WHERE sessions.token = ? AND sessions.expires_at > datetime('now')
+  `).bind(token).first();
+  if (!session) return json({ ok: false }, 401);
+  const profileRow = await env.DB.prepare(
+    "SELECT * FROM profiles WHERE user_id = ?"
+  ).bind(session.id).first();
+  const profile = profileRow ? {
+    goals: JSON.parse(profileRow.goals || "[]"),
+    risk: profileRow.risk,
+    horizon: profileRow.horizon,
+    annualIncome: profileRow.annual_income,
+    monthlySavings: profileRow.monthly_savings,
+    emergencyFund: profileRow.emergency_fund,
+    currentInvestments: JSON.parse(profileRow.current_investments || "[]"),
+    dob: profileRow.dob,
+    maritalStatus: profileRow.marital_status,
+    employmentStatus: profileRow.employment_status,
+    creditScore: profileRow.credit_score,
+    usState: profileRow.us_state,
+    city: profileRow.city,
+    veteranStatus: profileRow.veteran_status,
+    preferences: JSON.parse(profileRow.preferences || "[]")
+  } : null;
+  return json({ ok: true, username: session.username, profile });
+}
+__name(me, "me");
+async function logoutHandler(request, env) {
+  const token = getSessionToken(request);
+  if (token) {
+    await env.DB.prepare("DELETE FROM sessions WHERE token = ?").bind(token).run();
+  }
+  return json({ ok: true }, 200, { "Set-Cookie": sessionCookie("", true) });
+}
+__name(logoutHandler, "logoutHandler");
+async function saveProfile(request, env) {
+  const token = getSessionToken(request);
+  if (!token) return json({ error: "Unauthorised" }, 401);
+  const session = await env.DB.prepare(`
+    SELECT users.id FROM sessions
+    JOIN users ON users.id = sessions.user_id
+    WHERE sessions.token = ? AND sessions.expires_at > datetime('now')
+  `).bind(token).first();
+  if (!session) return json({ error: "Session expired" }, 401);
+  const p = await request.json();
+  await env.DB.prepare(`
+    INSERT INTO profiles (user_id, goals, risk, horizon, annual_income, monthly_savings,
+      emergency_fund, current_investments, dob, marital_status, employment_status,
+      credit_score, us_state, city, veteran_status, preferences, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    ON CONFLICT(user_id) DO UPDATE SET
+      goals=excluded.goals, risk=excluded.risk, horizon=excluded.horizon,
+      annual_income=excluded.annual_income, monthly_savings=excluded.monthly_savings,
+      emergency_fund=excluded.emergency_fund, current_investments=excluded.current_investments,
+      dob=excluded.dob, marital_status=excluded.marital_status,
+      employment_status=excluded.employment_status, credit_score=excluded.credit_score,
+      us_state=excluded.us_state, city=excluded.city,
+      veteran_status=excluded.veteran_status, preferences=excluded.preferences,
+      updated_at=datetime('now')
+  `).bind(
+    session.id,
+    JSON.stringify(p.goals ?? []),
+    p.risk ?? "",
+    p.horizon ?? "",
+    p.annualIncome ?? "",
+    p.monthlySavings ?? "",
+    p.emergencyFund ?? "",
+    JSON.stringify(p.currentInvestments ?? []),
+    p.dob ?? "",
+    p.maritalStatus ?? "",
+    p.employmentStatus ?? "",
+    p.creditScore ?? "",
+    p.usState ?? "",
+    p.city ?? "",
+    p.veteranStatus ?? "",
+    JSON.stringify(p.preferences ?? [])
+  ).run();
+  return json({ ok: true });
+}
+__name(saveProfile, "saveProfile");
+
 // ../server/kb.js
 var KNOWLEDGE_BASE = [
   // ── Candyland Bank products ──────────────────────────────────────────────────
@@ -129,8 +398,8 @@ async function getIAMToken(apiKey) {
     })
   });
   if (!res.ok) throw new Error(`IAM token fetch failed: ${res.status}`);
-  const json = await res.json();
-  return json.access_token;
+  const json2 = await res.json();
+  return json2.access_token;
 }
 __name(getIAMToken, "getIAMToken");
 async function onRequestPost({ request, env }) {
@@ -139,7 +408,8 @@ async function onRequestPost({ request, env }) {
   const WATSONX_REGION = env.WATSONX_REGION || "us-south";
   const WATSONX_MODEL_ID = env.WATSONX_MODEL_ID || "ibm/granite-3-8b-instruct";
   if (!WATSONX_API_KEY || !WATSONX_PROJECT_ID) {
-    return Response.json({ reply: "The AI service is not configured yet \u2014 check back soon!" }, { status: 200 });
+    const missing = [!WATSONX_API_KEY && "WATSONX_API_KEY", !WATSONX_PROJECT_ID && "WATSONX_PROJECT_ID"].filter(Boolean).join(", ");
+    return Response.json({ reply: `AI service not configured \u2014 missing Cloudflare env var(s): ${missing}. Add them in Pages \u2192 Settings \u2192 Environment variables and redeploy.` }, { status: 200 });
   }
   const { messages = [], profile = {}, userMessage = "" } = await request.json().catch(() => ({}));
   const context = retrieve(userMessage);
@@ -186,18 +456,32 @@ ${context}` : ""
       })
     });
     if (!wxRes.ok) {
-      console.error("watsonx error:", wxRes.status, await wxRes.text());
-      return Response.json({ error: "AI service error. Please try again." }, { status: 502 });
+      const errBody = await wxRes.text();
+      console.error("watsonx error:", wxRes.status, errBody);
+      return Response.json({ reply: `AI error ${wxRes.status} \u2014 ${errBody.slice(0, 120)}` }, { status: 200 });
     }
     const wxJson = await wxRes.json();
-    const reply = wxJson.results?.[0]?.generated_text?.trim() ?? wxJson.choices?.[0]?.message?.content?.trim() ?? "Sorry, I could not generate a response.";
+    const reply = wxJson.choices?.[0]?.message?.content?.trim() ?? wxJson.results?.[0]?.generated_text?.trim() ?? JSON.stringify(wxJson).slice(0, 200);
     return Response.json({ reply });
   } catch (err) {
     console.error("Function error:", err.message);
-    return Response.json({ error: "Internal error. Check function logs." }, { status: 500 });
+    return Response.json({ reply: `Server error: ${err.message}` }, { status: 200 });
   }
 }
 __name(onRequestPost, "onRequestPost");
+
+// debug.js
+async function onRequestGet2({ env }) {
+  return Response.json({
+    RESEND_API_KEY: !!env.RESEND_API_KEY,
+    RESEND_FROM: env.RESEND_FROM || "(not set)",
+    ALLOWED_EMAIL_DOMAIN: env.ALLOWED_EMAIL_DOMAIN || "(not set)",
+    OTP_STORE_bound: !!env.OTP_STORE,
+    WATSONX_API_KEY: !!env.WATSONX_API_KEY,
+    WATSONX_PROJECT_ID: !!env.WATSONX_PROJECT_ID
+  });
+}
+__name(onRequestGet2, "onRequestGet");
 
 // send-otp.js
 function generateOTP() {
@@ -210,7 +494,7 @@ async function onRequestPost2({ request, env }) {
   const { email = "" } = await request.json().catch(() => ({}));
   const normalised = email.trim().toLowerCase();
   const domain = env.ALLOWED_EMAIL_DOMAIN || "ibm.com";
-  if (!normalised.endsWith(`@${domain}`)) {
+  if (domain !== "." && !normalised.endsWith(`@${domain}`)) {
     return Response.json({ error: `Only @${domain} addresses are allowed.` }, { status: 403 });
   }
   if (!env.RESEND_API_KEY) {
@@ -219,7 +503,7 @@ async function onRequestPost2({ request, env }) {
   const code = generateOTP();
   const expiresAt = Date.now() + 10 * 60 * 1e3;
   await env.OTP_STORE.put(normalised, JSON.stringify({ code, expiresAt }), { expirationTtl: 600 });
-  const from = env.RESEND_FROM || "onboarding@resend.dev";
+  const from = env.RESEND_FROM || "noreply@team11.uk";
   const emailRes = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -240,10 +524,15 @@ async function onRequestPost2({ request, env }) {
       `
     })
   });
+  const resendBody = await emailRes.text();
   if (!emailRes.ok) {
-    const body = await emailRes.text();
-    console.error("Resend error:", body);
-    return Response.json({ error: "Failed to send email." }, { status: 500 });
+    console.error("Resend error:", emailRes.status, resendBody);
+    let detail = resendBody;
+    try {
+      detail = JSON.parse(resendBody)?.message || resendBody;
+    } catch {
+    }
+    return Response.json({ error: `Failed to send email: ${detail}` }, { status: 500 });
   }
   return Response.json({ ok: true });
 }
@@ -270,14 +559,35 @@ async function onRequestPost3({ request, env }) {
 }
 __name(onRequestPost3, "onRequestPost");
 
-// ../.wrangler/tmp/pages-GIgVtW/functionsRoutes-0.007891631454772785.mjs
+// ../.wrangler/tmp/pages-DlPGpg/functionsRoutes-0.7152791263573897.mjs
 var routes = [
+  {
+    routePath: "/api/stock",
+    mountPath: "/api",
+    method: "GET",
+    middlewares: [],
+    modules: [onRequestGet]
+  },
+  {
+    routePath: "/api/auth",
+    mountPath: "/api",
+    method: "",
+    middlewares: [],
+    modules: [onRequest]
+  },
   {
     routePath: "/chat",
     mountPath: "/",
     method: "POST",
     middlewares: [],
     modules: [onRequestPost]
+  },
+  {
+    routePath: "/debug",
+    mountPath: "/",
+    method: "GET",
+    middlewares: [],
+    modules: [onRequestGet2]
   },
   {
     routePath: "/send-otp",
@@ -295,7 +605,7 @@ var routes = [
   }
 ];
 
-// ../node_modules/.pnpm/path-to-regexp@6.3.0/node_modules/path-to-regexp/dist.es2015/index.js
+// ../../../../.nvm/versions/node/v22.23.1/lib/node_modules/wrangler/node_modules/path-to-regexp/dist.es2015/index.js
 function lexer(str) {
   var tokens = [];
   var i = 0;
@@ -621,7 +931,7 @@ function pathToRegexp(path, keys, options) {
 }
 __name(pathToRegexp, "pathToRegexp");
 
-// ../node_modules/.pnpm/wrangler@4.110.0/node_modules/wrangler/templates/pages-template-worker.ts
+// ../../../../.nvm/versions/node/v22.23.1/lib/node_modules/wrangler/templates/pages-template-worker.ts
 var escapeRegex = /[.+?^${}()|[\]\\]/g;
 function* executeRequest(request) {
   const requestPath = new URL(request.url).pathname;
