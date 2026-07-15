@@ -36,7 +36,10 @@ async function getIAMToken(apiKey) {
       apikey: apiKey,
     }),
   });
-  if (!res.ok) throw new Error(`IAM token fetch failed: ${res.status}`);
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`IAM token fetch failed (${res.status}): ${body.slice(0, 200)}`);
+  }
   const json = await res.json();
   return json.access_token;
 }
@@ -97,7 +100,7 @@ export async function onRequestPost({ request, env }) {
         model_id: WATSONX_MODEL_ID,
         project_id: WATSONX_PROJECT_ID,
         messages: wxMessages,
-        parameters: { max_new_tokens: 512, temperature: 0.7, top_p: 0.9 },
+        parameters: { max_tokens: 512, temperature: 0.7, top_p: 0.9 },
       }),
     });
 

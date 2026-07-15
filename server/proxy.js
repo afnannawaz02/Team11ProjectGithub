@@ -255,7 +255,7 @@ app.post('/chat', async (req, res) => {
         project_id: WATSONX_PROJECT_ID,
         messages: wxMessages,
         parameters: {
-          max_new_tokens: 512,
+          max_tokens: 512,
           temperature: 0.7,
           top_p: 0.9,
         },
