@@ -54,6 +54,10 @@ export function onRequestOptions() {
   return new Response(null, { status: 204, headers: CORS_HEADERS });
 }
 
+export function onRequestGet() {
+  return Response.json({ error: 'Use POST' }, { status: 405, headers: CORS_HEADERS });
+}
+
 export async function onRequestPost({ request, env }) {
   const WATSONX_API_KEY    = env.WATSONX_API_KEY;
   const WATSONX_PROJECT_ID = env.WATSONX_PROJECT_ID;
