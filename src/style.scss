@@ -200,11 +200,19 @@
   position: relative !important;
 }
 
-// Hero variant — goals wizard, sign-in, and account pages
+// Hero variant — dashboard / profile (standard 4 rem pink bar)
 .cds--header--hero {
   background: linear-gradient(135deg, #f472a0 0%, #c0356a 60%, #9d2256 100%) !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.15) !important;
   height: 4rem !important;
+}
+
+// Auth variant — sign-in, goals wizard, signup pages (taller, matches landing hero)
+.cds--header--auth {
+  background: linear-gradient(135deg, #f472a0 0%, #c0356a 60%, #9d2256 100%) !important;
+  border-bottom: none !important;
+  height: 6rem !important;
+  box-shadow: 0 2px 16px rgba(157, 34, 86, 0.25) !important;
 }
 
 // Make all direct header children fill the full height and centre their content
@@ -360,9 +368,14 @@
   filter: brightness(0) invert(1);
 }
 
-// Hero header: larger logo
+// Hero header: larger logo (dashboard/profile)
 .cds--header--hero .header-brand-logo {
   height: 3rem;
+}
+
+// Auth header: even larger logo, matching landing-page hero presence
+.cds--header--auth .header-brand-logo {
+  height: 4rem;
 }
 
 // Hero: large white lockup on red background
@@ -419,10 +432,16 @@ body {
   background: linear-gradient(160deg, #fff0f4 0%, #fce7f3 50%, #f5eeff 100%);
 }
 
-// Push main content below the hero header (4rem)
+// Push main content below the header
+// .cds--header--hero = 4rem (dashboard/profile)
+// .cds--header--auth = 6rem (sign-in, goals, signup)
 .app-shell > main {
   margin-top: 4rem;
   flex: 1;
+}
+
+.app-shell--auth > main {
+  margin-top: 6rem;
 }
 
 // ── Password gate ─────────────────────────────────────────────────────────────
@@ -738,7 +757,7 @@ body {
   align-items: flex-start;
   justify-content: center;
   padding: $spacing-09 $spacing-05;
-  min-height: calc(100vh - 2.5rem);
+  min-height: calc(100vh - 6rem);
   background: linear-gradient(160deg, #fff0f4 0%, #fce7f3 50%, #ede9fe 100%);
 }
 
@@ -1987,7 +2006,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: $spacing-07 $spacing-05;
-  min-height: calc(100vh - 4rem);
+  min-height: calc(100vh - 6rem);
   background: linear-gradient(160deg, #fff0f4 0%, #fce7f3 50%, #ede9fe 100%);
 }
 
@@ -2266,6 +2285,9 @@ body {
     border-bottom-color: #4a1030 !important;
   }
   .cds--header--hero {
+    background: linear-gradient(135deg, #6b1a34 0%, #3d0f20 60%, #1e0710 100%) !important;
+  }
+  .cds--header--auth {
     background: linear-gradient(135deg, #6b1a34 0%, #3d0f20 60%, #1e0710 100%) !important;
   }
 }
