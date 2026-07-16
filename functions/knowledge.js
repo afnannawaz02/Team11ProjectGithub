@@ -117,6 +117,16 @@ export async function onRequest({ request, env }) {
     return Response.json({ error: 'Use POST' }, { status: 405, headers: CORS_HEADERS });
   }
 
+  // ── Authentication — reject requests without the correct Bearer token ─────
+  const expectedKey = env.KNOWLEDGE_API_KEY;
+  if (expectedKey) {
+    const authHeader = request.headers.get('Authorization') || '';
+    const provided   = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+    if (!provided || provided !== expectedKey) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401, headers: CORS_HEADERS });
+    }
+  }
+
   const body = await request.json().catch(() => ({}));
   const query      = (body.query || body.input || body.userMessage || '').toLowerCase().trim();
   const topK       = Math.min(body.top_k || body.topK || 5, 10);
