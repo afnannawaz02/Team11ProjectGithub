@@ -11,7 +11,13 @@
 
 import { KNOWLEDGE_BASE } from '../server/kb.js';
 
-// ── KB retrieval (copied from server/kb.js) ───────────────────────────────────
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+// ── KB retrieval ──────────────────────────────────────────────────────────────
 function retrieve(query, topN = 3) {
   const q = query.toLowerCase();
   const scored = KNOWLEDGE_BASE.map((chunk) => ({
@@ -26,7 +32,7 @@ function retrieve(query, topN = 3) {
     .join('\n\n---\n\n');
 }
 
-// ── IAM token (no in-memory cache in Workers — fetch each time, fast enough) ──
+// ── IAM token ─────────────────────────────────────────────────────────────────
 async function getIAMToken(apiKey) {
   const res = await fetch('https://iam.cloud.ibm.com/identity/token', {
     method: 'POST',
@@ -41,7 +47,17 @@ async function getIAMToken(apiKey) {
   return json.access_token;
 }
 
-export async function onRequestPost({ request, env }) {
+// ── Main handler (all methods so OPTIONS preflight is caught) ─────────────────
+export async function onRequest({ request, env }) {
+  // CORS preflight
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: CORS_HEADERS });
+  }
+
+  if (request.method !== 'POST') {
+    return Response.json({ error: 'Use POST' }, { status: 405, headers: CORS_HEADERS });
+  }
+
   const WATSONX_API_KEY    = env.WATSONX_API_KEY;
   const WATSONX_PROJECT_ID = env.WATSONX_PROJECT_ID;
   const WATSONX_REGION     = env.WATSONX_REGION     || 'us-south';
@@ -49,7 +65,10 @@ export async function onRequestPost({ request, env }) {
 
   if (!WATSONX_API_KEY || !WATSONX_PROJECT_ID) {
     const missing = [!WATSONX_API_KEY && 'WATSONX_API_KEY', !WATSONX_PROJECT_ID && 'WATSONX_PROJECT_ID'].filter(Boolean).join(', ');
-    return Response.json({ reply: `AI service not configured — missing Cloudflare env var(s): ${missing}. Add them in Pages → Settings → Environment variables and redeploy.` }, { status: 200 });
+    return Response.json(
+      { reply: `AI service not configured — missing Cloudflare env var(s): ${missing}. Add them in Pages → Settings → Environment variables and redeploy.` },
+      { status: 200, headers: CORS_HEADERS },
+    );
   }
 
   const { messages = [], profile = {}, userMessage = '' } =
@@ -79,10 +98,13 @@ export async function onRequestPost({ request, env }) {
 
     const wxMessages = [
       { role: 'system', content: systemPrompt },
-      ...messages.map((m) => ({
-        role: m.sender === 'user' ? 'user' : 'assistant',
-        content: m.text,
-      })),
+      ...messages
+        .filter((m) => !m.pending && m.text)
+        .slice(-10)
+        .map((m) => ({
+          role:    m.sender === 'user' ? 'user' : 'assistant',
+          content: m.text,
+        })),
       { role: 'user', content: userMessage },
     ];
 
@@ -90,34 +112,38 @@ export async function onRequestPost({ request, env }) {
     const wxRes = await fetch(endpoint, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type':  'application/json',
         'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify({
-        model_id: WATSONX_MODEL_ID,
+        model_id:   WATSONX_MODEL_ID,
         project_id: WATSONX_PROJECT_ID,
-        messages: wxMessages,
-        parameters: { max_new_tokens: 512, temperature: 0.7, top_p: 0.9 },
+        messages:   wxMessages,
+        parameters: { max_tokens: 512, temperature: 0.7, top_p: 0.9 },
       }),
     });
 
     if (!wxRes.ok) {
       const errBody = await wxRes.text();
       console.error('watsonx error:', wxRes.status, errBody);
-      return Response.json({ reply: `AI error ${wxRes.status} — ${errBody.slice(0, 120)}` }, { status: 200 });
+      return Response.json(
+        { reply: `AI error ${wxRes.status} — ${errBody.slice(0, 200)}` },
+        { status: 200, headers: CORS_HEADERS },
+      );
     }
 
     const wxJson = await wxRes.json();
-    // watsonx chat API: choices[0].message.content
-    // watsonx generate API fallback: results[0].generated_text
-    const reply = wxJson.choices?.[0]?.message?.content?.trim()
+    const reply  = wxJson.choices?.[0]?.message?.content?.trim()
       ?? wxJson.results?.[0]?.generated_text?.trim()
       ?? JSON.stringify(wxJson).slice(0, 200);
 
-    return Response.json({ reply });
+    return Response.json({ reply }, { headers: CORS_HEADERS });
 
   } catch (err) {
     console.error('Function error:', err.message);
-    return Response.json({ reply: `Server error: ${err.message}` }, { status: 200 });
+    return Response.json(
+      { reply: `Server error: ${err.message}` },
+      { status: 200, headers: CORS_HEADERS },
+    );
   }
 }
