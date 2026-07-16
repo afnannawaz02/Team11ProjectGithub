@@ -12,5 +12,6 @@ export async function onRequestGet({ env }) {
     WATSONX_API_KEY:      !!env.WATSONX_API_KEY,
     WATSONX_PROJECT_ID:   !!env.WATSONX_PROJECT_ID,
     KNOWLEDGE_API_KEY:    !!env.KNOWLEDGE_API_KEY,
+    KNOWLEDGE_API_KEY_len: env.KNOWLEDGE_API_KEY ? env.KNOWLEDGE_API_KEY.length : 0,
   });
 }
