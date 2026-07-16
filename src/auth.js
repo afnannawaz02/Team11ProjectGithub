@@ -116,21 +116,7 @@ export function loadSessions(username) {
   if (!username) return null;
   try {
     const raw = localStorage.getItem(`cb_sessions_${username.toLowerCase()}`);
-    if (!raw) return null;
-    const sessions = JSON.parse(raw);
-    // Strip any messages that contain old error text from broken sessions
-    const cleaned = sessions.map((s) => ({
-      ...s,
-      messages: s.messages.filter((m) =>
-        !(m.sender === 'bot' && (
-          m.text?.includes('Could not reach the AI server') ||
-          m.text?.includes('Network error') ||
-          m.text?.includes('npm run server') ||
-          m.text?.includes('<!DOCTYPE')
-        ))
-      ),
-    }));
-    return cleaned;
+    return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
   }

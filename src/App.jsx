@@ -55,6 +55,10 @@ import {
   loadSessions,
 } from './auth.js';
 
+// Relative URL — works in dev (Vite proxies /chat → 127.0.0.1:3001) and in
+// production (Cloudflare Pages Function at /chat handles the request).
+const PROXY_URL = '';
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function buildGreeting(profile) {
   if (!profile) return "Hi! I'm Gumdrop, your Candyland Bank AI advisor. Ask me anything about investing, saving, or your finances.";
@@ -1075,36 +1079,19 @@ function DashboardPage({ profile, username }) {
     { id: 'trades',   label: 'Portfolio',        Icon: Growth    },
   ];
 
-  const isChat = activePanel === 'chat';
-
   return (
     <div className="db-layout">
       {/* ── Main content ── */}
-      <main className={`db-content${isChat ? ' db-content--chat' : ''}`}>
-        {!isChat && <p className="db-sidebar-greeting">Welcome{username ? `, ${username}` : ''}.</p>}
+      <main className="db-content">
+        <p className="db-sidebar-greeting">Welcome{username ? `, ${username}` : ''}.</p>
         {activePanel === 'assets'    && <PanelAssets />}
         {activePanel === 'spending'  && <PanelSpending />}
         {activePanel === 'portfolio' && <PanelPortfolio profile={profile} />}
         {activePanel === 'trades'    && <PanelPortfolioPie />}
-        {activePanel === 'chat'      && <ChatView profile={profile} username={username} />}
       </main>
 
       {/* ── Bottom navigation bar ── */}
       <nav className="db-bottom-nav">
-        {/* Gumdrop chat button — sits above the nav bar */}
-        <button
-          className={`db-bottom-nav-item db-bottom-nav-item--chat${isChat ? ' db-bottom-nav-item--active' : ''}`}
-          onClick={() => setActivePanel('chat')}
-          aria-label="Gumdrop AI chat"
-        >
-          <svg viewBox="0 0 32 32" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M28 4H4a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h6l6 4 6-4h6a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
-            <circle cx="10" cy="14" r="1.5" fill="currentColor"/>
-            <circle cx="16" cy="14" r="1.5" fill="currentColor"/>
-            <circle cx="22" cy="14" r="1.5" fill="currentColor"/>
-          </svg>
-          <span>Gumdrop</span>
-        </button>
         {NAV.map(({ id, label, Icon }) => (
           <button
             key={id}
@@ -1118,115 +1105,6 @@ function DashboardPage({ profile, username }) {
       </nav>
     </div>
   );
-}
-
-// ── Floating Gumdrop chat widget ───────────────────────────────────────────────
-function FloatingChat({ profile }) {
-  const [open, setOpen]     = useState(false);
-  const [messages, setMsgs] = useState([{ sender: 'bot', text: 'Hi! Ask me anything about your investments.' }]);
-  const [draft, setDraft]   = useState('');
-  const [loading, setLoad]  = useState(false);
-  const bottomRef           = useRef(null);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, open]);
-
-  const send = async () => {
-    const trimmed = draft.trim();
-    if (!trimmed || loading) return;
-    const next = [...messages, { sender: 'user', text: trimmed }, { sender: 'bot', text: '', pending: true }];
-    setMsgs(next);
-    setDraft('');
-    setLoad(true);
-    try {
-      const res  = await fetch(`${PROXY_URL}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userMessage: trimmed, profile, messages: messages.slice(-6) }),
-      });
-      const data  = await res.json();
-      const reply = res.ok ? (data.reply || 'No response.') : (data.error || 'Something went wrong.');
-      setMsgs((prev) => prev.map((m) => m.pending ? { sender: 'bot', text: reply } : m));
-    } catch {
-      setMsgs((prev) => prev.map((m) => m.pending ? { sender: 'bot', text: 'Could not reach the server.' } : m));
-    } finally {
-      setLoad(false);
-    }
-  };
-
-  return (
-    <div className="fc-wrap">
-      {open && (
-        <div className="fc-window">
-          <div className="fc-header">
-            <span className="fc-title">Gumdrop</span>
-            <button className="fc-close" onClick={() => setOpen(false)} aria-label="Close chat"><Close size={16} /></button>
-          </div>
-          <div className="fc-messages">
-            {messages.map((m, i) => (
-              <div key={i} className={`fc-msg fc-msg--${m.sender}`}>
-                {m.pending ? <span className="fc-dots"><span/><span/><span/></span> : m.text}
-              </div>
-            ))}
-            <div ref={bottomRef} />
-          </div>
-          <div className="fc-input-row">
-            <input
-              className="fc-input"
-              placeholder="Ask anything…"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && send()}
-              disabled={loading}
-            />
-            <button className="fc-send" onClick={send} disabled={loading || !draft.trim()} aria-label="Send">
-              <svg viewBox="0 0 20 20" width="16" height="16" fill="none"><path d="M2 10L18 2L12 10L18 18L2 10Z" fill="currentColor"/></svg>
-            </button>
-          </div>
-        </div>
-      )}
-      <button className="fc-fab" onClick={() => setOpen((o) => !o)} aria-label="Open Gumdrop chat">
-        <svg viewBox="0 0 32 32" width="26" height="26" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M28 4H4a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h6l6 4 6-4h6a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
-          <circle cx="10" cy="14" r="1.5" fill="currentColor"/>
-          <circle cx="16" cy="14" r="1.5" fill="currentColor"/>
-          <circle cx="22" cy="14" r="1.5" fill="currentColor"/>
-        </svg>
-      </button>
-    </div>
-  );
-}
-
-// ── Chat view ──────────────────────────────────────────────────────────────────
-const PROXY_URL = '';  // relative URLs — Vite proxies to localhost:3001 in dev, CF Functions in prod
-
-const SUGGESTED_PROMPTS = [
-  'What should I invest in first?',
-  'Explain ETFs in simple terms',
-  'How do I build an emergency fund?',
-  'What is a good risk strategy for my age?',
-];
-
-const GOAL_ICONS = {
-  retirement: <Growth   size={16} aria-hidden="true" />,
-  home:       <Finance  size={16} aria-hidden="true" />,
-  education:  <Analytics size={16} aria-hidden="true" />,
-  wealth:     <Growth   size={16} aria-hidden="true" />,
-  short_term: <Flash    size={16} aria-hidden="true" />,
-  long_term:  <Sprout   size={16} aria-hidden="true" />,
-};
-
-function TypingDots() {
-  return (
-    <div className="typing-dots" aria-label="Gumdrop is typing">
-      <span /><span /><span />
-    </div>
-  );
-}
-
-function makeSession() {
-  return { id: Date.now(), title: 'New chat', messages: [], pinned: false };
 }
 
 function ChatView({ profile, username }) {
@@ -1349,9 +1227,9 @@ function ChatView({ profile, username }) {
         ? (data.reply  || 'Sorry, I received an empty response.')
         : (data.error  || 'Something went wrong. Please try again.');
       setMessages((prev) => prev.map((m) => (m.pending ? { sender: 'bot', text: reply } : m)));
-    } catch (err) {
+    } catch {
       setMessages((prev) => prev.map((m) =>
-        m.pending ? { sender: 'bot', text: `Error: ${err?.message || String(err)}` } : m
+        m.pending ? { sender: 'bot', text: 'Could not reach the AI server. In dev: run `npm run server` and set WATSONX_API_KEY + WATSONX_PROJECT_ID in .env.local. In production: add those as Cloudflare Pages secrets (Pages → Settings → Environment variables).' } : m
       ));
     } finally {
       setLoading(false);
