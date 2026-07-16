@@ -1107,6 +1107,11 @@ function DashboardPage({ profile, username }) {
   );
 }
 
+// ── Chat helpers ──────────────────────────────────────────────────────────────
+function makeSession() {
+  return { id: Date.now(), title: 'New chat', pinned: false };
+}
+
 // ── Watson Orchestrate embed configuration ────────────────────────────────────
 const WXO_CONFIG = {
   orchestrationID: '20260716-1817-5864-6037-ecdb2563fd26_20260716-1822-4087-90fe-3b3ba1d4cc84',
