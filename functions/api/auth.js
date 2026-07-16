@@ -54,6 +54,7 @@ export async function onRequest({ request, env }) {
     if (action === 'me'       && request.method === 'GET')  return me(request, env);
     if (action === 'logout'   && request.method === 'POST') return logoutHandler(request, env);
     if (action === 'profile'  && request.method === 'POST') return saveProfile(request, env);
+    if (action === 'token'    && request.method === 'POST') return issueToken(request, env);
     return json({ error: 'Not found' }, 404);
   } catch (err) {
     console.error('auth error', err);
@@ -270,4 +271,30 @@ async function saveProfile(request, env) {
   ).run();
 
   return json({ ok: true });
+}
+
+// ── Issue short-lived lookup token ────────────────────────────────────────────
+// Validates the session cookie, then stores a 5-minute token in KV that
+// /knowledge can use to fetch the user's D1 profile without needing a cookie.
+async function issueToken(request, env) {
+  const sessionToken = getSessionToken(request);
+  if (!sessionToken) return json({ error: 'Unauthorised' }, 401);
+
+  const session = await env.DB.prepare(`
+    SELECT users.id FROM sessions
+    JOIN users ON users.id = sessions.user_id
+    WHERE sessions.token = ? AND sessions.expires_at > datetime('now')
+  `).bind(sessionToken).first();
+
+  if (!session) return json({ error: 'Session expired' }, 401);
+
+  // Generate a short-lived token and store user_id in KV with 5-min TTL
+  const lookupToken = randomToken();
+  await env.OTP_STORE.put(
+    `lt_${lookupToken}`,
+    String(session.id),
+    { expirationTtl: 300 }, // 5 minutes
+  );
+
+  return json({ token: lookupToken });
 }
