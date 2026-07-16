@@ -117,14 +117,16 @@ export async function onRequest({ request, env }) {
     return Response.json({ error: 'Use POST' }, { status: 405, headers: CORS_HEADERS });
   }
 
-  // ── Authentication — reject requests without the correct Bearer token ─────
+  // ── Authentication — fail-closed: deny all requests without valid Bearer token ─
   const expectedKey = env.KNOWLEDGE_API_KEY;
-  if (expectedKey) {
-    const authHeader = request.headers.get('Authorization') || '';
-    const provided   = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
-    if (!provided || provided !== expectedKey) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401, headers: CORS_HEADERS });
-    }
+  if (!expectedKey) {
+    // Secret not configured — lock down entirely rather than expose data
+    return Response.json({ error: 'Service not configured' }, { status: 503, headers: CORS_HEADERS });
+  }
+  const authHeader = request.headers.get('Authorization') || '';
+  const provided   = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+  if (!provided || provided !== expectedKey) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401, headers: CORS_HEADERS });
   }
 
   const body = await request.json().catch(() => ({}));
