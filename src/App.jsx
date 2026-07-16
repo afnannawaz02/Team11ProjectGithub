@@ -1073,6 +1073,8 @@ function PanelPortfolioPie() {
 function DashboardPage({ profile, username }) {
   const [activePanel, setActivePanel] = useState('assets');
 
+  const isChat = activePanel === 'chat';
+
   const NAV = [
     { id: 'assets',   label: 'Assets',          Icon: Portfolio },
     { id: 'spending', label: 'Spending History', Icon: Finance   },
@@ -1082,16 +1084,26 @@ function DashboardPage({ profile, username }) {
   return (
     <div className="db-layout">
       {/* ── Main content ── */}
-      <main className="db-content">
-        <p className="db-sidebar-greeting">Welcome{username ? `, ${username}` : ''}.</p>
+      <main className={`db-content${isChat ? ' db-content--chat' : ''}`}>
+        {!isChat && <p className="db-sidebar-greeting">Welcome{username ? `, ${username}` : ''}.</p>}
         {activePanel === 'assets'    && <PanelAssets />}
         {activePanel === 'spending'  && <PanelSpending />}
         {activePanel === 'portfolio' && <PanelPortfolio profile={profile} />}
         {activePanel === 'trades'    && <PanelPortfolioPie />}
+        {activePanel === 'chat'      && <ChatView profile={profile} username={username} />}
       </main>
 
       {/* ── Bottom navigation bar ── */}
       <nav className="db-bottom-nav">
+        {/* Gumdrop chat button — always visible, sits with the other nav items */}
+        <button
+          className={`db-bottom-nav-item db-bottom-nav-item--chat${isChat ? ' db-bottom-nav-item--active' : ''}`}
+          onClick={() => setActivePanel('chat')}
+          aria-label="Gumdrop AI chat"
+        >
+          <ChatBot size={20} aria-hidden="true" />
+          <span>Gumdrop</span>
+        </button>
         {NAV.map(({ id, label, Icon }) => (
           <button
             key={id}
