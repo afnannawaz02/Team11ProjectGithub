@@ -1928,205 +1928,10 @@ body {
   font-weight: 600;
 }
 
-// Messages list
-.advisor-messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: $spacing-07 $spacing-07 $spacing-05;
-  display: flex;
-  flex-direction: column;
-  gap: $spacing-05;
-
-  &::-webkit-scrollbar { width: 4px; }
-  &::-webkit-scrollbar-track { background: transparent; }
-  &::-webkit-scrollbar-thumb { background: var(--cds-border-subtle-01); border-radius: 2px; }
-
-  @include breakpoint-down(sm) { padding: $spacing-05; }
-}
-
-.advisor-row {
-  display: flex;
-  align-items: flex-start;
-  gap: $spacing-04;
-  animation: msg-in 180ms ease both;
-}
-
-.advisor-row--user {
-  flex-direction: row-reverse;
-
-  .advisor-row-content { align-items: flex-end; }
-  .advisor-row-meta    { flex-direction: row-reverse; }
-}
-
-.advisor-avatar-msg {
-  width: 2rem;
-  height: 2rem;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #f472a0 0%, #c0356a 100%);
-  color: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+// ── Sidebar quick-actions (chips) ─────────────────────────────────────────────
+.advisor-sidebar-actions {
+  padding: $spacing-04 $spacing-04 0;
   flex-shrink: 0;
-  margin-top: 1.25rem;   // align with bubble top after name row
-  box-shadow: 0 2px 8px rgba(192, 53, 106, 0.18);
-}
-
-.advisor-avatar-user {
-  width: 2rem;
-  height: 2rem;
-  border-radius: 50%;
-  background: #ede9fe;
-  color: #5b21b6;
-  border: 1px solid #ddd6fe;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  @include type-style('label-01');
-  font-weight: 700;
-  flex-shrink: 0;
-  margin-top: 1.25rem;
-}
-
-.advisor-row-content {
-  max-width: 72%;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-
-  @include breakpoint-down(sm) { max-width: 88%; }
-}
-
-.advisor-row-meta {
-  display: flex;
-  align-items: center;
-  gap: $spacing-03;
-}
-
-.advisor-row-name {
-  @include type-style('label-01');
-  font-weight: 600;
-  color: var(--cds-text-primary);
-  font-size: 0.78rem;
-}
-
-.advisor-row-time {
-  @include type-style('label-01');
-  color: var(--cds-text-secondary);
-  font-size: 0.68rem;
-}
-
-// Bubbles
-.advisor-bubble {
-  padding: $spacing-04 $spacing-05;
-  @include type-style('body-01');
-  line-height: 1.65;
-  word-break: break-word;
-  position: relative;
-}
-
-.advisor-bubble--bot {
-  background: var(--cds-layer-01);
-  border: 1px solid var(--cds-border-subtle-01);
-  border-radius: 0.25rem 1rem 1rem 1rem;
-  color: var(--cds-text-primary);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
-}
-
-.advisor-bubble--user {
-  background: linear-gradient(135deg, #f472a0 0%, #c0356a 100%);
-  border-radius: 1rem 0.25rem 1rem 1rem;
-  color: #ffffff;
-  box-shadow: 0 3px 12px rgba(192, 53, 106, 0.25);
-}
-
-.advisor-bubble--pending {
-  background: var(--cds-layer-01);
-  border: 1px solid var(--cds-border-subtle-01);
-  border-radius: 0.25rem 1rem 1rem 1rem;
-}
-
-// Rich text rendering
-.chat-rich-text { display: flex; flex-direction: column; gap: 0.3rem; }
-
-.chat-rich-para {
-  margin: 0;
-  &:empty { display: none; }
-}
-
-.chat-rich-bullet {
-  padding-left: 1.1rem;
-  position: relative;
-  &::before {
-    content: '•';
-    position: absolute;
-    left: 0.3rem;
-    color: #f472a0;
-  }
-}
-
-.chat-rich-numbered {
-  padding-left: 0.25rem;
-  color: var(--cds-text-primary);
-}
-
-// Edit controls
-.chat-edit-btn {
-  position: absolute;
-  top: $spacing-02;
-  right: $spacing-02;
-  background: none;
-  border: none;
-  cursor: pointer;
-  opacity: 0;
-  padding: 2px 4px;
-  font-size: 0.75rem;
-  transition: opacity 70ms ease;
-}
-
-.advisor-bubble--user:hover .chat-edit-btn { opacity: 0.8; }
-
-.chat-edit-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: $spacing-03;
-  width: 100%;
-}
-
-.chat-edit-textarea { width: 100%; }
-
-.chat-edit-actions {
-  display: flex;
-  gap: $spacing-03;
-  justify-content: flex-end;
-}
-
-// Typing dots
-.typing-dots {
-  display: flex;
-  gap: $spacing-02;
-  align-items: center;
-  height: 1.25rem;
-  padding: 0 $spacing-02;
-}
-
-.typing-dots span {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #f9a8b8, #f472a0);
-  animation: typing-bounce 1.2s infinite ease-in-out;
-}
-
-.typing-dots span:nth-child(2) { animation-delay: 0.18s; }
-.typing-dots span:nth-child(3) { animation-delay: 0.36s; }
-
-// ── Quick actions ──────────────────────────────────────────────────────────────
-.advisor-quick-actions {
-  padding: 0 $spacing-07 $spacing-04;
-  flex-shrink: 0;
-
-  @include breakpoint-down(sm) { padding: 0 $spacing-05 $spacing-03; }
 }
 
 .advisor-quick-label {
@@ -2138,125 +1943,61 @@ body {
   margin: 0 0 $spacing-03;
 }
 
-.advisor-quick-grid {
+.advisor-sidebar-chips {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: $spacing-02;
 }
 
 .advisor-quick-btn {
   @include type-style('label-01');
-  font-size: 0.75rem;
-  padding: 0.3rem 0.75rem;
+  font-size: 0.74rem;
+  padding: 0.3rem 0.65rem;
   border-radius: 999px;
   border: 1px solid #fbc4d9;
   background: rgba(255, 248, 250, 0.8);
   color: #c0356a;
   cursor: pointer;
   font-weight: 600;
+  text-align: left;
   transition: background 100ms ease, border-color 100ms ease, transform 80ms ease;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 
   &:hover:not(:disabled) {
     background: linear-gradient(135deg, #fce7f3, #f9d8e9);
     border-color: #f472a0;
-    transform: translateY(-1px);
+    transform: translateX(2px);
   }
   &:disabled { opacity: 0.45; cursor: not-allowed; }
   &:focus, &:focus-visible { outline: none; }
 }
 
-// ── Input area ─────────────────────────────────────────────────────────────────
-.advisor-input-area {
-  border-top: 1px solid var(--cds-border-subtle-01);
-  padding: $spacing-04 $spacing-07 calc(4rem + #{$spacing-04});
-  display: flex;
-  flex-direction: column;
-  gap: $spacing-03;
-  background: rgba(255, 248, 250, 0.85);
-  backdrop-filter: blur(8px);
-  flex-shrink: 0;
-
-  @include breakpoint-down(sm) {
-    padding: $spacing-04 $spacing-05 calc(4rem + #{$spacing-03});
-  }
-}
-
-.advisor-input-wrap {
-  display: flex;
-  align-items: flex-end;
-  gap: $spacing-03;
-  background: #ffffff;
-  border: 1.5px solid #fbc4d9;
-  border-radius: 1rem;
-  padding: $spacing-03 $spacing-03 $spacing-03 $spacing-05;
-  transition: border-color 120ms ease, box-shadow 120ms ease;
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-
-  &:focus-within {
-    border-color: #f472a0;
-    box-shadow: 0 0 0 3px rgba(244, 114, 160, 0.15);
-  }
-}
-
-// Carbon TextArea overrides inside advisor-input-wrap
-.advisor-input-wrap .cds--text-area__wrapper,
-.advisor-input-wrap .cds--form-item {
+// ── WxO embed host ─────────────────────────────────────────────────────────────
+// The IBM watsonx Orchestrate loader renders its full chat UI inside this div.
+// We size it to fill the remaining space below the topbar.
+.wxo-embed-host {
   flex: 1;
-  min-width: 0;
-  margin: 0;
-  width: 100%;
-}
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
 
-.advisor-input-wrap .cds--text-area {
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  outline: none !important;
-  padding: 0 !important;
-  min-height: 1.5rem;
-  max-height: 8rem;
-  resize: none;
-  width: 100%;
-  min-width: 0;
-}
-
-.advisor-send-btn {
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #f472a0 0%, #c0356a 100%);
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #ffffff;
-  flex-shrink: 0;
-  transition: opacity 100ms ease, transform 100ms ease;
-  box-shadow: 0 2px 8px rgba(192, 53, 106, 0.30);
-
-  &:hover:not(:disabled) { opacity: 0.9; transform: scale(1.05); }
-  &:disabled { opacity: 0.35; cursor: not-allowed; }
-  &:focus, &:focus-visible { outline: none; }
-}
-
-.advisor-input-hint {
-  @include type-style('label-01');
-  color: var(--cds-text-secondary);
-  margin: 0;
-  font-size: 0.68rem;
+  // Ensure the embed's injected root element fills us completely
+  > * {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    position: absolute !important;
+    inset: 0 !important;
+  }
 }
 
 // ── Dark mode overrides ────────────────────────────────────────────────────────
 .cds--g100 {
   .advisor-sidebar      { background: rgba(30, 20, 26, 0.8); }
-  .advisor-topbar,
-  .advisor-input-area   { background: rgba(22, 14, 18, 0.85); }
-  .advisor-bubble--bot  { background: #2a1e24; border-color: #3d2a32; }
-  .advisor-input-wrap   { background: #2a1e24; border-color: #3d2a32; }
+  .advisor-topbar       { background: rgba(22, 14, 18, 0.85); }
   .advisor-quick-btn    { background: rgba(42, 30, 36, 0.9); border-color: #4a2535; color: #f9a8b8; }
   .advisor-disclaimer   { background: rgba(244, 114, 160, 0.08); border-color: rgba(244, 114, 160, 0.18); }
 }
