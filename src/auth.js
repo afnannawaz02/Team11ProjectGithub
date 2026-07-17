@@ -105,7 +105,8 @@ export function getAccountByUsername() {
 }
 
 /**
- * saveSessions / loadSessions — chat history UI cache (localStorage, non-sensitive)
+ * saveSessions / loadSessions — local UI cache kept for offline/fallback only.
+ * The authoritative store is D1 via /api/chats.
  */
 export function saveSessions(username, sessions) {
   if (!username) return;
@@ -120,4 +121,46 @@ export function loadSessions(username) {
   } catch {
     return null;
   }
+}
+
+// ── D1-backed chat API helpers ─────────────────────────────────────────────────
+
+const CHATS = '/api/chats';
+
+async function chatsCall(action, params = {}, body = null) {
+  const qs  = new URLSearchParams({ action, ...params });
+  const res = await fetch(`${CHATS}?${qs}`, {
+    method:      body ? 'POST' : 'GET',
+    credentials: 'same-origin',
+    headers:     body ? { 'Content-Type': 'application/json' } : {},
+    body:        body ? JSON.stringify(body) : undefined,
+  });
+  return res.json().catch(() => ({ ok: false }));
+}
+
+/** Fetch all chat sessions for the logged-in user from D1. */
+export async function fetchChatSessions() {
+  const data = await chatsCall('list');
+  return data.ok ? data.sessions : null;
+}
+
+/** Fetch all messages for one session id from D1. */
+export async function fetchChatMessages(sessionId) {
+  const data = await chatsCall('messages', { session_id: sessionId });
+  return data.ok ? data.messages : null;
+}
+
+/** Create or update a session (title, pinned). */
+export async function upsertChatSession(id, title, pinned) {
+  return chatsCall('upsert_session', {}, { id, title, pinned });
+}
+
+/** Append a single message to a session. */
+export async function saveChatMessage(sessionId, sender, content) {
+  return chatsCall('save_message', {}, { session_id: sessionId, sender, content });
+}
+
+/** Delete a session (and all its messages) from D1. */
+export async function deleteChatSession(sessionId) {
+  return chatsCall('delete_session', {}, { session_id: sessionId });
 }

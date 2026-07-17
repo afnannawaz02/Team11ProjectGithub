@@ -2821,6 +2821,147 @@ body {
 }
 
 
+// ── Budgeting tab ─────────────────────────────────────────────────────────────
+.budget-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+}
+
+.budget-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+  padding: $spacing-05;
+  border: 1.5px solid #fbc4d9;
+  border-radius: 0.85rem;
+}
+
+.budget-note-title-input {
+  border: 1px solid var(--cds-border-subtle-01);
+  border-radius: 0.5rem;
+  padding: $spacing-03 $spacing-04;
+  @include type-style('body-01');
+  color: var(--cds-text-primary);
+  background: transparent;
+  outline: none;
+  width: 100%;
+  font-family: inherit;
+
+  &:focus { border-color: #f472a0; }
+  &::placeholder { color: var(--cds-text-placeholder); }
+}
+
+.budget-note-body-input {
+  border: 1px solid var(--cds-border-subtle-01);
+  border-radius: 0.5rem;
+  padding: $spacing-03 $spacing-04;
+  @include type-style('body-01');
+  color: var(--cds-text-primary);
+  background: transparent;
+  outline: none;
+  resize: vertical;
+  min-height: 6rem;
+  width: 100%;
+  font-family: inherit;
+  line-height: 1.5;
+
+  &:focus { border-color: #f472a0; }
+  &::placeholder { color: var(--cds-text-placeholder); }
+}
+
+.budget-save-btn {
+  align-self: flex-start;
+  padding: $spacing-03 $spacing-06;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f472a0, #c0356a);
+  color: #ffffff;
+  @include type-style('body-01');
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 120ms ease;
+
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+  &:hover:not(:disabled) { opacity: 0.88; }
+  &:focus, &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(244, 114, 160, 0.35); }
+}
+
+.budget-empty {
+  text-align: center;
+  padding: $spacing-09 $spacing-07;
+  @include type-style('body-01');
+  color: var(--cds-text-secondary);
+  border: 1.5px dashed #fbc4d9;
+  border-radius: 0.85rem;
+
+  p { margin: 0 0 $spacing-03; &:last-child { margin: 0; } }
+  em { color: #c0356a; font-style: normal; font-weight: 500; }
+}
+
+.budget-notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-04;
+}
+
+.budget-note-card {
+  border: 1px solid #fbc4d9;
+  border-radius: 0.85rem;
+  overflow: hidden;
+}
+
+.budget-note-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-04;
+  padding: $spacing-04 $spacing-05;
+  border-bottom: 1px solid #fbc4d9;
+}
+
+.budget-note-title {
+  @include type-style('body-short-02');
+  font-weight: 600;
+  color: var(--cds-text-primary);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.budget-note-meta {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  flex-shrink: 0;
+}
+
+.budget-note-date {
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+}
+
+.budget-note-del {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  border-radius: 3px;
+  color: var(--cds-text-secondary);
+  display: flex;
+  align-items: center;
+  opacity: 0.6;
+  transition: opacity 70ms ease, color 70ms ease;
+
+  &:hover { opacity: 1; color: #da1e28; }
+  &:focus, &:focus-visible { outline: none; }
+}
+
+.budget-note-body {
+  padding: $spacing-05;
+}
+
 // ── Wizard ────────────────────────────────────────────────────────────────────
 .wizard-page {
   display: flex;
@@ -3059,6 +3200,70 @@ body {
   }
 }
 
+// ── Delete confirmation modal ─────────────────────────────────────────────────
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.confirm-modal {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 1.75rem 2rem;
+  width: min(420px, 90vw);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.14);
+}
+
+.confirm-title {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: #1f2328;
+  margin: 0 0 0.5rem;
+}
+
+.confirm-body {
+  font-size: 0.875rem;
+  color: #57606a;
+  margin: 0 0 1.5rem;
+  line-height: 1.55;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.confirm-btn {
+  padding: 0.5rem 1.25rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 150ms ease, opacity 150ms ease;
+
+  &--cancel {
+    background: #f4f5f7;
+    border-color: #d0d7de;
+    color: #1f2328;
+    &:hover { background: #e8eaed; }
+  }
+
+  &--danger {
+    background: #da1e28;
+    color: #fff;
+    &:hover { opacity: 0.88; }
+  }
+}
+
+
 // ── Dark mode overrides (theme-dark class on root div) ────────────────────────
 // Carbon's g100 theme handles most colours via CSS vars.
 // These rules fix our custom non-Carbon backgrounds that are hardcoded.
@@ -3164,6 +3369,13 @@ body {
     &--sell, &--strong.sell  { background: #2a1010; color: #ff8389; }
   }
 
+  // ── Budgeting tab ─────────────────────────────────────────────────────────────
+  .budget-add-form  { border-color: #5a1a30; }
+  .budget-empty     { border-color: #5a1a30; em { color: #f9a8b8; } }
+  .budget-note-card { border-color: #5a1a30; }
+  .budget-note-header { border-bottom-color: #5a1a30; }
+  .budget-note-del:hover { color: #ff8389; }
+
   // ── Table / ticker / kv-row ───────────────────────────────────────────────────
   .db-ticker { background: #3d1a28; color: #f9a8b8; }
   .db-kv-row { border-color: #3d3d3d; }
@@ -3178,5 +3390,19 @@ body {
   }
   .cds--header--auth {
     background: linear-gradient(135deg, #6b1a34 0%, #3d0f20 60%, #1e0710 100%) !important;
+  }
+
+  // ── Delete confirmation modal ─────────────────────────────────────────────
+  .confirm-modal {
+    background: #262626;
+    border-color: #3d3d3d;
+  }
+  .confirm-title { color: #f4f4f4; }
+  .confirm-body  { color: #c6c6c6; }
+  .confirm-btn--cancel {
+    background: #3d3d3d;
+    border-color: #525252;
+    color: #f4f4f4;
+    &:hover { background: #4a4a4a; }
   }
 }

@@ -53,6 +53,11 @@ import {
   hasAnyAccount,
   saveSessions,
   loadSessions,
+  fetchChatSessions,
+  fetchChatMessages,
+  upsertChatSession,
+  saveChatMessage,
+  deleteChatSession,
 } from './auth.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -1466,11 +1471,43 @@ function PanelPortfolioAndWealth({ profile }) {
   );
 }
 
+// ── Budget note store (localStorage) ──────────────────────────────────────────
+const BUDGET_KEY = 'gumdrop_budget_notes';
+function loadBudgetNotes() {
+  try { return JSON.parse(localStorage.getItem(BUDGET_KEY) || '[]'); } catch { return []; }
+}
+function saveBudgetNotes(notes) {
+  try { localStorage.setItem(BUDGET_KEY, JSON.stringify(notes)); } catch {}
+}
+function useBudget() {
+  const [notes, setNotes] = useState(loadBudgetNotes);
+  const add = (title, content) => {
+    const note = { id: Date.now(), title: title.trim(), content: content.trim(), createdAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) };
+    setNotes((prev) => { const next = [note, ...prev]; saveBudgetNotes(next); return next; });
+  };
+  const remove = (id) => setNotes((prev) => { const next = prev.filter((n) => n.id !== id); saveBudgetNotes(next); return next; });
+  return { notes, add, remove };
+}
+
+// ── Detect whether a Gumdrop reply contains budget/financial plan content ──────
+function isBudgetReply(text) {
+  const lower = text.toLowerCase();
+  const triggers = ['budget', 'spending plan', 'monthly plan', 'savings plan', 'financial plan', 'allocation plan', 'expense breakdown', '50/30/20', 'zero-based', 'emergency fund plan', 'debt payoff plan', 'cut back on', 'reduce spending', 'save more'];
+  return triggers.some((t) => lower.includes(t)) && text.length > 120;
+}
+function deriveBudgetTitle(userText) {
+  const trimmed = userText.trim();
+  return trimmed.length > 40 ? trimmed.slice(0, 40) + '…' : trimmed || 'Budget note';
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // ── Panel: Spending + Financial Health (combined) ─────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
 function PanelSpendingAndHealth() {
   const [view, setView] = useState('overview');
+  const { notes, add: addBudgetNote, remove: removeBudgetNote } = useBudget();
+  const [noteTitle, setNoteTitle] = useState('');
+  const [noteBody,  setNoteBody]  = useState('');
   const { data: analysis, loading: aLoad, error: aErr } = useApi('/api/spending?type=analysis');
   const { data: txnData,  loading: tLoad, error: tErr  } = useApi('/api/spending?type=transactions');
   const { data: subData,  loading: sLoad, error: sErr  } = useApi('/api/spending?type=subscriptions');
@@ -1504,7 +1541,7 @@ function PanelSpendingAndHealth() {
           <p className="db-panel-sub">Plaid-powered analysis · AI financial wellness score.</p>
         </div>
         <div className="panel-tab-row">
-          {[['overview','Overview'],['health','Health'],['transactions','Transactions'],['subscriptions','Subscriptions']].map(([id, label]) => (
+          {[['overview','Overview'],['health','Health'],['budgeting','Budgeting'],['transactions','Transactions'],['subscriptions','Subscriptions']].map(([id, label]) => (
             <button key={id} className={`panel-tab${view === id ? ' panel-tab--active' : ''}`} onClick={() => setView(id)}>{label}</button>
           ))}
         </div>
@@ -1696,6 +1733,79 @@ function PanelSpendingAndHealth() {
             </>
           )}
         </PanelLoadingOrError>
+      )}
+
+      {/* ── Budgeting tab ── */}
+      {view === 'budgeting' && (
+        <div className="budget-wrap">
+          <p className="db-panel-sub" style={{ marginBottom: '1rem' }}>
+            Ask Gumdrop in the AI chat to build you a budget plan — it will appear here automatically. You can also add your own notes below.
+          </p>
+
+          {/* Manual note form */}
+          <div className="budget-add-form">
+            <input
+              className="budget-note-title-input"
+              placeholder="Note title (e.g. June Budget)"
+              value={noteTitle}
+              onChange={(e) => setNoteTitle(e.target.value)}
+              maxLength={60}
+            />
+            <textarea
+              className="budget-note-body-input"
+              placeholder="Paste Gumdrop's budget advice or write your own plan…"
+              value={noteBody}
+              onChange={(e) => setNoteBody(e.target.value)}
+              rows={4}
+            />
+            <button
+              className="budget-save-btn"
+              disabled={!noteTitle.trim() || !noteBody.trim()}
+              onClick={() => { addBudgetNote(noteTitle, noteBody); setNoteTitle(''); setNoteBody(''); }}
+            >
+              Save note
+            </button>
+          </div>
+
+          {/* Saved notes */}
+          {notes.length === 0 ? (
+            <div className="budget-empty">
+              <p>No budget notes yet.</p>
+              <p>Ask Gumdrop <em>"Create a monthly budget plan for me"</em> and it will save here automatically.</p>
+            </div>
+          ) : (
+            <div className="budget-notes-list">
+              {notes.map((n) => (
+                <div key={n.id} className="budget-note-card">
+                  <div className="budget-note-header">
+                    <span className="budget-note-title">{n.title}</span>
+                    <div className="budget-note-meta">
+                      <span className="budget-note-date">{n.createdAt}</span>
+                      <button
+                        className="budget-note-del"
+                        onClick={() => removeBudgetNote(n.id)}
+                        aria-label="Delete note"
+                        title="Delete"
+                      >
+                        <TrashCan size={14} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="budget-note-body chat-bot-text"
+                    dangerouslySetInnerHTML={{ __html: `<p>${n.content
+                      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                      .replace(/^[*\-•] (.+)$/gm, '<li>$1</li>')
+                      .replace(/(<li>[\s\S]*?<\/li>)(\n<li>)/g, '$1$2')
+                      .replace(/(<li>)/g, '<ul>$1').replace(/(<\/li>)(?!\n<li>)/g, '$1</ul>')
+                      .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+                      .replace(/\n\n/g, '</p><p>')
+                      .replace(/\n/g, '<br/>')}</p>` }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
@@ -2006,26 +2116,78 @@ function makeSession() {
 
 function ChatView({ profile, username }) {
   const greeting = { sender: 'system', text: buildGreeting(profile) };
+  const { add: addBudgetNote } = useBudget();
 
-  const [sessions, setSessions] = useState(() => {
-    const saved = loadSessions(username);
-    return saved ?? [{ ...makeSession(), messages: [greeting] }];
-  });
-  const [activeIdx, setActiveIdx] = useState(0);
+  // ── Session list (D1 is the source of truth; localStorage is a fast cold-start cache) ──
+  const [sessions, setSessions] = useState(() => loadSessions(username) ?? [{ ...makeSession(), messages: [greeting] }]);
+  const [activeIdx, setActiveIdx]   = useState(0);
+  const [dbLoading, setDbLoading]   = useState(true);  // true while loading from D1 on mount
 
+  // ── Delete confirmation state ──────────────────────────────────────────────
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null); // id of session pending deletion
+
+  // ── Load sessions from D1 on mount ────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const dbSessions = await fetchChatSessions();
+      if (cancelled || !dbSessions) { setDbLoading(false); return; }
+
+      // Build session objects; messages are loaded lazily when the session is selected
+      const hydrated = dbSessions.map((s) => ({
+        id:       s.id,
+        title:    s.title,
+        pinned:   !!s.pinned,
+        messages: null, // loaded on demand
+      }));
+
+      if (hydrated.length === 0) {
+        // First time — create a fresh local session (D1 write happens on first send)
+        setDbLoading(false);
+        return;
+      }
+
+      setSessions(hydrated);
+      setActiveIdx(0);
+      setDbLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [username]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Keep localStorage in sync for fast reload ──────────────────────────────
   useEffect(() => {
     saveSessions(username, sessions);
   }, [sessions, username]);
 
-  const messages = sessions[activeIdx].messages;
+  // ── Messages for the active session ───────────────────────────────────────
+  const [messagesCache, setMessagesCache] = useState({});  // { [sessionId]: message[] }
+  const activeSession = sessions[activeIdx] ?? sessions[0];
+  const activeId      = activeSession?.id;
+
+  // When the active session changes, load messages from D1 if not already cached
+  useEffect(() => {
+    if (!activeId) return;
+    if (messagesCache[activeId]) return; // already loaded
+    (async () => {
+      const rows = await fetchChatMessages(activeId);
+      if (!rows) {
+        // New session not yet in D1 — seed with greeting
+        setMessagesCache((prev) => ({ ...prev, [activeId]: [greeting] }));
+        return;
+      }
+      const msgs = rows.length === 0
+        ? [greeting]
+        : rows.map((r) => ({ sender: r.sender, text: r.content }));
+      setMessagesCache((prev) => ({ ...prev, [activeId]: msgs }));
+    })();
+  }, [activeId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const messages    = messagesCache[activeId] ?? [greeting];
   const setMessages = (updater) =>
-    setSessions((prev) =>
-      prev.map((s, i) =>
-        i === activeIdx
-          ? { ...s, messages: typeof updater === 'function' ? updater(s.messages) : updater }
-          : s
-      )
-    );
+    setMessagesCache((prev) => ({
+      ...prev,
+      [activeId]: typeof updater === 'function' ? updater(prev[activeId] ?? [greeting]) : updater,
+    }));
 
   const [draft, setDraft]           = useState('');
   const [loading, setLoading]       = useState(false);
@@ -2038,15 +2200,18 @@ function ChatView({ profile, username }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // ── New chat ───────────────────────────────────────────────────────────────
   const newChat = () => {
     const session = { ...makeSession(), messages: [greeting] };
     setSessions((prev) => [session, ...prev]);
+    setMessagesCache((prev) => ({ ...prev, [session.id]: [greeting] }));
     setActiveIdx(0);
     setDraft('');
   };
 
   const switchSession = (idx) => { setActiveIdx(idx); setDraft(''); };
 
+  // ── Toggle pin (local + D1) ────────────────────────────────────────────────
   const togglePin = (e, id) => {
     e.stopPropagation();
     setSessions((prev) => {
@@ -2054,54 +2219,80 @@ function ChatView({ profile, username }) {
       const pinned    = updated.filter((s) => s.pinned);
       const unpinned  = updated.filter((s) => !s.pinned);
       const reordered = [...pinned, ...unpinned];
-      const activeId  = prev[activeIdx].id;
-      setActiveIdx(reordered.findIndex((s) => s.id === activeId));
+      const activeId_ = prev[activeIdx].id;
+      setActiveIdx(reordered.findIndex((s) => s.id === activeId_));
+      const target = updated.find((s) => s.id === id);
+      upsertChatSession(id, target?.title ?? 'New chat', target?.pinned ?? false);
       return reordered;
     });
   };
 
-  const deleteSession = (e, id) => {
+  // ── Delete: request confirmation ───────────────────────────────────────────
+  const requestDelete = (e, id) => {
     e.stopPropagation();
+    setConfirmDeleteId(id);
+  };
+
+  // ── Delete: confirmed — remove locally + from D1 ──────────────────────────
+  const confirmDelete = async () => {
+    const id = confirmDeleteId;
+    setConfirmDeleteId(null);
+
+    // Evict from messages cache
+    setMessagesCache((prev) => { const next = { ...prev }; delete next[id]; return next; });
+
+    // Update session list
     setSessions((prev) => {
       if (prev.length === 1) {
+        const fresh = { ...makeSession(), messages: [greeting] };
+        setMessagesCache((c) => ({ ...c, [fresh.id]: [greeting] }));
         setActiveIdx(0);
-        return [{ ...makeSession(), messages: [greeting] }];
+        return [fresh];
       }
       const next       = prev.filter((s) => s.id !== id);
       const deletedIdx = prev.findIndex((s) => s.id === id);
-      const currentId  = prev[activeIdx].id;
-      if (currentId === id) {
+      const currentId_ = prev[activeIdx].id;
+      if (currentId_ === id) {
         setActiveIdx(Math.min(deletedIdx, next.length - 1));
       } else {
-        setActiveIdx(next.findIndex((s) => s.id === currentId));
+        setActiveIdx(next.findIndex((s) => s.id === currentId_));
       }
       return next;
     });
+
+    // Delete from D1 (fire-and-forget; failure is non-critical)
+    deleteChatSession(id);
   };
 
+  // ── Send a message ─────────────────────────────────────────────────────────
   const send = async (text, priorMessages) => {
     const trimmed = text.trim();
     if (!trimmed || loading) return;
     const history = priorMessages ?? messages;
+    const sessId  = activeId;
 
-    setSessions((prev) =>
-      prev.map((s, i) =>
-        i === activeIdx && s.title === 'New chat'
-          ? { ...s, title: trimmed.length > 30 ? trimmed.slice(0, 30) + '…' : trimmed }
-          : s
-      )
-    );
-    setMessages(() => [
-      ...history,
-      { sender: 'user', text: trimmed },
-      { sender: 'bot', text: '', pending: true },
-    ]);
+    // Auto-title the session on first real message
+    const isNewTitle = sessions[activeIdx]?.title === 'New chat';
+    const newTitle   = isNewTitle ? (trimmed.length > 30 ? trimmed.slice(0, 30) + '…' : trimmed) : undefined;
+
+    if (newTitle) {
+      setSessions((prev) => prev.map((s, i) => i === activeIdx ? { ...s, title: newTitle } : s));
+      upsertChatSession(sessId, newTitle, sessions[activeIdx]?.pinned ?? false);
+    } else {
+      // Ensure session exists in D1 (no-op if already there)
+      upsertChatSession(sessId, sessions[activeIdx]?.title ?? 'New chat', sessions[activeIdx]?.pinned ?? false);
+    }
+
+    setMessages(() => [...history, { sender: 'user', text: trimmed }, { sender: 'bot', text: '', pending: true }]);
     setDraft('');
     setLoading(true);
     inputRef.current?.focus();
 
+    // Persist user message to D1
+    saveChatMessage(sessId, 'user', trimmed);
+
     try {
-      const res  = await fetch('/chat', {
+      const res   = await fetch('/chat', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
@@ -2115,6 +2306,12 @@ function ChatView({ profile, username }) {
         ? (data.reply || 'Sorry, I received an empty response.')
         : (data.error || 'Something went wrong. Please try again.');
       setMessages((prev) => prev.map((m) => (m.pending ? { sender: 'bot', text: reply } : m)));
+      // Persist bot reply to D1
+      saveChatMessage(sessId, 'bot', reply);
+      // Auto-save to Budgeting tab if reply contains budget advice
+      if (res.ok && isBudgetReply(reply)) {
+        addBudgetNote(deriveBudgetTitle(trimmed), reply);
+      }
     } catch {
       setMessages((prev) => prev.map((m) =>
         m.pending
@@ -2132,8 +2329,31 @@ function ChatView({ profile, username }) {
 
   const isNew = messages.length <= 1;
 
+  // Title of the session pending deletion (for the confirmation dialog)
+  const confirmTarget = sessions.find((s) => s.id === confirmDeleteId);
+
   return (
     <div className="chat-page" id="chat">
+
+      {/* ── Delete confirmation modal ────────────────────────────────────── */}
+      {confirmDeleteId && (
+        <div className="confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+          <div className="confirm-modal">
+            <h3 className="confirm-title" id="confirm-title">Delete chat?</h3>
+            <p className="confirm-body">
+              <strong>"{confirmTarget?.title ?? 'New chat'}"</strong> will be permanently deleted and cannot be recovered.
+            </p>
+            <div className="confirm-actions">
+              <button className="confirm-btn confirm-btn--cancel" onClick={() => setConfirmDeleteId(null)}>
+                Cancel
+              </button>
+              <button className="confirm-btn confirm-btn--delete" onClick={confirmDelete}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── History sidebar ───────────────────────────────────────────────── */}
       <aside className="chat-history-sidebar">
@@ -2169,6 +2389,11 @@ function ChatView({ profile, username }) {
         </Button>
 
         <div className="chat-history-list">
+          {dbLoading && (
+            <span style={{ padding: '0.75rem 1.25rem', fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>
+              Loading chats…
+            </span>
+          )}
           {sessions.some((s) => s.pinned) && (
             <span className="chat-history-group-label">Pinned</span>
           )}
@@ -2186,7 +2411,7 @@ function ChatView({ profile, username }) {
               <span className="chat-history-item-title">{s.title}</span>
               <div className="chat-history-item-actions">
                 <button className="chat-history-pin-btn chat-history-pin-btn--active" onClick={(e) => togglePin(e, s.id)} aria-label="Unpin" title="Unpin"><PinFilled size={14} /></button>
-                <button className="chat-history-del-btn" onClick={(e) => deleteSession(e, s.id)} aria-label="Delete" title="Delete"><TrashCan size={14} /></button>
+                <button className="chat-history-del-btn" onClick={(e) => requestDelete(e, s.id)} aria-label="Delete" title="Delete"><TrashCan size={14} /></button>
               </div>
             </div>
           ))}
@@ -2207,7 +2432,7 @@ function ChatView({ profile, username }) {
               <span className="chat-history-item-title">{s.title}</span>
               <div className="chat-history-item-actions">
                 <button className="chat-history-pin-btn" onClick={(e) => togglePin(e, s.id)} aria-label="Pin" title="Pin"><Pin size={14} /></button>
-                <button className="chat-history-del-btn" onClick={(e) => deleteSession(e, s.id)} aria-label="Delete" title="Delete"><TrashCan size={14} /></button>
+                <button className="chat-history-del-btn" onClick={(e) => requestDelete(e, s.id)} aria-label="Delete" title="Delete"><TrashCan size={14} /></button>
               </div>
             </div>
           ))}
