@@ -2738,6 +2738,23 @@ function NavShell({ children, username, onGoProfile, onGoHome, heroHeader, authH
   );
 }
 
+// ── Page-order map — used to pick slide direction ─────────────────────────────
+const PAGE_ORDER = { home: 0, login: 1, signup: 2, wizard: 3, account: 4, dashboard: 5, profile: 6 };
+
+// Returns the CSS modifier suffix for the entering layer based on navigation direction
+function enterClass(from, to) {
+  const fIdx = PAGE_ORDER[from] ?? 0;
+  const tIdx = PAGE_ORDER[to]   ?? 0;
+  if (fIdx === tIdx) return 'enter';
+  return tIdx > fIdx ? 'enter-right' : 'enter-left';
+}
+function exitClass(from, to) {
+  const fIdx = PAGE_ORDER[from] ?? 0;
+  const tIdx = PAGE_ORDER[to]   ?? 0;
+  if (fIdx === tIdx) return 'exit';
+  return tIdx > fIdx ? 'exit-left' : 'exit-right';
+}
+
 // ── App ────────────────────────────────────────────────────────────────────────
 export default function App() {
   const [page, setPage]         = useState('home');
@@ -2746,6 +2763,34 @@ export default function App() {
   const [isGuest, setIsGuest]   = useState(false);
   const [booting, setBooting]   = useState(true);
   const [theme, setTheme]       = useState(() => localStorage.getItem('cb-theme') ?? 'g10');
+
+  // Outgoing page layer — holds the previous content while it animates out
+  const [outgoing, setOutgoing] = useState(null); // { content, exitCls }
+  const prevPageRef             = useRef('home');
+  const exitTimerRef            = useRef(null);
+
+  const navigate = (to) => {
+    const from = prevPageRef.current;
+    if (from === to) return;
+
+    // Cancel any in-flight exit
+    if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
+
+    // Snapshot the current rendered content before setPage re-renders it
+    // We do this by storing the exit class; the outgoing content is
+    // set synchronously in the same render cycle via a functional update.
+    const eCls = exitClass(from, to);
+    prevPageRef.current = to;
+
+    setOutgoing(null);          // clear previous outgoing layer immediately
+    setPage(to);                // trigger new content render
+
+    // After one frame, inject the exit layer (the old page snapshot is gone;
+    // we use a CSS-only exit on the wrapper by briefly adding a class)
+    // Simple approach: record exit class, apply it once via state after render
+    setOutgoing({ exitCls: eCls });
+    exitTimerRef.current = setTimeout(() => setOutgoing(null), 240);
+  };
 
   const toggleTheme = () => {
     const next = theme === 'g10' ? 'g100' : 'g10';
@@ -2759,6 +2804,7 @@ export default function App() {
       if (res.ok) {
         setUsername(res.username);
         setProfile(res.profile ?? null);
+        prevPageRef.current = 'dashboard';
         setPage('dashboard');
       }
       setBooting(false);
@@ -2770,25 +2816,26 @@ export default function App() {
     setUsername(null);
     setProfile(null);
     setIsGuest(false);
-    setPage('home');
+    navigate('home');
   };
 
   if (booting) return null; // wait for session check before rendering
 
   let content;
+  const nav = navigate; // shorter alias inside JSX
 
   if (page === 'login') {
     content = (
-      <NavShell authHeader onGoHome={() => setPage('home')}>
+      <NavShell authHeader onGoHome={() => nav('home')}>
         <LoginForm
           onLogin={(res) => {
             setProfile(res.profile ?? null);
             setUsername(res.username);
             setIsGuest(false);
-            setPage('dashboard');
+            nav('dashboard');
           }}
-          onGoHome={() => setPage('home')}
-          onCreateNew={() => setPage('signup')}
+          onGoHome={() => nav('home')}
+          onCreateNew={() => nav('signup')}
           onGuest={null}
         />
       </NavShell>
@@ -2796,109 +2843,118 @@ export default function App() {
   } else if (page === 'home') {
     content = (
       <HomePage
-        onGetStarted={() => setPage('wizard')}
+        onGetStarted={() => nav('wizard')}
         isLoggedIn={!!username}
         username={username}
-        onGoToChat={() => setPage('dashboard')}
-        onSignIn={() => setPage('login')}
+        onGoToChat={() => nav('dashboard')}
+        onSignIn={() => nav('login')}
       />
     );
   } else if (page === 'profile') {
     content = (
-      <NavShell heroHeader username={username} onGoProfile={() => setPage('profile')} onGoHome={() => setPage('home')}>
+      <NavShell heroHeader username={username} onGoProfile={() => nav('profile')} onGoHome={() => nav('home')}>
         <ProfilePage
           username={username}
           profile={profile}
           onLogout={handleLogout}
-          onBack={() => setPage('dashboard')}
+          onBack={() => nav('dashboard')}
           theme={theme}
           onToggleTheme={toggleTheme}
-          onStartQuestionnaire={() => setPage('wizard')}
+          onStartQuestionnaire={() => nav('wizard')}
         />
       </NavShell>
     );
   } else if (page === 'dashboard') {
     content = (
-      <NavShell heroHeader username={username} onGoProfile={() => setPage('profile')} onGoHome={() => setPage('home')}>
+      <NavShell heroHeader username={username} onGoProfile={() => nav('profile')} onGoHome={() => nav('home')}>
         <DashboardPage
           profile={profile}
           username={username}
-          onStartQuestionnaire={() => setPage('wizard')}
+          onStartQuestionnaire={() => nav('wizard')}
           onLogout={handleLogout}
         />
       </NavShell>
     );
   } else if (page === 'wizard') {
     if (!username) {
-      // Questionnaire requires a signed-up account — redirect to login
       content = (
-        <NavShell authHeader onGoHome={() => setPage('home')}>
+        <NavShell authHeader onGoHome={() => nav('home')}>
           <LoginForm
             onLogin={(res) => {
               setProfile(res.profile ?? null);
               setUsername(res.username);
               setIsGuest(false);
-              setPage('wizard');
+              nav('wizard');
             }}
-            onGoHome={() => setPage('home')}
-            onCreateNew={() => setPage('signup')}
+            onGoHome={() => nav('home')}
+            onCreateNew={() => nav('signup')}
             onGuest={null}
           />
         </NavShell>
       );
     } else {
       content = (
-        <NavShell authHeader username={username} onGoProfile={() => setPage('profile')} onGoHome={() => setPage('home')}>
+        <NavShell authHeader username={username} onGoProfile={() => nav('profile')} onGoHome={() => nav('home')}>
           <SignupWizard
-            onComplete={(p) => { setProfile(p); setPage('account'); }}
-            onExit={() => setPage('dashboard')}
+            onComplete={(p) => { setProfile(p); nav('account'); }}
+            onExit={() => nav('dashboard')}
           />
         </NavShell>
       );
     }
   } else if (page === 'signup') {
     content = (
-      <NavShell authHeader onGoHome={() => setPage('home')}>
+      <NavShell authHeader onGoHome={() => nav('home')}>
         <AccountSignup
           investorProfile={null}
           isGuest={false}
-          onComplete={() => setPage('login')}
+          onComplete={() => nav('login')}
           onSkip={null}
         />
       </NavShell>
     );
   } else if (page === 'account') {
     content = (
-      <NavShell authHeader onGoHome={() => setPage('home')}>
+      <NavShell authHeader onGoHome={() => nav('home')}>
         <AccountSignup
           investorProfile={profile}
           isGuest={isGuest}
           onComplete={(uname) => {
             setUsername(uname);
             setIsGuest(false);
-            setPage('dashboard');
+            nav('dashboard');
           }}
-          onSkip={() => setPage('dashboard')}
+          onSkip={() => nav('dashboard')}
         />
       </NavShell>
     );
   } else {
     content = (
-      <NavShell heroHeader username={username} onGoProfile={() => setPage('profile')} onGoHome={() => setPage('home')}>
+      <NavShell heroHeader username={username} onGoProfile={() => nav('profile')} onGoHome={() => nav('home')}>
         <DashboardPage
           profile={profile}
           username={username}
-          onStartQuestionnaire={() => setPage('wizard')}
+          onStartQuestionnaire={() => nav('wizard')}
           onLogout={handleLogout}
         />
       </NavShell>
     );
   }
 
+  const enterCls = `page-layer page-layer--${enterClass(prevPageRef.current === page ? page : prevPageRef.current, page)}`;
+  const darkCls  = theme === 'g100' ? ' theme-dark' : '';
+
   return (
     <Theme theme={theme}>
-      <div key={page} className={`page-transition${theme === 'g100' ? ' theme-dark' : ''}`}>
-        {content}
+      <div className={`page-wrap${darkCls}`}>
+        {/* Outgoing layer — renders briefly with exit animation then removed */}
+        {outgoing && (
+          <div key="exit" className={`page-layer page-layer--${outgoing.exitCls}${darkCls}`} aria-hidden="true" />
+        )}
+        {/* Incoming layer — always the live content */}
+        <div key={page} className={enterCls}>
+          {content}
+        </div>
       </div>
     </Theme>
   );
