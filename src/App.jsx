@@ -1266,7 +1266,7 @@ function ChatView({ username, profile }) {
         const raw = await res.text();
         throw new Error(
           res.status === 503
-            ? 'Gumdrop is not configured yet. Ask your admin to set the WXO_API_KEY secret.'
+            ? 'Gumdrop is not configured yet. Ask your admin to add the WXO_ZEN_API_KEY secret in Cloudflare Pages settings.'
             : `Unexpected response (${res.status}). Check console for details.`
         );
       }

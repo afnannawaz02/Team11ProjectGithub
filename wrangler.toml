@@ -26,12 +26,13 @@ database_id   = "effb499d-cbb7-4fa9-b5cf-9ea2ca8ad81a"
 # ── Secrets (DO NOT add values here) ─────────────────────────────────────────
 # Run these commands once to store them encrypted in Cloudflare:
 #
-#   npx wrangler pages secret put WXO_API_KEY    --project-name team11projectgithub
-#   npx wrangler pages secret put RESEND_API_KEY --project-name team11projectgithub
+#   npx wrangler pages secret put WXO_ZEN_API_KEY --project-name team11projectgithub
+#   npx wrangler pages secret put RESEND_API_KEY  --project-name team11projectgithub
 #
-# WXO_API_KEY  — IBM Cloud IAM API key for the watsonx Orchestrate instance.
-#                Create one at: https://cloud.ibm.com/iam/apikeys
-#                Do NOT use WATSONX_PROJECT_ID — that is for direct model calls.
-#                The agent lives at Watson Orchestrate, not watsonx.ai.
+# WXO_ZEN_API_KEY — ZenApiKey credential for the watsonx Orchestrate instance.
+#                   NOT an IAM API key. NOT WATSONX_PROJECT_ID.
+#                   Get it from: IBM Cloud → your Orchestrate instance
+#                     → Service credentials → New credential → copy "apikey".
+#                   Used as:  Authorization: ZenApiKey {value}
 #
-# RESEND_API_KEY — Resend transactional email API key for OTP delivery.
+# RESEND_API_KEY  — Resend transactional email API key for OTP delivery.
