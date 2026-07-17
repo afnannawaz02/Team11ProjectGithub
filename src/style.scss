@@ -1646,37 +1646,6 @@ body {
   &:focus, &:focus-visible { outline: none; }
 }
 
-// ── Watson Orchestrate inline embed ───────────────────────────────────────────
-// The WxO loader injects its chat UI inside #gumdrop-wxo-embed.
-// We make the container fill the entire chat-main pane and override WxO's own
-// floating-launcher button so only the inline panel is visible.
-.wxo-embed-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  height: 100%;
-  width: 100%;
-  overflow: hidden;
-
-  // WxO renders an <iframe> or a root div — make it fill our container
-  > * {
-    flex: 1;
-    height: 100% !important;
-    width: 100% !important;
-    border: none;
-    min-height: 0;
-  }
-
-  // Suppress the WxO floating action button — we embed inline, not as a popup
-  .wxo-launcher,
-  [class*='wxo-fab'],
-  [class*='launcher'],
-  button[aria-label*='chat' i]:not([class*='cds']):not([class*='chat-history']) {
-    display: none !important;
-  }
-}
-
 // ── Dashboard / Chat ───────────────────────────────────────────────────────────
 .dashboard-main {
   height: calc(100vh - 4rem);

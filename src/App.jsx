@@ -1124,71 +1124,93 @@ function makeSession() {
   return { id: Date.now(), title: 'New chat', pinned: false };
 }
 
-// ── Watson Orchestrate embed configuration ────────────────────────────────────
-const WXO_CONFIG = {
-  orchestrationID: '20260716-1817-5864-6037-ecdb2563fd26_20260716-1822-4087-90fe-3b3ba1d4cc84',
-  hostURL:         'https://dl.watson-orchestrate.ibm.com',
-  // rootElementID is set dynamically to the container div's id
-  chatOptions: {
-    agentId:            '77dfacb4-0d9a-4cd8-bf9c-6db1c7e554aa',
-    agentEnvironmentId: 'faad14aa-f677-4cac-ae54-fdb68514856f',
-  },
-};
+// ── Watson Orchestrate — inject floating widget once on first chat open ───────
+// WxO renders its own launcher FAB + popup panel. We inject the script once
+// so the widget floats over the chat page. The inline panel below is powered
+// by the existing watsonx Cloudflare Function (/chat).
+let wxoScriptInjected = false;
+function injectWxoScript() {
+  if (wxoScriptInjected || document.getElementById('wxo-loader-script')) {
+    wxoScriptInjected = true;
+    return;
+  }
+  window.wxOConfiguration = {
+    orchestrationID: '20260716-1817-5864-6037-ecdb2563fd26_20260716-1822-4087-90fe-3b3ba1d4cc84',
+    hostURL:         'https://dl.watson-orchestrate.ibm.com',
+    rootElementID:   'root',
+    chatOptions: {
+      agentId:            '77dfacb4-0d9a-4cd8-bf9c-6db1c7e554aa',
+      agentEnvironmentId: 'faad14aa-f677-4cac-ae54-fdb68514856f',
+    },
+  };
+  const script = document.createElement('script');
+  script.id  = 'wxo-loader-script';
+  script.src = `${window.wxOConfiguration.hostURL}/wxochat/wxoLoader.js?embed=true`;
+  script.addEventListener('load', () => { if (window.wxoLoader) window.wxoLoader.init(); });
+  document.head.appendChild(script);
+  wxoScriptInjected = true;
+}
 
-const WXO_CONTAINER_ID = 'gumdrop-wxo-embed';
+function TypingDots() {
+  return (
+    <div className="typing-dots" aria-label="Gumdrop is typing">
+      <span /><span /><span />
+    </div>
+  );
+}
+
+const SUGGESTED_PROMPTS = [
+  'What should I invest in first?',
+  'Explain ETFs in simple terms',
+  'How do I build an emergency fund?',
+  'What is a good risk strategy for my age?',
+];
 
 function ChatView({ profile, username }) {
+  const greeting = { sender: 'system', text: buildGreeting(profile) };
+
   const [sessions, setSessions] = useState(() => {
     const saved = loadSessions(username);
-    return saved ?? [{ ...makeSession() }];
+    return saved ?? [{ ...makeSession(), messages: [greeting] }];
   });
   const [activeIdx, setActiveIdx] = useState(0);
+
+  // Inject WxO floating widget once when the chat panel opens
+  useEffect(() => { injectWxoScript(); }, []);
 
   // Persist sessions to localStorage whenever they change
   useEffect(() => {
     saveSessions(username, sessions);
   }, [sessions, username]);
 
-  // ── Load / reload the WxO embed whenever the active session changes ────────
+  const messages    = sessions[activeIdx].messages;
+  const setMessages = (updater) =>
+    setSessions((prev) =>
+      prev.map((s, i) =>
+        i === activeIdx
+          ? { ...s, messages: typeof updater === 'function' ? updater(s.messages) : updater }
+          : s
+      )
+    );
+
+  const [draft,      setDraft]      = useState('');
+  const [loading,    setLoading]    = useState(false);
+  const [editingIdx, setEditingIdx] = useState(null);
+  const [editDraft,  setEditDraft]  = useState('');
+  const bottomRef = useRef(null);
+  const inputRef  = useRef(null);
+
   useEffect(() => {
-    // Set config so wxoLoader can read it; point rootElementID at our container
-    window.wxOConfiguration = {
-      ...WXO_CONFIG,
-      rootElementID: WXO_CONTAINER_ID,
-    };
-
-    const container = document.getElementById(WXO_CONTAINER_ID);
-    if (container) container.innerHTML = '';   // clear previous session widget
-
-    // If loader script already exists, just re-init
-    if (window.wxoLoader) {
-      window.wxoLoader.init();
-      return;
-    }
-
-    // First load — inject the script once
-    const script = document.createElement('script');
-    script.id  = 'wxo-loader-script';
-    script.src = `${WXO_CONFIG.hostURL}/wxochat/wxoLoader.js?embed=true`;
-    script.addEventListener('load', () => {
-      if (window.wxoLoader) window.wxoLoader.init();
-    });
-    document.head.appendChild(script);
-
-    return () => {
-      // Nothing to remove — leave the script tag so re-renders don't re-fetch
-    };
-  // Re-run only when the active session id changes so each "new chat" gets a fresh widget
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessions[activeIdx]?.id]);
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const newChat = () => {
-    const session = { ...makeSession() };
-    setSessions((prev) => [session, ...prev]);
+    setSessions((prev) => [{ ...makeSession(), messages: [greeting] }, ...prev]);
     setActiveIdx(0);
+    setDraft('');
   };
 
-  const switchSession = (idx) => setActiveIdx(idx);
+  const switchSession = (idx) => { setActiveIdx(idx); setDraft(''); };
 
   const togglePin = (e, id) => {
     e.stopPropagation();
@@ -1208,7 +1230,7 @@ function ChatView({ profile, username }) {
     setSessions((prev) => {
       if (prev.length === 1) {
         setActiveIdx(0);
-        return [{ ...makeSession() }];
+        return [{ ...makeSession(), messages: [greeting] }];
       }
       const next       = prev.filter((s) => s.id !== id);
       const deletedIdx = prev.findIndex((s) => s.id === id);
@@ -1220,6 +1242,55 @@ function ChatView({ profile, username }) {
       }
       return next;
     });
+  };
+
+  const send = async (text, priorMessages) => {
+    const trimmed = text.trim();
+    if (!trimmed || loading) return;
+    const history = priorMessages ?? messages;
+
+    setSessions((prev) =>
+      prev.map((s, i) =>
+        i === activeIdx && s.title === 'New chat'
+          ? { ...s, title: trimmed.length > 30 ? trimmed.slice(0, 30) + '…' : trimmed }
+          : s
+      )
+    );
+    setMessages(() => [
+      ...history,
+      { sender: 'user', text: trimmed },
+      { sender: 'bot',  text: '',      pending: true },
+    ]);
+    setDraft('');
+    setLoading(true);
+    inputRef.current?.focus();
+
+    try {
+      const res  = await fetch('/chat', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          userMessage: trimmed,
+          profile,
+          messages: history.filter((m) => !m.pending).slice(-10),
+        }),
+      });
+      const data  = await res.json();
+      const reply = res.ok
+        ? (data.reply || 'Sorry, I received an empty response.')
+        : (data.error || 'Something went wrong. Please try again.');
+      setMessages((prev) => prev.map((m) => (m.pending ? { sender: 'bot', text: reply } : m)));
+    } catch {
+      setMessages((prev) => prev.map((m) =>
+        m.pending ? { sender: 'bot', text: 'Could not reach Gumdrop. Please try again.' } : m
+      ));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleKey = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(draft); }
   };
 
   return (
@@ -1249,8 +1320,7 @@ function ChatView({ profile, username }) {
               key={s.id}
               className={`chat-history-item${sessions.indexOf(s) === activeIdx ? ' chat-history-item--active' : ''}`}
               onClick={() => switchSession(sessions.indexOf(s))}
-              role="button"
-              tabIndex={0}
+              role="button" tabIndex={0}
               onKeyDown={(e) => e.key === 'Enter' && switchSession(sessions.indexOf(s))}
             >
               <svg viewBox="0 0 16 16" fill="none" width="13" height="13" xmlns="http://www.w3.org/2000/svg" style={{flexShrink:0}}>
@@ -1258,18 +1328,8 @@ function ChatView({ profile, username }) {
               </svg>
               <span className="chat-history-item-title">{s.title}</span>
               <div className="chat-history-item-actions">
-                <button
-                  className="chat-history-pin-btn chat-history-pin-btn--active"
-                  onClick={(e) => togglePin(e, s.id)}
-                  aria-label="Unpin chat"
-                  title="Unpin"
-                ><PinFilled size={14} /></button>
-                <button
-                  className="chat-history-del-btn"
-                  onClick={(e) => deleteSession(e, s.id)}
-                  aria-label="Delete chat"
-                  title="Delete"
-                ><TrashCan size={14} /></button>
+                <button className="chat-history-pin-btn chat-history-pin-btn--active" onClick={(e) => togglePin(e, s.id)} aria-label="Unpin" title="Unpin"><PinFilled size={14} /></button>
+                <button className="chat-history-del-btn" onClick={(e) => deleteSession(e, s.id)} aria-label="Delete" title="Delete"><TrashCan size={14} /></button>
               </div>
             </div>
           ))}
@@ -1281,8 +1341,7 @@ function ChatView({ profile, username }) {
               key={s.id}
               className={`chat-history-item${sessions.indexOf(s) === activeIdx ? ' chat-history-item--active' : ''}`}
               onClick={() => switchSession(sessions.indexOf(s))}
-              role="button"
-              tabIndex={0}
+              role="button" tabIndex={0}
               onKeyDown={(e) => e.key === 'Enter' && switchSession(sessions.indexOf(s))}
             >
               <svg viewBox="0 0 16 16" fill="none" width="13" height="13" xmlns="http://www.w3.org/2000/svg" style={{flexShrink:0}}>
@@ -1290,29 +1349,107 @@ function ChatView({ profile, username }) {
               </svg>
               <span className="chat-history-item-title">{s.title}</span>
               <div className="chat-history-item-actions">
-                <button
-                  className="chat-history-pin-btn"
-                  onClick={(e) => togglePin(e, s.id)}
-                  aria-label="Pin chat"
-                  title="Pin"
-                ><Pin size={14} /></button>
-                <button
-                  className="chat-history-del-btn"
-                  onClick={(e) => deleteSession(e, s.id)}
-                  aria-label="Delete chat"
-                  title="Delete"
-                ><TrashCan size={14} /></button>
+                <button className="chat-history-pin-btn" onClick={(e) => togglePin(e, s.id)} aria-label="Pin" title="Pin"><Pin size={14} /></button>
+                <button className="chat-history-del-btn" onClick={(e) => deleteSession(e, s.id)} aria-label="Delete" title="Delete"><TrashCan size={14} /></button>
               </div>
             </div>
           ))}
         </div>
       </aside>
 
-      {/* ── Main chat area — WxO embed fills this ────────────────────────── */}
+      {/* ── Main chat area ────────────────────────────────────────────────── */}
       <div className="chat-main">
-        <div id={WXO_CONTAINER_ID} className="wxo-embed-container" />
-      </div>
 
+        {/* Messages */}
+        <div className="chat-messages" role="log" aria-live="polite" aria-label="Conversation">
+          {messages.map((msg, i) => (
+            <div key={i} className={`chat-row chat-row--${msg.sender}`}>
+              {msg.sender !== 'user' && (
+                <div className="chat-avatar chat-avatar--bot">G</div>
+              )}
+              <div className="chat-row-content">
+                <span className="chat-row-label">{SENDER_LABEL[msg.sender]}</span>
+                {editingIdx === i ? (
+                  <div className="chat-edit-wrap">
+                    <TextArea
+                      id={`chat-edit-${i}`}
+                      labelText="" hideLabel
+                      className="chat-edit-textarea"
+                      value={editDraft}
+                      onChange={(e) => setEditDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          if (editDraft.trim()) { const prior = messages.slice(0, i); setEditingIdx(null); send(editDraft.trim(), prior); }
+                        }
+                        if (e.key === 'Escape') setEditingIdx(null);
+                      }}
+                      autoFocus
+                    />
+                    <div className="chat-edit-actions">
+                      <Button kind="primary" size="sm" onClick={() => { if (editDraft.trim()) { const prior = messages.slice(0, i); setEditingIdx(null); send(editDraft.trim(), prior); } }}>Save</Button>
+                      <Button kind="ghost"   size="sm" onClick={() => setEditingIdx(null)}>Cancel</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={`chat-bubble-new${msg.pending ? ' chat-bubble-new--pending' : ''}${msg.sender === 'user' ? ' chat-bubble-new--user' : ''}`}>
+                    {msg.pending ? <TypingDots /> : msg.text}
+                    {msg.sender === 'user' && !msg.pending && (
+                      <button className="chat-edit-btn" onClick={() => { setEditingIdx(i); setEditDraft(msg.text); }} aria-label="Edit message" title="Edit">✏️</button>
+                    )}
+                  </div>
+                )}
+              </div>
+              {msg.sender === 'user' && (
+                <div className="chat-avatar chat-avatar--user">
+                  {username ? username[0].toUpperCase() : 'Y'}
+                </div>
+              )}
+            </div>
+          ))}
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Input */}
+        <div className="chat-input-area">
+          {messages.length <= 1 && (
+            <div className="chat-inline-suggestions">
+              {SUGGESTED_PROMPTS.map((p) => (
+                <Tag key={p} type="blue" className="chat-inline-suggestion-btn"
+                  onClick={() => !loading && send(p)}
+                  style={{ cursor: loading ? 'not-allowed' : 'pointer' }}
+                >{p}</Tag>
+              ))}
+            </div>
+          )}
+          <div className="chat-input-wrap">
+            <TextArea
+              ref={inputRef}
+              id="chat-input"
+              labelText="" hideLabel
+              rows={1}
+              placeholder={loading ? 'Gumdrop is thinking…' : 'Ask me anything about investing…'}
+              value={draft}
+              disabled={loading}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={handleKey}
+            />
+            <Button
+              kind="primary" size="sm"
+              onClick={() => send(draft)}
+              disabled={loading || !draft.trim()}
+              aria-label="Send message" hasIconOnly iconDescription="Send message"
+              renderIcon={() => (
+                <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="18">
+                  <path d="M2 10L18 2L12 10L18 18L2 10Z" fill="currentColor" />
+                </svg>
+              )}
+            />
+          </div>
+          <p className="chat-input-hint">Press Enter to send · Shift+Enter for new line</p>
+        </div>
+
+      </div>
     </div>
   );
 }
