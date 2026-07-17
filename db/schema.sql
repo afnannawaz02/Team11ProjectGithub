@@ -62,3 +62,21 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_chat_sessions_user    ON chat_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_profiles_user         ON profiles(user_id);
+
+-- Plaid access tokens (one per user, overwritten on re-link)
+CREATE TABLE IF NOT EXISTS plaid_tokens (
+  user_id        INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  access_token   TEXT NOT NULL,
+  item_id        TEXT NOT NULL,
+  institution    TEXT NOT NULL DEFAULT '',
+  connected_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Coinbase OAuth tokens (one per user)
+CREATE TABLE IF NOT EXISTS coinbase_tokens (
+  user_id        INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  access_token   TEXT NOT NULL,
+  refresh_token  TEXT NOT NULL,
+  expires_at     TEXT NOT NULL,
+  connected_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);

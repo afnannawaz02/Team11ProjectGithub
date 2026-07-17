@@ -2571,8 +2571,17 @@ function ProfilePage({ username, profile, onLogout, onBack, theme, onToggleTheme
   ];
 
   return (
-    <div className="db-layout" style={{ alignItems: 'center', paddingTop: '2rem', paddingBottom: '2rem' }}>
-      <div style={{ width: '100%', maxWidth: '36rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '0 1rem' }}>
+    <div className="profile-shell">
+      {/* ── Sticky back bar ──────────────────────────────────────────────── */}
+      <div className="profile-back-bar">
+        <button className="profile-back-btn" onClick={onBack} aria-label="Back to dashboard">
+          ← Dashboard
+        </button>
+      </div>
+
+      {/* ── Scrollable content ───────────────────────────────────────────── */}
+      <div className="profile-scroll">
+      <div style={{ width: '100%', maxWidth: '36rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '0 1rem', margin: '0 auto' }}>
         <div className="wizard-inner" style={{ padding: 0 }}>
           <div className="acct-badge">Account</div>
           <h2 className="wizard-heading">Profile settings</h2>
@@ -2683,8 +2692,7 @@ function ProfilePage({ username, profile, onLogout, onBack, theme, onToggleTheme
           </div>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.5rem' }}>
-          <Button kind="ghost" onClick={onBack}>← Back</Button>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', paddingTop: '0.5rem', paddingBottom: '2rem' }}>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <Button kind="tertiary" onClick={onStartQuestionnaire}>
               <Notebook size={16} style={{ marginRight: '0.4rem' }} aria-hidden="true" />
@@ -2693,6 +2701,7 @@ function ProfilePage({ username, profile, onLogout, onBack, theme, onToggleTheme
             <Button kind="danger" onClick={onLogout}>Sign out</Button>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
