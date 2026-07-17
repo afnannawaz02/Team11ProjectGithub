@@ -9,8 +9,6 @@ pages_build_output_dir = "dist"
 # ── Non-secret environment variables ─────────────────────────────────────────
 [vars]
 ALLOWED_EMAIL_DOMAIN = "ibm.com"
-# WXO_INSTANCE_ID is not a secret — it is the Orchestrate instance identifier
-WXO_INSTANCE_ID      = "20260716-1817-5864-6037-ecdb2563fd26"
 
 # ── KV namespace (OTP store) ──────────────────────────────────────────────────
 [[kv_namespaces]]
@@ -26,13 +24,17 @@ database_id   = "effb499d-cbb7-4fa9-b5cf-9ea2ca8ad81a"
 # ── Secrets (DO NOT add values here) ─────────────────────────────────────────
 # Run these commands once to store them encrypted in Cloudflare:
 #
-#   npx wrangler pages secret put WXO_ZEN_API_KEY --project-name team11projectgithub
-#   npx wrangler pages secret put RESEND_API_KEY  --project-name team11projectgithub
+#   npx wrangler pages secret put WO_USERNAME    --project-name team11projectgithub
+#   npx wrangler pages secret put WO_PASSWORD    --project-name team11projectgithub
+#   npx wrangler pages secret put RESEND_API_KEY --project-name team11projectgithub
 #
-# WXO_ZEN_API_KEY — ZenApiKey credential for the watsonx Orchestrate instance.
-#                   NOT an IAM API key. NOT WATSONX_PROJECT_ID.
-#                   Get it from: IBM Cloud → your Orchestrate instance
-#                     → Service credentials → New credential → copy "apikey".
-#                   Used as:  Authorization: ZenApiKey {value}
+# WO_USERNAME  — The email address you use to log in to watsonx Orchestrate
+#                (e.g. yourname@ibm.com)
+#                This is NOT an IBM Cloud IAM API key.
+#                This is NOT WATSONX_PROJECT_ID.
+#                It is the same login you use at:
+#                  https://dl.watson-orchestrate.ibm.com
 #
-# RESEND_API_KEY  — Resend transactional email API key for OTP delivery.
+# WO_PASSWORD  — The password for the above Orchestrate login.
+#
+# RESEND_API_KEY — Resend transactional email key for OTP delivery.
