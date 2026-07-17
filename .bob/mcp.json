@@ -13,6 +13,21 @@
       "env": {
         "LOGS_URL": "https://dashboard.us-south.logs.cloud.ibm.com/300b8b2d-4563-41ed-b263-3a63e7d92f5b/#/query-new/logs?id=OZrILALxBViLDo6Qaf0cX&page=0&querySyntax=lucene"
       }
+    },
+    "watsonx-orchestrate-adk": {
+      "command": "uvx",
+      "args": [
+        "ibm-watsonx-orchestrate-mcp-server"
+      ],
+      "env": {
+        "WXO_MCP_WORKING_DIRECTORY": "",
+        "WXO_MCP_DEBUG": ""
+      },
+      "timeout": 300
+    },
+    "watsonx-orchestrate-adk-docs": {
+      "type": "streamable-http",
+      "url": "https://developer.watson-orchestrate.ibm.com/mcp"
     }
   }
 }
