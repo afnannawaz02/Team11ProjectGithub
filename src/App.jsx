@@ -1276,9 +1276,10 @@ function ChatView({ profile, username }) {
 
     try {
       const res  = await fetch('/chat', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
+        method:      'POST',
+        credentials: 'same-origin',
+        headers:     { 'Content-Type': 'application/json' },
+        body:        JSON.stringify({
           userMessage: trimmed,
           profile,
           messages: history.filter((m) => !m.pending).slice(-12),
@@ -1289,9 +1290,9 @@ function ChatView({ profile, username }) {
         ? (data.reply || 'Sorry, I received an empty response.')
         : (data.error || 'Something went wrong. Please try again.');
       setMessages((prev) => prev.map((m) => (m.pending ? { sender: 'bot', text: reply, ts: Date.now() } : m)));
-    } catch {
+    } catch (err) {
       setMessages((prev) => prev.map((m) =>
-        m.pending ? { sender: 'bot', text: 'Could not reach the AI advisor. Please try again.', ts: Date.now() } : m
+        m.pending ? { sender: 'bot', text: `Network error: ${err.message}. In dev run \`npm run server\`. In production ensure WATSONX_API_KEY and WATSONX_PROJECT_ID are set in Cloudflare Pages secrets.`, ts: Date.now() } : m
       ));
     } finally {
       setLoading(false);
