@@ -1151,6 +1151,7 @@ const QUICK_ACTIONS = [
 
 // Render plain text with basic markdown-like formatting (bold **x**, bullet - x)
 function RichText({ text }) {
+  if (!text) return null;
   const lines = text.split('\n');
   return (
     <div className="chat-rich-text">
@@ -1185,8 +1186,13 @@ function ChatView({ profile, username }) {
   };
 
   const [sessions, setSessions] = useState(() => {
-    const saved = loadSessions(username);
-    return saved ?? [{ ...makeSession(), messages: [greeting] }];
+    const raw = loadSessions(username);
+    // Sanitise: drop any session whose messages array contains stale/corrupt entries
+    const valid = raw?.filter((s) =>
+      Array.isArray(s.messages) &&
+      s.messages.every((m) => typeof m.text === 'string')
+    );
+    return (valid && valid.length > 0) ? valid : [{ ...makeSession(), messages: [greeting] }];
   });
   const [activeIdx, setActiveIdx] = useState(0);
 
