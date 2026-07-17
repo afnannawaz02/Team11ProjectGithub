@@ -858,7 +858,7 @@ body {
   padding: $spacing-07 $spacing-07 calc(#{$spacing-10} + 4rem);
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;         // panels fill the full content width
 
   @include breakpoint-down(sm) { padding: $spacing-05 $spacing-05 calc(#{$spacing-09} + 4rem); }
 
@@ -943,8 +943,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: $spacing-05;
-  max-width: 52rem;
-  width: 100%;
+  width: 100%;                  // fill available content width — no max-width cap
 }
 
 // Pie chart panel — centred layout
@@ -1032,7 +1031,7 @@ body {
     padding: $spacing-04 $spacing-05;
     text-align: left;
     border-bottom: 1px solid var(--cds-border-subtle-01);
-    background: #fdf5f8;
+    background: transparent;
   }
 
   td {
@@ -1048,7 +1047,8 @@ body {
 .db-ticker {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 0.8rem;
-  background: #fce7f3;
+  background: transparent;
+  border: 1px solid #fbc4d9;
   color: #c0356a;
   padding: 0.1rem 0.4rem;
   border-radius: 0.25rem;
@@ -1063,8 +1063,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: $spacing-05;
-  max-width: 52rem;
-  width: 100%;
+  width: 100%;                  // fill available content width
 }
 
 // Top 4 stat cards
@@ -1397,7 +1396,6 @@ body {
   display: flex;
   flex-direction: column;
   gap: $spacing-03;
-  max-width: 20rem;
 }
 
 .st-order-label {
@@ -1655,7 +1653,9 @@ body {
 .chat-page {
   display: flex;
   height: 100%;    // fills whatever the flex parent gives it (db-content--chat)
+  width: 100%;     // never shrink or grow horizontally
   min-height: 0;
+  overflow: hidden; // clamp any child that tries to expand the width
   background: transparent;
 }
 
@@ -1810,8 +1810,9 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  min-width: 0;
+  overflow: hidden;   // y-scroll is on .chat-messages; x must never escape
+  min-width: 0;       // prevent flex item from pushing the sidebar away
+  width: 0;           // combined with flex:1 this keeps width strictly derived from flex, never content
 }
 
 .chat-messages {
@@ -1970,6 +1971,9 @@ body {
   flex-direction: column;
   gap: $spacing-03;
   background: transparent;
+  width: 100%;          // always match parent; never size to content
+  box-sizing: border-box;
+  flex-shrink: 0;       // never compress the input row
 
   @include breakpoint-down(sm) {
     padding: $spacing-04 $spacing-05 calc(4rem + #{$spacing-03}) $spacing-05;
@@ -2005,7 +2009,7 @@ body {
   padding: $spacing-02 $spacing-04;
   border: 1.5px solid #fbc4d9;
   border-radius: 2rem;
-  background: #ffffff;
+  background: transparent;
   color: #9d2256;
   @include type-style('label-01');
   font-weight: 500;
@@ -2032,7 +2036,7 @@ body {
   display: flex;
   align-items: flex-end;
   gap: $spacing-03;
-  background: #ffffff;
+  background: var(--cds-layer-01);
   border: 1.5px solid #fbc4d9;
   border-radius: 1.5rem;
   padding: $spacing-03 $spacing-03 $spacing-03 $spacing-05;
@@ -2283,7 +2287,7 @@ body {
 
 .spend-cat-bar-track {
   height: 5px;
-  background: #fce7f3;
+  background: var(--cds-border-subtle-01);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -2374,7 +2378,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: $spacing-03 $spacing-04;
-  background: #fff8e1;
+  background: transparent;
   border: 1px solid #ffe082;
   border-radius: 0.5rem;
   gap: $spacing-04;
@@ -2630,7 +2634,7 @@ body {
 
 .health-component-track {
   height: 6px;
-  background: #fce7f3;
+  background: var(--cds-border-subtle-01);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -2800,7 +2804,7 @@ body {
 .analyst-bar-track {
   flex: 1;
   height: 8px;
-  background: #fce7f3;
+  background: var(--cds-border-subtle-01);
   border-radius: 4px;
   overflow: hidden;
 }
