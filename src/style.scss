@@ -1652,18 +1652,10 @@ body {
   overflow: hidden;
 }
 
-// ── Premium Financial Advisor Chat ────────────────────────────────────────────
-// advisor-page fills db-content--chat (full height, no padding, no scroll)
-
-@keyframes msg-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes typing-bounce {
-  0%, 80%, 100% { transform: scale(0.7); opacity: 0.45; }
-  40%           { transform: scale(1);   opacity: 1; }
-}
+// ── Native Financial Advisor Chat ─────────────────────────────────────────────
+// advisor-page fills db-content--chat (full height, no padding, no scroll).
+// The sidebar holds fintech cards + quick actions.
+// The main pane holds our topbar + the inline watsonx Web Chat.
 
 .advisor-page {
   display: flex;
@@ -1674,13 +1666,18 @@ body {
 
 // ── Sidebar ────────────────────────────────────────────────────────────────────
 .advisor-sidebar {
-  width: 15rem;
+  width: 16rem;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--cds-border-subtle-01);
-  background: rgba(255, 248, 250, 0.7);
-  overflow: hidden;
+  border-right: 1px solid #fbc4d9;
+  background: rgba(255, 248, 250, 0.85);
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  &::-webkit-scrollbar       { width: 3px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { background: #fbc4d9; border-radius: 2px; }
 
   @include breakpoint-down(md) { display: none; }
 }
@@ -1928,6 +1925,63 @@ body {
   font-weight: 600;
 }
 
+// ── Fintech summary cards ──────────────────────────────────────────────────────
+.advisor-fin-cards {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+  padding: $spacing-04;
+  flex-shrink: 0;
+}
+
+.advisor-fin-card {
+  border-radius: 0.75rem;
+  border: 1px solid transparent;
+  padding: $spacing-04;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: card-in 220ms ease both;
+}
+
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.advisor-fin-card-title {
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 600;
+}
+
+.advisor-fin-card-value {
+  @include type-style('heading-03');
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-top: 2px;
+}
+
+.advisor-fin-card-sub {
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+  font-size: 0.68rem;
+}
+
+.advisor-fin-card-trend {
+  @include type-style('label-01');
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-top: 3px;
+
+  &.up   { color: #24a148; }
+  &.down { color: #da1e28; }
+}
+
 // ── Sidebar quick-actions (chips) ─────────────────────────────────────────────
 .advisor-sidebar-actions {
   padding: $spacing-04 $spacing-04 0;
@@ -1947,6 +2001,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: $spacing-02;
+  padding-bottom: $spacing-03;
 }
 
 .advisor-quick-btn {
@@ -1960,6 +2015,9 @@ body {
   cursor: pointer;
   font-weight: 600;
   text-align: left;
+  display: flex;
+  align-items: center;
+  gap: $spacing-02;
   transition: background 100ms ease, border-color 100ms ease, transform 80ms ease;
   white-space: nowrap;
   overflow: hidden;
@@ -1974,32 +2032,294 @@ body {
   &:focus, &:focus-visible { outline: none; }
 }
 
-// ── WxO embed host ─────────────────────────────────────────────────────────────
-// The IBM watsonx Orchestrate loader renders its full chat UI inside this div.
-// We size it to fill the remaining space below the topbar.
-.wxo-embed-host {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  position: relative;
+.advisor-quick-icon {
+  font-size: 0.9rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
 
-  // Ensure the embed's injected root element fills us completely
-  > * {
-    width: 100% !important;
-    height: 100% !important;
-    max-width: 100% !important;
-    max-height: 100% !important;
-    position: absolute !important;
-    inset: 0 !important;
+// ── Native Gumdrop chat — message list ────────────────────────────────────────
+@keyframes msg-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes gdrop-bounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40%           { transform: scale(1);   opacity: 1; }
+}
+
+.gdrop-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: $spacing-06 $spacing-06 $spacing-04;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-04;
+
+  &::-webkit-scrollbar       { width: 4px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { background: #fbc4d9; border-radius: 2px; }
+
+  @include breakpoint-down(sm) { padding: $spacing-04; }
+}
+
+.gdrop-row {
+  display: flex;
+  align-items: flex-end;
+  gap: $spacing-03;
+  animation: msg-in 180ms ease both;
+}
+
+.gdrop-row--user {
+  flex-direction: row-reverse;
+}
+
+.gdrop-avatar {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  @include type-style('label-01');
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+.gdrop-avatar--bot {
+  background: linear-gradient(135deg, #f472a0 0%, #c0356a 100%);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(192, 53, 106, 0.22);
+}
+
+.gdrop-avatar--user {
+  background: #ede9fe;
+  color: #5b21b6;
+  border: 1px solid #ddd6fe;
+}
+
+// ── Bubbles ────────────────────────────────────────────────────────────────────
+.gdrop-bubble {
+  max-width: min(72%, 36rem);
+  border-radius: 1rem;
+  @include type-style('body-01');
+  font-size: 0.875rem;
+  line-height: 1.65;
+  word-break: break-word;
+  padding: $spacing-04 $spacing-05;
+
+  @include breakpoint-down(sm) { max-width: 90%; }
+}
+
+.gdrop-bubble--bot {
+  background: var(--cds-layer-01);
+  border: 1px solid #fbc4d9;
+  border-radius: 0.25rem 1rem 1rem 1rem;
+  color: var(--cds-text-primary);
+  box-shadow: 0 2px 10px rgba(192, 53, 106, 0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.gdrop-bubble--user {
+  background: linear-gradient(135deg, #f472a0 0%, #c0356a 100%);
+  border-radius: 1rem 0.25rem 1rem 1rem;
+  color: #ffffff;
+  box-shadow: 0 3px 12px rgba(192, 53, 106, 0.25);
+}
+
+// Typing indicator variant
+.gdrop-bubble--typing {
+  padding: $spacing-03 $spacing-04;
+  flex-direction: row;
+  align-items: center;
+  gap: 5px;
+  min-height: 2.5rem;
+}
+
+.gdrop-typing-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f9a8b8, #f472a0);
+  animation: gdrop-bounce 1.3s infinite ease-in-out;
+  flex-shrink: 0;
+
+  &:nth-child(2) { animation-delay: 0.18s; }
+  &:nth-child(3) { animation-delay: 0.36s; }
+}
+
+// ── Bubble content formatting ─────────────────────────────────────────────────
+.gdrop-line {
+  margin: 0;
+  padding: 0.1rem 0;
+
+  &:empty { display: none; }
+
+  strong { font-weight: 700; }
+  code   {
+    background: rgba(244, 114, 160, 0.12);
+    border-radius: 3px;
+    padding: 0.1em 0.35em;
+    font-size: 0.82em;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+}
+
+.gdrop-bullet {
+  display: flex;
+  gap: $spacing-02;
+  padding-left: $spacing-03;
+}
+
+.gdrop-bullet-dot {
+  color: #f472a0;
+  flex-shrink: 0;
+  line-height: inherit;
+}
+
+.gdrop-numbered {
+  padding-left: $spacing-03;
+}
+
+.gdrop-heading {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #c0356a;
+  padding-top: $spacing-02;
+}
+
+// ── Error banner ──────────────────────────────────────────────────────────────
+.gdrop-error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-04;
+  padding: $spacing-03 $spacing-05;
+  background: #fff1f1;
+  border: 1px solid #ffd7d9;
+  border-radius: 0.625rem;
+  @include type-style('label-01');
+  color: #a2191f;
+  font-size: 0.82rem;
+  animation: msg-in 180ms ease both;
+}
+
+.gdrop-error-dismiss {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #a2191f;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+  opacity: 0.7;
+  &:hover { opacity: 1; }
+}
+
+// ── Input area ────────────────────────────────────────────────────────────────
+.gdrop-input-area {
+  border-top: 1px solid #fbc4d9;
+  padding: $spacing-04 $spacing-06 calc(4rem + #{$spacing-04});
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-02;
+  background: rgba(255, 248, 250, 0.9);
+  backdrop-filter: blur(8px);
+  flex-shrink: 0;
+
+  @include breakpoint-down(sm) {
+    padding: $spacing-04 $spacing-04 calc(4rem + #{$spacing-03});
+  }
+}
+
+.gdrop-input-wrap {
+  display: flex;
+  align-items: flex-end;
+  gap: $spacing-03;
+  background: #ffffff;
+  border: 1.5px solid #fbc4d9;
+  border-radius: 1rem;
+  padding: $spacing-03 $spacing-03 $spacing-03 $spacing-05;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+
+  &:focus-within {
+    border-color: #f472a0;
+    box-shadow: 0 0 0 3px rgba(244, 114, 160, 0.15);
+  }
+}
+
+.gdrop-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  min-width: 0;
+  padding: 0;
+  @include type-style('body-01');
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--cds-text-primary);
+  min-height: 1.5rem;
+  max-height: 7.5rem;
+  font-family: inherit;
+
+  &::placeholder { color: var(--cds-text-placeholder); }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+.gdrop-send-btn {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f472a0 0%, #c0356a 100%);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  flex-shrink: 0;
+  transition: opacity 100ms ease, transform 100ms ease;
+  box-shadow: 0 2px 8px rgba(192, 53, 106, 0.30);
+
+  &:hover:not(:disabled) { opacity: 0.9; transform: scale(1.06); }
+  &:disabled { opacity: 0.30; cursor: not-allowed; box-shadow: none; }
+  &:focus, &:focus-visible { outline: none; }
+}
+
+.gdrop-input-hint {
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+  margin: 0;
+  font-size: 0.65rem;
+
+  kbd {
+    display: inline-block;
+    padding: 0 0.3em;
+    border: 1px solid var(--cds-border-subtle-01);
+    border-radius: 3px;
+    font-size: 0.65rem;
+    font-family: inherit;
+    background: var(--cds-layer-01);
   }
 }
 
 // ── Dark mode overrides ────────────────────────────────────────────────────────
 .cds--g100 {
-  .advisor-sidebar      { background: rgba(30, 20, 26, 0.8); }
-  .advisor-topbar       { background: rgba(22, 14, 18, 0.85); }
+  .advisor-sidebar      { background: rgba(22, 14, 18, 0.88); border-color: #3d2030; }
+  .advisor-topbar       { background: rgba(18, 10, 15, 0.92); }
   .advisor-quick-btn    { background: rgba(42, 30, 36, 0.9); border-color: #4a2535; color: #f9a8b8; }
   .advisor-disclaimer   { background: rgba(244, 114, 160, 0.08); border-color: rgba(244, 114, 160, 0.18); }
+  .gdrop-bubble--bot    { background: #2a1e24; border-color: #3d2a32; }
+  .gdrop-input-area     { background: rgba(18, 10, 15, 0.92); }
+  .gdrop-input-wrap     { background: #1e1218; border-color: #3d2a32; }
+  .gdrop-input          { color: var(--cds-text-primary); }
+  .gdrop-error-banner   { background: #2d1215; border-color: #520408; color: #fa4d56; }
 }
 
 // ── Wizard ────────────────────────────────────────────────────────────────────

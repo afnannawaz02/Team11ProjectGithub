@@ -1,20 +1,16 @@
 # wrangler.toml — Cloudflare Pages bindings & non-secret env vars
 # ⚠️  Never put API keys or secrets in this file — it is committed to git.
-#     Add secrets via: wrangler secret put SECRET_NAME
-#     Or via: Cloudflare Dashboard → Pages → Settings → Environment variables → Secrets
+#     Add secrets via the Cloudflare dashboard or:
+#       npx wrangler pages secret put SECRET_NAME --project-name team11projectgithub
 
 name = "team11projectgithub"
 pages_build_output_dir = "dist"
 
 # ── Non-secret environment variables ─────────────────────────────────────────
-# These are safe to commit because they contain no credentials.
 [vars]
-WATSONX_REGION       = "us-south"
-WATSONX_MODEL_ID     = "ibm/granite-3-8b-instruct"
 ALLOWED_EMAIL_DOMAIN = "ibm.com"
-# RESEND_FROM is intentionally omitted — set it as a Pages Secret via:
-#   npx wrangler pages secret put RESEND_FROM --project-name gumdrop
-# or leave it to default to "noreply@team11.uk" in the function code.
+# WXO_INSTANCE_ID is not a secret — it is the Orchestrate instance identifier
+WXO_INSTANCE_ID      = "20260716-1817-5864-6037-ecdb2563fd26"
 
 # ── KV namespace (OTP store) ──────────────────────────────────────────────────
 [[kv_namespaces]]
@@ -28,10 +24,14 @@ database_name = "candyland-db"
 database_id   = "effb499d-cbb7-4fa9-b5cf-9ea2ca8ad81a"
 
 # ── Secrets (DO NOT add values here) ─────────────────────────────────────────
-# Run these commands once from your terminal to store them encrypted:
+# Run these commands once to store them encrypted in Cloudflare:
 #
-#   npx wrangler pages secret put WATSONX_API_KEY    --project-name team11projectgithub
-#   npx wrangler pages secret put WATSONX_PROJECT_ID --project-name team11projectgithub
-#   npx wrangler pages secret put RESEND_API_KEY     --project-name team11projectgithub
+#   npx wrangler pages secret put WXO_API_KEY    --project-name team11projectgithub
+#   npx wrangler pages secret put RESEND_API_KEY --project-name team11projectgithub
 #
-# Wrangler will prompt you to paste the value — it is never written to disk.
+# WXO_API_KEY  — IBM Cloud IAM API key for the watsonx Orchestrate instance.
+#                Create one at: https://cloud.ibm.com/iam/apikeys
+#                Do NOT use WATSONX_PROJECT_ID — that is for direct model calls.
+#                The agent lives at Watson Orchestrate, not watsonx.ai.
+#
+# RESEND_API_KEY — Resend transactional email API key for OTP delivery.

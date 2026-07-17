@@ -55,10 +55,6 @@ import {
   loadSessions,
 } from './auth.js';
 
-// Relative URL — works in dev (Vite proxies /chat → 127.0.0.1:3001) and in
-// production (Cloudflare Pages Function at /chat handles the request).
-const PROXY_URL = '';
-
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function buildGreeting(profile) {
   if (!profile) return "Hi! I'm Gumdrop, your Candyland Bank AI advisor. Ask me anything about investing, saving, or your finances.";
@@ -1119,93 +1115,225 @@ function DashboardPage({ profile, username }) {
   );
 }
 
-// ── Watson Orchestrate embed config ───────────────────────────────────────────
-const WXO_HOST   = 'https://dl.watson-orchestrate.ibm.com';
-const WXO_CONFIG = {
-  orchestrationID: '20260716-1817-5864-6037-ecdb2563fd26_20260716-1822-4087-90fe-3b3ba1d4cc84',
-  hostURL:         WXO_HOST,
-  rootElementID:   'wxo-embed-root',
-  chatOptions: {
-    agentId:            '77dfacb4-0d9a-4cd8-bf9c-6db1c7e554aa',
-    agentEnvironmentId: 'faad14aa-f677-4cac-ae54-fdb68514856f',
-  },
-};
-
-// Inject the WxO loader script once per page load
-let _wxoLoaded = false;
-function loadWxoEmbed(containerId) {
-  window.wxOConfiguration = { ...WXO_CONFIG, rootElementID: containerId };
-  if (_wxoLoaded) {
-    // Script already in DOM — just re-init so the embed mounts into the new container
-    window.wxoLoader?.init();
-    return;
-  }
-  _wxoLoaded = true;
-  const s = document.createElement('script');
-  s.id  = 'wxo-loader';
-  s.src = `${WXO_HOST}/wxochat/wxoLoader.js?embed=true`;
-  s.onload = () => window.wxoLoader?.init();
-  document.head.appendChild(s);
-}
-
+// ── Quick action prompts ────────────────────────────────────────────────────────
 const QUICK_ACTIONS = [
-  { label: 'Analyze My Spending',        prompt: 'Analyze my recent spending patterns and identify where I can cut back.' },
-  { label: 'Review Crypto Portfolio',    prompt: 'Review my crypto portfolio allocation and give me risk-adjusted recommendations.' },
-  { label: 'Financial Health Score',     prompt: 'Assess my overall financial health score based on my profile and goals.' },
-  { label: 'Find Savings Opportunities', prompt: 'Identify savings opportunities and subscriptions I can cut or reduce.' },
-  { label: 'Debt Payoff Strategy',       prompt: 'Create a debt payoff strategy optimized for my income and goals.' },
-  { label: 'Emergency Fund Analysis',    prompt: 'Analyze whether my emergency fund is sufficient for my situation.' },
-  { label: 'Budget Review',              prompt: 'Review my budget and suggest an optimized allocation for my goals.' },
-  { label: 'Goal Progress',              prompt: 'How am I tracking against each of my financial goals?' },
+  { label: 'Analyze My Spending',     icon: '📊', prompt: 'Analyze my recent spending patterns and identify where I can cut back.' },
+  { label: 'Crypto Portfolio Review', icon: '₿',  prompt: 'Review my crypto portfolio allocation and give me risk-adjusted recommendations.' },
+  { label: 'Financial Health Score',  icon: '💯', prompt: 'Assess my overall financial health score based on my profile and goals.' },
+  { label: 'Find Savings',            icon: '💰', prompt: 'Identify savings opportunities and subscriptions I can cut or reduce.' },
+  { label: 'Debt Payoff Plan',        icon: '📉', prompt: 'Create a debt payoff strategy optimized for my income and goals.' },
+  { label: 'Emergency Fund Check',    icon: '🛡',  prompt: 'Analyze whether my emergency fund is sufficient for my situation.' },
+  { label: 'Budget Review',           icon: '📋', prompt: 'Review my budget and suggest an optimized allocation for my goals.' },
+  { label: 'Goal Progress',           icon: '🎯', prompt: 'How am I tracking against each of my financial goals?' },
 ];
 
-// Type a prompt into the WxO embed's textarea and submit it
-function sendToEmbed(prompt) {
-  const container = document.getElementById('wxo-embed-root');
-  if (!container) return;
-  const textarea = container.querySelector('textarea') || container.querySelector('input[type="text"]');
-  if (!textarea) return;
-  // Set value via React synthetic event pattern
-  const nativeInputSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
-    || Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-  nativeInputSetter?.call(textarea, prompt);
-  textarea.dispatchEvent(new Event('input', { bubbles: true }));
-  // Submit after a tick so the embed state updates
-  setTimeout(() => {
-    const form   = textarea.closest('form');
-    const sendBtn = container.querySelector('button[type="submit"]')
-      || container.querySelector('[aria-label*="send" i]')
-      || container.querySelector('[aria-label*="Send" i]');
-    if (form) form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-    else sendBtn?.click();
-  }, 50);
+// ── Fintech summary cards ──────────────────────────────────────────────────────
+// Static demo values — real values come from Plaid / Coinbase via Orchestrate tools
+const FIN_CARDS = [
+  {
+    id: 'health', title: 'Financial Health', value: '78 / 100',
+    sub: 'Good standing', trend: '+4 pts this month', up: true,
+    color: '#24a148', bg: 'rgba(36,161,72,0.08)', border: 'rgba(36,161,72,0.20)',
+  },
+  {
+    id: 'spending', title: 'Monthly Spending', value: '$2,847',
+    sub: 'Jun 2025', trend: '-$320 vs last month', up: true,
+    color: '#f472a0', bg: 'rgba(244,114,160,0.08)', border: 'rgba(244,114,160,0.20)',
+  },
+  {
+    id: 'portfolio', title: 'Portfolio Value', value: '$12,450',
+    sub: 'All accounts', trend: '+$840 (7.2%)', up: true,
+    color: '#7c5cd8', bg: 'rgba(124,92,216,0.08)', border: 'rgba(124,92,216,0.20)',
+  },
+];
+
+// ── Render a single assistant message with markdown-lite formatting ─────────────
+function GumdropBubble({ text }) {
+  // Split on double-newline for paragraphs, then handle bullets and bold
+  const lines = text.split('\n');
+  return (
+    <div className="gdrop-bubble gdrop-bubble--bot">
+      {lines.map((line, i) => {
+        const trimmed = line.trim();
+        if (!trimmed) return null;
+        // Bullet: lines starting with - or * or •
+        if (/^[-*•]/.test(trimmed)) {
+          const content = trimmed.replace(/^[-*•]\s*/, '');
+          return (
+            <p key={i} className="gdrop-line gdrop-bullet">
+              <span className="gdrop-bullet-dot" aria-hidden="true">•</span>
+              <span dangerouslySetInnerHTML={{ __html: inlineFmt(content) }} />
+            </p>
+          );
+        }
+        // Numbered list
+        if (/^\d+\./.test(trimmed)) {
+          return (
+            <p key={i} className="gdrop-line gdrop-numbered"
+              dangerouslySetInnerHTML={{ __html: inlineFmt(trimmed) }} />
+          );
+        }
+        // Heading (##)
+        if (/^#{1,3}\s/.test(trimmed)) {
+          const content = trimmed.replace(/^#{1,3}\s/, '');
+          return <p key={i} className="gdrop-line gdrop-heading">{content}</p>;
+        }
+        return (
+          <p key={i} className="gdrop-line"
+            dangerouslySetInnerHTML={{ __html: inlineFmt(trimmed) }} />
+        );
+      })}
+    </div>
+  );
 }
 
-function ChatView({ username }) {
-  const embedId  = 'wxo-embed-root';
-  const [ready,  setReady]  = useState(false);
+// Inline markdown: **bold** and `code`
+function inlineFmt(text) {
+  return text
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>');
+}
 
-  // Mount the WxO embed once this component renders
+// ── Typing indicator ───────────────────────────────────────────────────────────
+function TypingDots() {
+  return (
+    <div className="gdrop-bubble gdrop-bubble--bot gdrop-bubble--typing">
+      <span className="gdrop-typing-dot" />
+      <span className="gdrop-typing-dot" />
+      <span className="gdrop-typing-dot" />
+    </div>
+  );
+}
+
+// ── ChatView ───────────────────────────────────────────────────────────────────
+function ChatView({ username, profile }) {
+  const bottomRef  = useRef(null);
+  const inputRef   = useRef(null);
+  const sessionRef = useRef(null); // session_id from first Orchestrate response
+
+  const [messages, setMessages] = useState(() => [{
+    id:   'welcome',
+    role: 'assistant',
+    text: profile
+      ? `Welcome back, ${username}! I'm Gumdrop, your Financial Advisor AI. Based on your profile I can see you're focused on **${
+          (profile.goals ?? []).slice(0, 2).map((g) => ({
+            retirement: 'retirement', home: 'buying a home', education: 'education',
+            wealth: 'wealth growth', short_term: 'short-term savings', long_term: 'long-term investing',
+          }[g] || g)).join(' and ') || 'financial growth'
+        }** with a **${profile.risk || 'balanced'}** risk approach. What would you like to explore?`
+      : "Hi! I'm Gumdrop, your Candyland Bank Financial Advisor AI. I can help with budgeting, savings, investments, debt, and financial planning. What's on your mind?",
+  }]);
+  const [input,    setInput]    = useState('');
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState('');
+
+  // Auto-scroll to latest message
   useEffect(() => {
-    loadWxoEmbed(embedId);
-    // Give the embed a moment to inject its DOM before showing quick actions
-    const t = setTimeout(() => setReady(true), 800);
-    return () => clearTimeout(t);
-  }, []);
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, loading]);
+
+  // Auto-focus input on mount
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const sendMessage = async (text) => {
+    const userText = (text ?? input).trim();
+    if (!userText || loading) return;
+    setInput('');
+    setError('');
+
+    const userMsg = { id: Date.now().toString(), role: 'user', text: userText };
+    setMessages((prev) => [...prev, userMsg]);
+    setLoading(true);
+
+    // Build conversation history for the API (exclude welcome message, keep last 20)
+    const history = [...messages.filter((m) => m.id !== 'welcome'), userMsg]
+      .slice(-20)
+      .map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text }));
+
+    try {
+      const res = await fetch('/api/agent', {
+        method:      'POST',
+        credentials: 'same-origin',
+        headers:     { 'Content-Type': 'application/json' },
+        body:        JSON.stringify({ messages: history, session_id: sessionRef.current }),
+      });
+
+      const ct = res.headers.get('content-type') || '';
+
+      // Guard against HTML error pages (misconfigured proxy, 404, etc.)
+      if (!ct.includes('application/json')) {
+        const raw = await res.text();
+        throw new Error(
+          res.status === 503
+            ? 'Gumdrop is not configured yet. Ask your admin to set the WXO_API_KEY secret.'
+            : `Unexpected response (${res.status}). Check console for details.`
+        );
+      }
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || `Server error ${res.status}`);
+      }
+
+      // Extract assistant text from Orchestrate response envelope
+      // The Agent Completions API wraps the reply in data.message.output.generic[]
+      // or data.message.choices[0].message.content (OpenAI-compat mode)
+      let replyText = '';
+      const msg = data.message;
+      if (msg?.output?.generic?.length) {
+        replyText = msg.output.generic
+          .filter((g) => g.response_type === 'text')
+          .map((g) => g.text)
+          .join('\n');
+      } else if (msg?.choices?.[0]?.message?.content) {
+        replyText = msg.choices[0].message.content;
+      } else if (typeof msg === 'string') {
+        replyText = msg;
+      } else {
+        replyText = 'I received a response but could not parse it. Please try again.';
+      }
+
+      // Persist session_id for multi-turn context
+      if (msg?.context?.global?.session_id) {
+        sessionRef.current = msg.context.global.session_id;
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        { id: Date.now().toString() + '-bot', role: 'assistant', text: replyText },
+      ]);
+    } catch (err) {
+      console.error('Gumdrop agent error:', err);
+      setError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
 
   return (
     <div className="advisor-page" id="chat">
 
-      {/* ── Sidebar ───────────────────────────────────────────────────────── */}
+      {/* ── Left sidebar ──────────────────────────────────────────────────── */}
       <aside className="advisor-sidebar">
+
+        {/* Advisor identity card */}
         <div className="advisor-sidebar-header">
           <div className="advisor-avatar-lg">
-            <svg viewBox="0 0 24 24" fill="none" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <svg viewBox="0 0 24 24" fill="none" width="22" height="22">
               <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" fill="currentColor"/>
             </svg>
           </div>
           <div className="advisor-sidebar-identity">
-            <span className="advisor-sidebar-name">Financial Advisor AI</span>
+            <span className="advisor-sidebar-name">Gumdrop AI</span>
             <span className="advisor-sidebar-status">
               <span className="advisor-status-dot" />
               Online · IBM watsonx
@@ -1213,16 +1341,30 @@ function ChatView({ username }) {
           </div>
         </div>
 
-        {/* Quick actions in sidebar */}
+        {/* Fintech summary cards */}
+        <div className="advisor-fin-cards">
+          {FIN_CARDS.map((c) => (
+            <div key={c.id} className="advisor-fin-card"
+              style={{ background: c.bg, borderColor: c.border }}>
+              <span className="advisor-fin-card-title">{c.title}</span>
+              <span className="advisor-fin-card-value" style={{ color: c.color }}>{c.value}</span>
+              <span className="advisor-fin-card-sub">{c.sub}</span>
+              <span className={`advisor-fin-card-trend${c.up ? ' up' : ' down'}`}>
+                {c.up ? '↑' : '↓'} {c.trend}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Quick-action chips */}
         <div className="advisor-sidebar-actions">
           <p className="advisor-quick-label">Quick actions</p>
           <div className="advisor-sidebar-chips">
-            {QUICK_ACTIONS.map(({ label, prompt }) => (
-              <button
-                key={label}
-                className="advisor-quick-btn"
-                onClick={() => sendToEmbed(prompt)}
-              >
+            {QUICK_ACTIONS.map(({ label, icon, prompt }) => (
+              <button key={label} className="advisor-quick-btn"
+                disabled={loading}
+                onClick={() => sendMessage(prompt)}>
+                <span className="advisor-quick-icon" aria-hidden="true">{icon}</span>
                 {label}
               </button>
             ))}
@@ -1234,20 +1376,20 @@ function ChatView({ username }) {
         </p>
       </aside>
 
-      {/* ── Main: WxO embed fills this pane ───────────────────────────────── */}
+      {/* ── Main chat panel ────────────────────────────────────────────────── */}
       <div className="advisor-main">
 
-        {/* Branded topbar sits above the embed */}
+        {/* Branded topbar */}
         <div className="advisor-topbar">
           <div className="advisor-topbar-left">
             <div className="advisor-avatar-sm">
-              <svg viewBox="0 0 24 24" fill="none" width="16" height="16" xmlns="http://www.w3.org/2000/svg">
+              <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" fill="currentColor"/>
               </svg>
             </div>
             <div>
-              <p className="advisor-topbar-name">Financial Advisor AI</p>
-              <p className="advisor-topbar-sub">Powered by IBM watsonx · Candyland Bank</p>
+              <p className="advisor-topbar-name">Gumdrop — Financial Advisor AI</p>
+              <p className="advisor-topbar-sub">Powered by IBM watsonx Orchestrate · Candyland Bank</p>
             </div>
           </div>
           <div className="advisor-status-pill">
@@ -1256,8 +1398,80 @@ function ChatView({ username }) {
           </div>
         </div>
 
-        {/* The WxO embed renders its full chat UI inside this div */}
-        <div id={embedId} className="wxo-embed-host" />
+        {/* ── Message list ── */}
+        <div className="gdrop-messages" role="log" aria-live="polite" aria-label="Chat messages">
+          {messages.map((m) =>
+            m.role === 'user' ? (
+              <div key={m.id} className="gdrop-row gdrop-row--user">
+                <div className="gdrop-bubble gdrop-bubble--user">{m.text}</div>
+                <div className="gdrop-avatar gdrop-avatar--user" aria-hidden="true">
+                  {(username?.[0] ?? 'U').toUpperCase()}
+                </div>
+              </div>
+            ) : (
+              <div key={m.id} className="gdrop-row gdrop-row--bot">
+                <div className="gdrop-avatar gdrop-avatar--bot" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" width="14" height="14">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" fill="currentColor"/>
+                  </svg>
+                </div>
+                <GumdropBubble text={m.text} />
+              </div>
+            )
+          )}
+          {loading && (
+            <div className="gdrop-row gdrop-row--bot">
+              <div className="gdrop-avatar gdrop-avatar--bot" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" width="14" height="14">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" fill="currentColor"/>
+                </svg>
+              </div>
+              <TypingDots />
+            </div>
+          )}
+          {error && (
+            <div className="gdrop-error-banner">
+              <span>⚠ {error}</span>
+              <button className="gdrop-error-dismiss" onClick={() => setError('')}>✕</button>
+            </div>
+          )}
+          <div ref={bottomRef} />
+        </div>
+
+        {/* ── Input bar ── */}
+        <div className="gdrop-input-area">
+          <div className="gdrop-input-wrap">
+            <textarea
+              ref={inputRef}
+              className="gdrop-input"
+              placeholder="Ask Gumdrop anything about your finances…"
+              value={input}
+              rows={1}
+              onChange={(e) => {
+                setInput(e.target.value);
+                // Auto-grow up to 5 lines
+                e.target.style.height = 'auto';
+                e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+              }}
+              onKeyDown={handleKeyDown}
+              disabled={loading}
+              aria-label="Type your message"
+            />
+            <button
+              className="gdrop-send-btn"
+              onClick={() => sendMessage()}
+              disabled={!input.trim() || loading}
+              aria-label="Send message"
+            >
+              <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" fill="currentColor"/>
+              </svg>
+            </button>
+          </div>
+          <p className="gdrop-input-hint">
+            Press <kbd>Enter</kbd> to send · <kbd>Shift+Enter</kbd> for a new line
+          </p>
+        </div>
 
       </div>
     </div>
