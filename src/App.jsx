@@ -1090,7 +1090,7 @@ function DashboardPage({ profile, username }) {
         {activePanel === 'spending'  && <PanelSpending />}
         {activePanel === 'portfolio' && <PanelPortfolio profile={profile} />}
         {activePanel === 'trades'    && <PanelPortfolioPie />}
-        {activePanel === 'chat'      && <ChatView profile={profile} username={username} />}
+        {activePanel === 'chat'      && <ChatView username={username} />}
       </main>
 
       {/* ── Bottom navigation bar ── */}
@@ -1119,198 +1119,85 @@ function DashboardPage({ profile, username }) {
   );
 }
 
-// ── Chat helpers ──────────────────────────────────────────────────────────────
-function makeSession() {
-  return { id: Date.now(), title: 'New chat', pinned: false };
-}
+// ── Watson Orchestrate embed config ───────────────────────────────────────────
+const WXO_HOST   = 'https://dl.watson-orchestrate.ibm.com';
+const WXO_CONFIG = {
+  orchestrationID: '20260716-1817-5864-6037-ecdb2563fd26_20260716-1822-4087-90fe-3b3ba1d4cc84',
+  hostURL:         WXO_HOST,
+  rootElementID:   'wxo-embed-root',
+  chatOptions: {
+    agentId:            '77dfacb4-0d9a-4cd8-bf9c-6db1c7e554aa',
+    agentEnvironmentId: 'faad14aa-f677-4cac-ae54-fdb68514856f',
+  },
+};
 
-// ── Financial Advisor Chat ─────────────────────────────────────────────────────
-
-function TypingDots() {
-  return (
-    <div className="typing-dots" aria-label="Gumdrop is thinking">
-      <span /><span /><span />
-    </div>
-  );
-}
-
-function fmtTime(ts) {
-  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+// Inject the WxO loader script once per page load
+let _wxoLoaded = false;
+function loadWxoEmbed(containerId) {
+  window.wxOConfiguration = { ...WXO_CONFIG, rootElementID: containerId };
+  if (_wxoLoaded) {
+    // Script already in DOM — just re-init so the embed mounts into the new container
+    window.wxoLoader?.init();
+    return;
+  }
+  _wxoLoaded = true;
+  const s = document.createElement('script');
+  s.id  = 'wxo-loader';
+  s.src = `${WXO_HOST}/wxochat/wxoLoader.js?embed=true`;
+  s.onload = () => window.wxoLoader?.init();
+  document.head.appendChild(s);
 }
 
 const QUICK_ACTIONS = [
-  { label: 'Analyze My Spending',         prompt: 'Analyze my recent spending patterns and identify where I can cut back.' },
-  { label: 'Review Crypto Portfolio',     prompt: 'Review my crypto portfolio allocation and give me risk-adjusted recommendations.' },
-  { label: 'Financial Health Score',      prompt: 'Assess my overall financial health score based on my profile and goals.' },
-  { label: 'Find Savings Opportunities',  prompt: 'Identify savings opportunities and subscriptions I can cut or reduce.' },
-  { label: 'Debt Payoff Strategy',        prompt: 'Create a debt payoff strategy optimized for my income and goals.' },
-  { label: 'Emergency Fund Analysis',     prompt: 'Analyze whether my emergency fund is sufficient for my situation.' },
-  { label: 'Budget Review',               prompt: 'Review my budget and suggest an optimized allocation for my goals.' },
-  { label: 'Goal Progress',               prompt: 'How am I tracking against each of my financial goals?' },
+  { label: 'Analyze My Spending',        prompt: 'Analyze my recent spending patterns and identify where I can cut back.' },
+  { label: 'Review Crypto Portfolio',    prompt: 'Review my crypto portfolio allocation and give me risk-adjusted recommendations.' },
+  { label: 'Financial Health Score',     prompt: 'Assess my overall financial health score based on my profile and goals.' },
+  { label: 'Find Savings Opportunities', prompt: 'Identify savings opportunities and subscriptions I can cut or reduce.' },
+  { label: 'Debt Payoff Strategy',       prompt: 'Create a debt payoff strategy optimized for my income and goals.' },
+  { label: 'Emergency Fund Analysis',    prompt: 'Analyze whether my emergency fund is sufficient for my situation.' },
+  { label: 'Budget Review',              prompt: 'Review my budget and suggest an optimized allocation for my goals.' },
+  { label: 'Goal Progress',              prompt: 'How am I tracking against each of my financial goals?' },
 ];
 
-// Render plain text with basic markdown-like formatting (bold **x**, bullet - x)
-function RichText({ text }) {
-  if (!text) return null;
-  const lines = text.split('\n');
-  return (
-    <div className="chat-rich-text">
-      {lines.map((line, i) => {
-        if (/^[-•]\s/.test(line)) {
-          return <div key={i} className="chat-rich-bullet">{line.replace(/^[-•]\s/, '')}</div>;
-        }
-        if (/^\d+\.\s/.test(line)) {
-          return <div key={i} className="chat-rich-numbered">{line}</div>;
-        }
-        // Bold: **word**
-        const parts = line.split(/(\*\*[^*]+\*\*)/g);
-        return (
-          <p key={i} className="chat-rich-para">
-            {parts.map((p, j) =>
-              p.startsWith('**') && p.endsWith('**')
-                ? <strong key={j}>{p.slice(2, -2)}</strong>
-                : p
-            )}
-          </p>
-        );
-      })}
-    </div>
-  );
+// Type a prompt into the WxO embed's textarea and submit it
+function sendToEmbed(prompt) {
+  const container = document.getElementById('wxo-embed-root');
+  if (!container) return;
+  const textarea = container.querySelector('textarea') || container.querySelector('input[type="text"]');
+  if (!textarea) return;
+  // Set value via React synthetic event pattern
+  const nativeInputSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
+    || Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+  nativeInputSetter?.call(textarea, prompt);
+  textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  // Submit after a tick so the embed state updates
+  setTimeout(() => {
+    const form   = textarea.closest('form');
+    const sendBtn = container.querySelector('button[type="submit"]')
+      || container.querySelector('[aria-label*="send" i]')
+      || container.querySelector('[aria-label*="Send" i]');
+    if (form) form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    else sendBtn?.click();
+  }, 50);
 }
 
-function ChatView({ profile, username }) {
-  const greeting = {
-    sender: 'bot',
-    text: `Welcome back${username ? `, ${username}` : ''}. I'm your AI Financial Advisor, powered by IBM watsonx.\n\nI can analyze your banking activity, investment portfolio, financial goals, and survey responses to help you improve your financial health.\n\nWhat would you like to review today?`,
-    ts: Date.now(),
-  };
+function ChatView({ username }) {
+  const embedId  = 'wxo-embed-root';
+  const [ready,  setReady]  = useState(false);
 
-  const [sessions, setSessions] = useState(() => {
-    const raw = loadSessions(username);
-    // Sanitise: drop any session whose messages array contains stale/corrupt entries
-    const valid = raw?.filter((s) =>
-      Array.isArray(s.messages) &&
-      s.messages.every((m) => typeof m.text === 'string')
-    );
-    return (valid && valid.length > 0) ? valid : [{ ...makeSession(), messages: [greeting] }];
-  });
-  const [activeIdx, setActiveIdx] = useState(0);
-
-  useEffect(() => { saveSessions(username, sessions); }, [sessions, username]);
-
-  const messages    = sessions[activeIdx].messages;
-  const setMessages = (updater) =>
-    setSessions((prev) =>
-      prev.map((s, i) =>
-        i === activeIdx
-          ? { ...s, messages: typeof updater === 'function' ? updater(s.messages) : updater }
-          : s
-      )
-    );
-
-  const [draft,      setDraft]      = useState('');
-  const [loading,    setLoading]    = useState(false);
-  const [editingIdx, setEditingIdx] = useState(null);
-  const [editDraft,  setEditDraft]  = useState('');
-  const bottomRef = useRef(null);
-  const inputRef  = useRef(null);
-
+  // Mount the WxO embed once this component renders
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const newChat = () => {
-    setSessions((prev) => [{ ...makeSession(), messages: [greeting] }, ...prev]);
-    setActiveIdx(0);
-    setDraft('');
-  };
-
-  const switchSession = (idx) => { setActiveIdx(idx); setDraft(''); };
-
-  const togglePin = (e, id) => {
-    e.stopPropagation();
-    setSessions((prev) => {
-      const updated   = prev.map((s) => s.id === id ? { ...s, pinned: !s.pinned } : s);
-      const pinned    = updated.filter((s) => s.pinned);
-      const unpinned  = updated.filter((s) => !s.pinned);
-      const reordered = [...pinned, ...unpinned];
-      const activeId  = prev[activeIdx].id;
-      setActiveIdx(reordered.findIndex((s) => s.id === activeId));
-      return reordered;
-    });
-  };
-
-  const deleteSession = (e, id) => {
-    e.stopPropagation();
-    setSessions((prev) => {
-      if (prev.length === 1) { setActiveIdx(0); return [{ ...makeSession(), messages: [greeting] }]; }
-      const next       = prev.filter((s) => s.id !== id);
-      const deletedIdx = prev.findIndex((s) => s.id === id);
-      const currentId  = prev[activeIdx].id;
-      if (currentId === id) { setActiveIdx(Math.min(deletedIdx, next.length - 1)); }
-      else                  { setActiveIdx(next.findIndex((s) => s.id === currentId)); }
-      return next;
-    });
-  };
-
-  const send = async (text, priorMessages) => {
-    const trimmed = text.trim();
-    if (!trimmed || loading) return;
-    const history = priorMessages ?? messages;
-
-    setSessions((prev) =>
-      prev.map((s, i) =>
-        i === activeIdx && s.title === 'New chat'
-          ? { ...s, title: trimmed.length > 36 ? trimmed.slice(0, 36) + '…' : trimmed }
-          : s
-      )
-    );
-    setMessages(() => [
-      ...history,
-      { sender: 'user', text: trimmed, ts: Date.now() },
-      { sender: 'bot',  text: '', pending: true, ts: Date.now() },
-    ]);
-    setDraft('');
-    setLoading(true);
-    inputRef.current?.focus();
-
-    try {
-      const res  = await fetch('/chat', {
-        method:      'POST',
-        credentials: 'same-origin',
-        headers:     { 'Content-Type': 'application/json' },
-        body:        JSON.stringify({
-          userMessage: trimmed,
-          profile,
-          messages: history.filter((m) => !m.pending).slice(-12),
-        }),
-      });
-      const data  = await res.json();
-      const reply = res.ok
-        ? (data.reply || 'Sorry, I received an empty response.')
-        : (data.error || 'Something went wrong. Please try again.');
-      setMessages((prev) => prev.map((m) => (m.pending ? { sender: 'bot', text: reply, ts: Date.now() } : m)));
-    } catch (err) {
-      setMessages((prev) => prev.map((m) =>
-        m.pending ? { sender: 'bot', text: `Network error: ${err.message}. In dev run \`npm run server\`. In production ensure WATSONX_API_KEY and WATSONX_PROJECT_ID are set in Cloudflare Pages secrets.`, ts: Date.now() } : m
-      ));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleKey = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(draft); }
-  };
-
-  const showQuickActions = messages.length <= 1;
+    loadWxoEmbed(embedId);
+    // Give the embed a moment to inject its DOM before showing quick actions
+    const t = setTimeout(() => setReady(true), 800);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
     <div className="advisor-page" id="chat">
 
-      {/* ── Session sidebar ───────────────────────────────────────────────── */}
+      {/* ── Sidebar ───────────────────────────────────────────────────────── */}
       <aside className="advisor-sidebar">
-        {/* Advisor identity */}
         <div className="advisor-sidebar-header">
           <div className="advisor-avatar-lg">
             <svg viewBox="0 0 24 24" fill="none" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
@@ -1326,60 +1213,31 @@ function ChatView({ profile, username }) {
           </div>
         </div>
 
-        <button className="advisor-new-btn" onClick={newChat}>
-          <svg viewBox="0 0 16 16" fill="none" width="13" height="13" xmlns="http://www.w3.org/2000/svg">
-            <path d="M8 1v14M1 8h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-          </svg>
-          New conversation
-        </button>
-
-        <div className="chat-history-list">
-          {sessions.some((s) => s.pinned) && <span className="chat-history-group-label">Pinned</span>}
-          {sessions.filter((s) => s.pinned).map((s) => (
-            <div key={s.id}
-              className={`chat-history-item${sessions.indexOf(s) === activeIdx ? ' chat-history-item--active' : ''}`}
-              onClick={() => switchSession(sessions.indexOf(s))} role="button" tabIndex={0}
-              onKeyDown={(e) => e.key === 'Enter' && switchSession(sessions.indexOf(s))}
-            >
-              <svg viewBox="0 0 16 16" fill="none" width="13" height="13" xmlns="http://www.w3.org/2000/svg" style={{flexShrink:0}}>
-                <path d="M14 1H2a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3l3 3 3-3h3a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
-              </svg>
-              <span className="chat-history-item-title">{s.title}</span>
-              <div className="chat-history-item-actions">
-                <button className="chat-history-pin-btn chat-history-pin-btn--active" onClick={(e) => togglePin(e, s.id)} aria-label="Unpin" title="Unpin"><PinFilled size={14} /></button>
-                <button className="chat-history-del-btn" onClick={(e) => deleteSession(e, s.id)} aria-label="Delete" title="Delete"><TrashCan size={14} /></button>
-              </div>
-            </div>
-          ))}
-          {sessions.some((s) => s.pinned) && sessions.some((s) => !s.pinned) && <span className="chat-history-group-label">Recent</span>}
-          {sessions.filter((s) => !s.pinned).map((s) => (
-            <div key={s.id}
-              className={`chat-history-item${sessions.indexOf(s) === activeIdx ? ' chat-history-item--active' : ''}`}
-              onClick={() => switchSession(sessions.indexOf(s))} role="button" tabIndex={0}
-              onKeyDown={(e) => e.key === 'Enter' && switchSession(sessions.indexOf(s))}
-            >
-              <svg viewBox="0 0 16 16" fill="none" width="13" height="13" xmlns="http://www.w3.org/2000/svg" style={{flexShrink:0}}>
-                <path d="M14 1H2a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3l3 3 3-3h3a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
-              </svg>
-              <span className="chat-history-item-title">{s.title}</span>
-              <div className="chat-history-item-actions">
-                <button className="chat-history-pin-btn" onClick={(e) => togglePin(e, s.id)} aria-label="Pin" title="Pin"><Pin size={14} /></button>
-                <button className="chat-history-del-btn" onClick={(e) => deleteSession(e, s.id)} aria-label="Delete" title="Delete"><TrashCan size={14} /></button>
-              </div>
-            </div>
-          ))}
+        {/* Quick actions in sidebar */}
+        <div className="advisor-sidebar-actions">
+          <p className="advisor-quick-label">Quick actions</p>
+          <div className="advisor-sidebar-chips">
+            {QUICK_ACTIONS.map(({ label, prompt }) => (
+              <button
+                key={label}
+                className="advisor-quick-btn"
+                onClick={() => sendToEmbed(prompt)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Disclaimer */}
         <p className="advisor-disclaimer">
           Financial insights are for educational purposes only and do not constitute financial, legal, tax, or investment advice.
         </p>
       </aside>
 
-      {/* ── Main conversation area ────────────────────────────────────────── */}
+      {/* ── Main: WxO embed fills this pane ───────────────────────────────── */}
       <div className="advisor-main">
 
-        {/* Top header bar */}
+        {/* Branded topbar sits above the embed */}
         <div className="advisor-topbar">
           <div className="advisor-topbar-left">
             <div className="advisor-avatar-sm">
@@ -1398,110 +1256,8 @@ function ChatView({ profile, username }) {
           </div>
         </div>
 
-        {/* Messages */}
-        <div className="advisor-messages" role="log" aria-live="polite" aria-label="Conversation">
-          {messages.map((msg, i) => (
-            <div key={i} className={`advisor-row advisor-row--${msg.sender}`}>
-              {msg.sender !== 'user' && (
-                <div className="advisor-avatar-msg">
-                  <svg viewBox="0 0 24 24" fill="none" width="14" height="14" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" fill="currentColor"/>
-                  </svg>
-                </div>
-              )}
-              <div className="advisor-row-content">
-                <div className="advisor-row-meta">
-                  <span className="advisor-row-name">
-                    {msg.sender === 'user' ? (username || 'You') : 'Financial Advisor AI'}
-                  </span>
-                  {msg.ts && <span className="advisor-row-time">{fmtTime(msg.ts)}</span>}
-                </div>
-                {editingIdx === i ? (
-                  <div className="chat-edit-wrap">
-                    <TextArea
-                      id={`chat-edit-${i}`} labelText="" hideLabel
-                      className="chat-edit-textarea"
-                      value={editDraft}
-                      onChange={(e) => setEditDraft(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          if (editDraft.trim()) { const prior = messages.slice(0, i); setEditingIdx(null); send(editDraft.trim(), prior); }
-                        }
-                        if (e.key === 'Escape') setEditingIdx(null);
-                      }}
-                      autoFocus
-                    />
-                    <div className="chat-edit-actions">
-                      <Button kind="primary" size="sm" onClick={() => { if (editDraft.trim()) { const prior = messages.slice(0, i); setEditingIdx(null); send(editDraft.trim(), prior); } }}>Save</Button>
-                      <Button kind="ghost"   size="sm" onClick={() => setEditingIdx(null)}>Cancel</Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className={`advisor-bubble${msg.pending ? ' advisor-bubble--pending' : ''}${msg.sender === 'user' ? ' advisor-bubble--user' : ' advisor-bubble--bot'}`}>
-                    {msg.pending ? <TypingDots /> : <RichText text={msg.text} />}
-                    {msg.sender === 'user' && !msg.pending && (
-                      <button className="chat-edit-btn" onClick={() => { setEditingIdx(i); setEditDraft(msg.text); }} aria-label="Edit" title="Edit">✏️</button>
-                    )}
-                  </div>
-                )}
-              </div>
-              {msg.sender === 'user' && (
-                <div className="advisor-avatar-user">
-                  {username ? username[0].toUpperCase() : 'Y'}
-                </div>
-              )}
-            </div>
-          ))}
-          <div ref={bottomRef} />
-        </div>
-
-        {/* Quick actions — shown only on a fresh conversation */}
-        {showQuickActions && (
-          <div className="advisor-quick-actions">
-            <p className="advisor-quick-label">Quick actions</p>
-            <div className="advisor-quick-grid">
-              {QUICK_ACTIONS.map(({ label, prompt }) => (
-                <button
-                  key={label}
-                  className="advisor-quick-btn"
-                  onClick={() => send(prompt)}
-                  disabled={loading}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Input */}
-        <div className="advisor-input-area">
-          <div className="advisor-input-wrap">
-            <TextArea
-              ref={inputRef}
-              id="chat-input"
-              labelText="" hideLabel
-              rows={1}
-              placeholder={loading ? 'Your advisor is thinking…' : 'Ask about your finances, goals, portfolio…'}
-              value={draft}
-              disabled={loading}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={handleKey}
-            />
-            <button
-              className="advisor-send-btn"
-              onClick={() => send(draft)}
-              disabled={loading || !draft.trim()}
-              aria-label="Send message"
-            >
-              <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" width="16" height="16">
-                <path d="M2 10L18 2L12 10L18 18L2 10Z" fill="currentColor"/>
-              </svg>
-            </button>
-          </div>
-          <p className="advisor-input-hint">Enter to send · Shift+Enter for new line · Powered by IBM watsonx</p>
-        </div>
+        {/* The WxO embed renders its full chat UI inside this div */}
+        <div id={embedId} className="wxo-embed-host" />
 
       </div>
     </div>
