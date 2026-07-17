@@ -1124,50 +1124,65 @@ function makeSession() {
   return { id: Date.now(), title: 'New chat', pinned: false };
 }
 
-// ── Watson Orchestrate — inject floating widget once on first chat open ───────
-// WxO renders its own launcher FAB + popup panel. We inject the script once
-// so the widget floats over the chat page. The inline panel below is powered
-// by the existing watsonx Cloudflare Function (/chat).
-let wxoScriptInjected = false;
-function injectWxoScript() {
-  if (wxoScriptInjected || document.getElementById('wxo-loader-script')) {
-    wxoScriptInjected = true;
-    return;
-  }
-  window.wxOConfiguration = {
-    orchestrationID: '20260716-1817-5864-6037-ecdb2563fd26_20260716-1822-4087-90fe-3b3ba1d4cc84',
-    hostURL:         'https://dl.watson-orchestrate.ibm.com',
-    rootElementID:   'root',
-    chatOptions: {
-      agentId:            '77dfacb4-0d9a-4cd8-bf9c-6db1c7e554aa',
-      agentEnvironmentId: 'faad14aa-f677-4cac-ae54-fdb68514856f',
-    },
-  };
-  const script = document.createElement('script');
-  script.id  = 'wxo-loader-script';
-  script.src = `${window.wxOConfiguration.hostURL}/wxochat/wxoLoader.js?embed=true`;
-  script.addEventListener('load', () => { if (window.wxoLoader) window.wxoLoader.init(); });
-  document.head.appendChild(script);
-  wxoScriptInjected = true;
-}
+// ── Financial Advisor Chat ─────────────────────────────────────────────────────
 
 function TypingDots() {
   return (
-    <div className="typing-dots" aria-label="Gumdrop is typing">
+    <div className="typing-dots" aria-label="Gumdrop is thinking">
       <span /><span /><span />
     </div>
   );
 }
 
-const SUGGESTED_PROMPTS = [
-  'What should I invest in first?',
-  'Explain ETFs in simple terms',
-  'How do I build an emergency fund?',
-  'What is a good risk strategy for my age?',
+function fmtTime(ts) {
+  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+const QUICK_ACTIONS = [
+  { label: 'Analyze My Spending',         prompt: 'Analyze my recent spending patterns and identify where I can cut back.' },
+  { label: 'Review Crypto Portfolio',     prompt: 'Review my crypto portfolio allocation and give me risk-adjusted recommendations.' },
+  { label: 'Financial Health Score',      prompt: 'Assess my overall financial health score based on my profile and goals.' },
+  { label: 'Find Savings Opportunities',  prompt: 'Identify savings opportunities and subscriptions I can cut or reduce.' },
+  { label: 'Debt Payoff Strategy',        prompt: 'Create a debt payoff strategy optimized for my income and goals.' },
+  { label: 'Emergency Fund Analysis',     prompt: 'Analyze whether my emergency fund is sufficient for my situation.' },
+  { label: 'Budget Review',               prompt: 'Review my budget and suggest an optimized allocation for my goals.' },
+  { label: 'Goal Progress',               prompt: 'How am I tracking against each of my financial goals?' },
 ];
 
+// Render plain text with basic markdown-like formatting (bold **x**, bullet - x)
+function RichText({ text }) {
+  const lines = text.split('\n');
+  return (
+    <div className="chat-rich-text">
+      {lines.map((line, i) => {
+        if (/^[-•]\s/.test(line)) {
+          return <div key={i} className="chat-rich-bullet">{line.replace(/^[-•]\s/, '')}</div>;
+        }
+        if (/^\d+\.\s/.test(line)) {
+          return <div key={i} className="chat-rich-numbered">{line}</div>;
+        }
+        // Bold: **word**
+        const parts = line.split(/(\*\*[^*]+\*\*)/g);
+        return (
+          <p key={i} className="chat-rich-para">
+            {parts.map((p, j) =>
+              p.startsWith('**') && p.endsWith('**')
+                ? <strong key={j}>{p.slice(2, -2)}</strong>
+                : p
+            )}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 function ChatView({ profile, username }) {
-  const greeting = { sender: 'system', text: buildGreeting(profile) };
+  const greeting = {
+    sender: 'bot',
+    text: `Welcome back${username ? `, ${username}` : ''}. I'm your AI Financial Advisor, powered by IBM watsonx.\n\nI can analyze your banking activity, investment portfolio, financial goals, and survey responses to help you improve your financial health.\n\nWhat would you like to review today?`,
+    ts: Date.now(),
+  };
 
   const [sessions, setSessions] = useState(() => {
     const saved = loadSessions(username);
@@ -1175,13 +1190,7 @@ function ChatView({ profile, username }) {
   });
   const [activeIdx, setActiveIdx] = useState(0);
 
-  // Inject WxO floating widget once when the chat panel opens
-  useEffect(() => { injectWxoScript(); }, []);
-
-  // Persist sessions to localStorage whenever they change
-  useEffect(() => {
-    saveSessions(username, sessions);
-  }, [sessions, username]);
+  useEffect(() => { saveSessions(username, sessions); }, [sessions, username]);
 
   const messages    = sessions[activeIdx].messages;
   const setMessages = (updater) =>
@@ -1228,18 +1237,12 @@ function ChatView({ profile, username }) {
   const deleteSession = (e, id) => {
     e.stopPropagation();
     setSessions((prev) => {
-      if (prev.length === 1) {
-        setActiveIdx(0);
-        return [{ ...makeSession(), messages: [greeting] }];
-      }
+      if (prev.length === 1) { setActiveIdx(0); return [{ ...makeSession(), messages: [greeting] }]; }
       const next       = prev.filter((s) => s.id !== id);
       const deletedIdx = prev.findIndex((s) => s.id === id);
       const currentId  = prev[activeIdx].id;
-      if (currentId === id) {
-        setActiveIdx(Math.min(deletedIdx, next.length - 1));
-      } else {
-        setActiveIdx(next.findIndex((s) => s.id === currentId));
-      }
+      if (currentId === id) { setActiveIdx(Math.min(deletedIdx, next.length - 1)); }
+      else                  { setActiveIdx(next.findIndex((s) => s.id === currentId)); }
       return next;
     });
   };
@@ -1252,14 +1255,14 @@ function ChatView({ profile, username }) {
     setSessions((prev) =>
       prev.map((s, i) =>
         i === activeIdx && s.title === 'New chat'
-          ? { ...s, title: trimmed.length > 30 ? trimmed.slice(0, 30) + '…' : trimmed }
+          ? { ...s, title: trimmed.length > 36 ? trimmed.slice(0, 36) + '…' : trimmed }
           : s
       )
     );
     setMessages(() => [
       ...history,
-      { sender: 'user', text: trimmed },
-      { sender: 'bot',  text: '',      pending: true },
+      { sender: 'user', text: trimmed, ts: Date.now() },
+      { sender: 'bot',  text: '', pending: true, ts: Date.now() },
     ]);
     setDraft('');
     setLoading(true);
@@ -1272,17 +1275,17 @@ function ChatView({ profile, username }) {
         body:    JSON.stringify({
           userMessage: trimmed,
           profile,
-          messages: history.filter((m) => !m.pending).slice(-10),
+          messages: history.filter((m) => !m.pending).slice(-12),
         }),
       });
       const data  = await res.json();
       const reply = res.ok
         ? (data.reply || 'Sorry, I received an empty response.')
         : (data.error || 'Something went wrong. Please try again.');
-      setMessages((prev) => prev.map((m) => (m.pending ? { sender: 'bot', text: reply } : m)));
+      setMessages((prev) => prev.map((m) => (m.pending ? { sender: 'bot', text: reply, ts: Date.now() } : m)));
     } catch {
       setMessages((prev) => prev.map((m) =>
-        m.pending ? { sender: 'bot', text: 'Could not reach Gumdrop. Please try again.' } : m
+        m.pending ? { sender: 'bot', text: 'Could not reach the AI advisor. Please try again.', ts: Date.now() } : m
       ));
     } finally {
       setLoading(false);
@@ -1293,34 +1296,42 @@ function ChatView({ profile, username }) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(draft); }
   };
 
-  return (
-    <div className="chat-page" id="chat">
+  const showQuickActions = messages.length <= 1;
 
-      {/* ── History sidebar ───────────────────────────────────────────────── */}
-      <aside className="chat-history-sidebar">
-        <Button
-          kind="tertiary"
-          size="sm"
-          className="chat-history-new-btn"
-          onClick={newChat}
-          renderIcon={() => (
-            <svg viewBox="0 0 16 16" fill="none" width="14" height="14" xmlns="http://www.w3.org/2000/svg">
-              <path d="M8 1v14M1 8h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+  return (
+    <div className="advisor-page" id="chat">
+
+      {/* ── Session sidebar ───────────────────────────────────────────────── */}
+      <aside className="advisor-sidebar">
+        {/* Advisor identity */}
+        <div className="advisor-sidebar-header">
+          <div className="advisor-avatar-lg">
+            <svg viewBox="0 0 24 24" fill="none" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" fill="currentColor"/>
             </svg>
-          )}
-        >
-          New chat
-        </Button>
+          </div>
+          <div className="advisor-sidebar-identity">
+            <span className="advisor-sidebar-name">Financial Advisor AI</span>
+            <span className="advisor-sidebar-status">
+              <span className="advisor-status-dot" />
+              Online · IBM watsonx
+            </span>
+          </div>
+        </div>
+
+        <button className="advisor-new-btn" onClick={newChat}>
+          <svg viewBox="0 0 16 16" fill="none" width="13" height="13" xmlns="http://www.w3.org/2000/svg">
+            <path d="M8 1v14M1 8h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+          New conversation
+        </button>
+
         <div className="chat-history-list">
-          {sessions.some((s) => s.pinned) && (
-            <span className="chat-history-group-label">Pinned</span>
-          )}
+          {sessions.some((s) => s.pinned) && <span className="chat-history-group-label">Pinned</span>}
           {sessions.filter((s) => s.pinned).map((s) => (
-            <div
-              key={s.id}
+            <div key={s.id}
               className={`chat-history-item${sessions.indexOf(s) === activeIdx ? ' chat-history-item--active' : ''}`}
-              onClick={() => switchSession(sessions.indexOf(s))}
-              role="button" tabIndex={0}
+              onClick={() => switchSession(sessions.indexOf(s))} role="button" tabIndex={0}
               onKeyDown={(e) => e.key === 'Enter' && switchSession(sessions.indexOf(s))}
             >
               <svg viewBox="0 0 16 16" fill="none" width="13" height="13" xmlns="http://www.w3.org/2000/svg" style={{flexShrink:0}}>
@@ -1333,15 +1344,11 @@ function ChatView({ profile, username }) {
               </div>
             </div>
           ))}
-          {sessions.some((s) => s.pinned) && sessions.some((s) => !s.pinned) && (
-            <span className="chat-history-group-label">Recent</span>
-          )}
+          {sessions.some((s) => s.pinned) && sessions.some((s) => !s.pinned) && <span className="chat-history-group-label">Recent</span>}
           {sessions.filter((s) => !s.pinned).map((s) => (
-            <div
-              key={s.id}
+            <div key={s.id}
               className={`chat-history-item${sessions.indexOf(s) === activeIdx ? ' chat-history-item--active' : ''}`}
-              onClick={() => switchSession(sessions.indexOf(s))}
-              role="button" tabIndex={0}
+              onClick={() => switchSession(sessions.indexOf(s))} role="button" tabIndex={0}
               onKeyDown={(e) => e.key === 'Enter' && switchSession(sessions.indexOf(s))}
             >
               <svg viewBox="0 0 16 16" fill="none" width="13" height="13" xmlns="http://www.w3.org/2000/svg" style={{flexShrink:0}}>
@@ -1355,25 +1362,57 @@ function ChatView({ profile, username }) {
             </div>
           ))}
         </div>
+
+        {/* Disclaimer */}
+        <p className="advisor-disclaimer">
+          Financial insights are for educational purposes only and do not constitute financial, legal, tax, or investment advice.
+        </p>
       </aside>
 
-      {/* ── Main chat area ────────────────────────────────────────────────── */}
-      <div className="chat-main">
+      {/* ── Main conversation area ────────────────────────────────────────── */}
+      <div className="advisor-main">
+
+        {/* Top header bar */}
+        <div className="advisor-topbar">
+          <div className="advisor-topbar-left">
+            <div className="advisor-avatar-sm">
+              <svg viewBox="0 0 24 24" fill="none" width="16" height="16" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" fill="currentColor"/>
+              </svg>
+            </div>
+            <div>
+              <p className="advisor-topbar-name">Financial Advisor AI</p>
+              <p className="advisor-topbar-sub">Powered by IBM watsonx · Candyland Bank</p>
+            </div>
+          </div>
+          <div className="advisor-status-pill">
+            <span className="advisor-status-dot" />
+            Online
+          </div>
+        </div>
 
         {/* Messages */}
-        <div className="chat-messages" role="log" aria-live="polite" aria-label="Conversation">
+        <div className="advisor-messages" role="log" aria-live="polite" aria-label="Conversation">
           {messages.map((msg, i) => (
-            <div key={i} className={`chat-row chat-row--${msg.sender}`}>
+            <div key={i} className={`advisor-row advisor-row--${msg.sender}`}>
               {msg.sender !== 'user' && (
-                <div className="chat-avatar chat-avatar--bot">G</div>
+                <div className="advisor-avatar-msg">
+                  <svg viewBox="0 0 24 24" fill="none" width="14" height="14" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" fill="currentColor"/>
+                  </svg>
+                </div>
               )}
-              <div className="chat-row-content">
-                <span className="chat-row-label">{SENDER_LABEL[msg.sender]}</span>
+              <div className="advisor-row-content">
+                <div className="advisor-row-meta">
+                  <span className="advisor-row-name">
+                    {msg.sender === 'user' ? (username || 'You') : 'Financial Advisor AI'}
+                  </span>
+                  {msg.ts && <span className="advisor-row-time">{fmtTime(msg.ts)}</span>}
+                </div>
                 {editingIdx === i ? (
                   <div className="chat-edit-wrap">
                     <TextArea
-                      id={`chat-edit-${i}`}
-                      labelText="" hideLabel
+                      id={`chat-edit-${i}`} labelText="" hideLabel
                       className="chat-edit-textarea"
                       value={editDraft}
                       onChange={(e) => setEditDraft(e.target.value)}
@@ -1392,16 +1431,16 @@ function ChatView({ profile, username }) {
                     </div>
                   </div>
                 ) : (
-                  <div className={`chat-bubble-new${msg.pending ? ' chat-bubble-new--pending' : ''}${msg.sender === 'user' ? ' chat-bubble-new--user' : ''}`}>
-                    {msg.pending ? <TypingDots /> : msg.text}
+                  <div className={`advisor-bubble${msg.pending ? ' advisor-bubble--pending' : ''}${msg.sender === 'user' ? ' advisor-bubble--user' : ' advisor-bubble--bot'}`}>
+                    {msg.pending ? <TypingDots /> : <RichText text={msg.text} />}
                     {msg.sender === 'user' && !msg.pending && (
-                      <button className="chat-edit-btn" onClick={() => { setEditingIdx(i); setEditDraft(msg.text); }} aria-label="Edit message" title="Edit">✏️</button>
+                      <button className="chat-edit-btn" onClick={() => { setEditingIdx(i); setEditDraft(msg.text); }} aria-label="Edit" title="Edit">✏️</button>
                     )}
                   </div>
                 )}
               </div>
               {msg.sender === 'user' && (
-                <div className="chat-avatar chat-avatar--user">
+                <div className="advisor-avatar-user">
                   {username ? username[0].toUpperCase() : 'Y'}
                 </div>
               )}
@@ -1410,43 +1449,51 @@ function ChatView({ profile, username }) {
           <div ref={bottomRef} />
         </div>
 
-        {/* Input */}
-        <div className="chat-input-area">
-          {messages.length <= 1 && (
-            <div className="chat-inline-suggestions">
-              {SUGGESTED_PROMPTS.map((p) => (
-                <Tag key={p} type="blue" className="chat-inline-suggestion-btn"
-                  onClick={() => !loading && send(p)}
-                  style={{ cursor: loading ? 'not-allowed' : 'pointer' }}
-                >{p}</Tag>
+        {/* Quick actions — shown only on a fresh conversation */}
+        {showQuickActions && (
+          <div className="advisor-quick-actions">
+            <p className="advisor-quick-label">Quick actions</p>
+            <div className="advisor-quick-grid">
+              {QUICK_ACTIONS.map(({ label, prompt }) => (
+                <button
+                  key={label}
+                  className="advisor-quick-btn"
+                  onClick={() => send(prompt)}
+                  disabled={loading}
+                >
+                  {label}
+                </button>
               ))}
             </div>
-          )}
-          <div className="chat-input-wrap">
+          </div>
+        )}
+
+        {/* Input */}
+        <div className="advisor-input-area">
+          <div className="advisor-input-wrap">
             <TextArea
               ref={inputRef}
               id="chat-input"
               labelText="" hideLabel
               rows={1}
-              placeholder={loading ? 'Gumdrop is thinking…' : 'Ask me anything about investing…'}
+              placeholder={loading ? 'Your advisor is thinking…' : 'Ask about your finances, goals, portfolio…'}
               value={draft}
               disabled={loading}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={handleKey}
             />
-            <Button
-              kind="primary" size="sm"
+            <button
+              className="advisor-send-btn"
               onClick={() => send(draft)}
               disabled={loading || !draft.trim()}
-              aria-label="Send message" hasIconOnly iconDescription="Send message"
-              renderIcon={() => (
-                <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="18">
-                  <path d="M2 10L18 2L12 10L18 18L2 10Z" fill="currentColor" />
-                </svg>
-              )}
-            />
+              aria-label="Send message"
+            >
+              <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" width="16" height="16">
+                <path d="M2 10L18 2L12 10L18 18L2 10Z" fill="currentColor"/>
+              </svg>
+            </button>
           </div>
-          <p className="chat-input-hint">Press Enter to send · Shift+Enter for new line</p>
+          <p className="advisor-input-hint">Enter to send · Shift+Enter for new line · Powered by IBM watsonx</p>
         </div>
 
       </div>
