@@ -35,7 +35,7 @@ const {
 
 // ── watsonx Orchestrate constants (AWS MCSP instance) ─────────────────────────
 const WXO_INSTANCE_URL = 'https://api.dl.watson-orchestrate.ibm.com/instances/20260716-1822-4087-90fe-3b3ba1d4cc84';
-const WXO_AGENT_ID     = '77dfacb4-0d9a-4cd8-bf9c-6db1c7e554aa';
+const WXO_AGENT_ID     = 'a9e0ab50-e784-458e-b631-0946779be803';
 const MCSP_TOKEN_URL   = 'https://iam.platform.saas.ibm.com/siusermgr/api/1.0/apikeys/token';
 const COMPLETIONS_URL  = `${WXO_INSTANCE_URL}/v1/orchestrate/${WXO_AGENT_ID}/chat/completions`;
 

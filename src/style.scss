@@ -2107,6 +2107,723 @@ body {
   strong { font-weight: 700; }
 }
 
+
+// ── Panel shared ────────────────────────────────────────────────────────────────
+.panel-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: $spacing-05;
+  flex-wrap: wrap;
+}
+
+.panel-tab-row {
+  display: flex;
+  gap: $spacing-02;
+  flex-wrap: wrap;
+}
+
+.panel-tab {
+  @include type-style('label-01');
+  padding: $spacing-02 $spacing-04;
+  border: 1.5px solid #fbc4d9;
+  border-radius: 2rem;
+  background: #ffffff;
+  color: #9d2256;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 120ms ease, border-color 120ms ease;
+
+  &--active {
+    background: linear-gradient(135deg, #c0356a, #9d2256);
+    color: #ffffff;
+    border-color: transparent;
+  }
+
+  &:not(.panel-tab--active):hover { background: #fce7f3; }
+  &:focus, &:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(244,114,160,0.4); }
+}
+
+.panel-loading {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  padding: $spacing-07 0;
+  @include type-style('body-01');
+  color: var(--cds-text-secondary);
+}
+
+.panel-loading-spinner {
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid #fbc4d9;
+  border-top-color: #c0356a;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.panel-error {
+  @include type-style('body-01');
+  color: #a2191f;
+  padding: $spacing-05;
+  background: #fff1f1;
+  border: 1px solid #ffd7d9;
+  border-radius: 0.75rem;
+}
+
+.panel-hint {
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+  background: #fff8fa;
+  border: 1px solid #fbc4d9;
+  border-radius: 0.5rem;
+  padding: $spacing-03 $spacing-04;
+  margin: 0;
+}
+
+// ── Spending Intelligence Panel ────────────────────────────────────────────────
+.spend-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: $spacing-04;
+
+  @include breakpoint-down(md) { grid-template-columns: 1fr; }
+}
+
+.spend-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: $spacing-05;
+  border-radius: 0.85rem;
+  border: 1.5px solid #fbc4d9;
+  background: #fff8fa;
+
+  &--green { border-color: #a7f3d0; background: #f0fdf9; }
+  &--red   { border-color: #ffd7d9; background: #fff1f1; }
+}
+
+.spend-summary-label {
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.spend-summary-value {
+  @include type-style('heading-04');
+  color: var(--cds-text-primary);
+  font-weight: 700;
+
+  .spend-summary-card--green & { color: #059669; }
+  .spend-summary-card--red   & { color: #da1e28; }
+}
+
+.spend-summary-sub {
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+}
+
+.spend-section-title {
+  @include type-style('body-short-02');
+  font-weight: 600;
+  color: var(--cds-text-primary);
+  margin: 0;
+}
+
+.spend-cats {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
+.spend-cat-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.spend-cat-meta {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.spend-cat-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.spend-cat-name {
+  @include type-style('body-01');
+  flex: 1;
+  color: var(--cds-text-primary);
+}
+
+.spend-cat-pct {
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+  width: 2.5rem;
+  text-align: right;
+}
+
+.spend-cat-amt {
+  @include type-style('label-01');
+  font-weight: 600;
+  color: var(--cds-text-primary);
+  font-family: 'IBM Plex Mono', monospace;
+  width: 5rem;
+  text-align: right;
+}
+
+.spend-cat-bar-track {
+  height: 5px;
+  background: #fce7f3;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.spend-cat-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 400ms ease;
+}
+
+.spend-cat-chip {
+  @include type-style('label-01');
+  padding: 0.1rem 0.5rem;
+  border-radius: 2rem;
+  font-weight: 500;
+}
+
+.spend-trend {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
+.spend-trend-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: $spacing-05;
+  height: 100px;
+}
+
+.spend-trend-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: $spacing-02;
+  flex: 1;
+}
+
+.spend-trend-bar-group {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 88px;
+}
+
+.spend-trend-bar {
+  width: 16px;
+  border-radius: 3px 3px 0 0;
+  transition: height 400ms ease;
+  min-height: 4px;
+
+  &--income  { background: #24a148; }
+  &--expense { background: #f472a0; }
+}
+
+.spend-trend-label {
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+}
+
+.spend-trend-legend {
+  display: flex;
+  align-items: center;
+  gap: $spacing-04;
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+}
+
+.spend-trend-legend-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  margin-right: 0.25rem;
+
+  &--income  { background: #24a148; }
+  &--expense { background: #f472a0; }
+}
+
+.spend-unusual {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
+.spend-unusual-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $spacing-03 $spacing-04;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 0.5rem;
+  gap: $spacing-04;
+}
+
+.spend-unusual-desc {
+  @include type-style('body-01');
+  color: var(--cds-text-primary);
+  display: block;
+  font-weight: 500;
+}
+
+.spend-unusual-reason {
+  @include type-style('label-01');
+  color: #7c5c00;
+  display: block;
+}
+
+// Subscription summary cards
+.sub-summary {
+  display: flex;
+  gap: $spacing-04;
+  flex-wrap: wrap;
+}
+
+.sub-summary-card {
+  flex: 1;
+  min-width: 10rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: $spacing-04 $spacing-05;
+  background: #fff8fa;
+  border: 1.5px solid #fbc4d9;
+  border-radius: 0.75rem;
+}
+
+.sub-summary-label {
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sub-summary-value {
+  @include type-style('heading-04');
+  font-weight: 700;
+  color: var(--cds-text-primary);
+}
+
+// ── Portfolio Panel ─────────────────────────────────────────────────────────────
+.portfolio-net-worth-banner {
+  display: flex;
+  gap: $spacing-06;
+  flex-wrap: wrap;
+  padding: $spacing-05 $spacing-06;
+  background: linear-gradient(135deg, #fce7f3 0%, #ede9fe 100%);
+  border-radius: 0.85rem;
+  border: 1px solid #fbc4d9;
+
+  > div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+}
+
+.portfolio-nw-label {
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.portfolio-nw-value {
+  @include type-style('heading-04');
+  font-weight: 700;
+  color: var(--cds-text-primary);
+}
+
+.portfolio-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: $spacing-03;
+
+  @include breakpoint-down(md) { grid-template-columns: repeat(2, 1fr); }
+}
+
+.portfolio-metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: $spacing-04;
+  background: #fff8fa;
+  border: 1px solid #fbc4d9;
+  border-radius: 0.65rem;
+  text-align: center;
+}
+
+.portfolio-metric-label {
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+}
+
+.portfolio-metric-value {
+  @include type-style('body-short-02');
+  font-weight: 700;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+// Allocation bar inline (table)
+.alloc-bar-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-02;
+  @include type-style('label-01');
+  font-family: 'IBM Plex Mono', monospace;
+  color: var(--cds-text-secondary);
+
+  span {
+    display: inline-block;
+    height: 5px;
+    background: #f472a0;
+    border-radius: 3px;
+    max-width: 60px;
+    min-width: 2px;
+  }
+}
+
+// ── Net Worth Panel ─────────────────────────────────────────────────────────────
+.nw-snapshot-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: $spacing-04;
+
+  @include breakpoint-down(md) { grid-template-columns: 1fr; }
+}
+
+.nw-snapshot-card {
+  display: flex;
+  align-items: center;
+  gap: $spacing-04;
+  padding: $spacing-04 $spacing-05;
+  background: #fff8fa;
+  border: 1.5px solid #fbc4d9;
+  border-radius: 0.85rem;
+}
+
+.nw-snapshot-indicator {
+  width: 3px;
+  height: 2.5rem;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.nw-snapshot-label {
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: block;
+}
+
+.nw-snapshot-value {
+  @include type-style('heading-04');
+  font-weight: 700;
+  display: block;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.nw-snapshot-note {
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+  display: block;
+}
+
+.nw-chart-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.nw-chart-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+// ── Financial Health Panel ─────────────────────────────────────────────────────
+.health-top {
+  display: flex;
+  gap: $spacing-07;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.health-score-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: $spacing-04;
+  flex-shrink: 0;
+}
+
+.health-label-block {
+  max-width: 14rem;
+  text-align: center;
+}
+
+.health-label {
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+.health-desc {
+  @include type-style('body-01');
+  color: var(--cds-text-primary);
+  margin: 0;
+}
+
+.health-components {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-04;
+  min-width: 14rem;
+}
+
+.health-component-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.health-component-header {
+  display: flex;
+  justify-content: space-between;
+}
+
+.health-component-label {
+  @include type-style('label-01');
+  color: var(--cds-text-primary);
+  font-weight: 500;
+}
+
+.health-component-score {
+  @include type-style('label-01');
+  font-weight: 700;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.health-component-track {
+  height: 6px;
+  background: #fce7f3;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.health-component-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 600ms ease;
+}
+
+.health-component-detail {
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+}
+
+.health-actions {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
+.health-action-row {
+  display: flex;
+  align-items: flex-start;
+  gap: $spacing-04;
+  padding: $spacing-04 $spacing-05;
+  background: linear-gradient(135deg, #fce7f3 0%, #ede9fe 100%);
+  border: 1px solid #fbc4d9;
+  border-radius: 0.75rem;
+}
+
+.health-action-num {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #c0356a, #9d2256);
+  color: #ffffff;
+  @include type-style('label-01');
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.health-action-text {
+  @include type-style('body-01');
+  color: var(--cds-text-primary);
+  flex: 1;
+}
+
+// ── Market Insights Panel ──────────────────────────────────────────────────────
+.market-watchlist {
+  display: flex;
+  gap: $spacing-02;
+  flex-wrap: wrap;
+}
+
+.market-watch-btn {
+  @include type-style('label-01');
+  padding: $spacing-02 $spacing-04;
+  border: 1.5px solid #fbc4d9;
+  border-radius: 2rem;
+  background: #ffffff;
+  color: #9d2256;
+  cursor: pointer;
+  font-weight: 600;
+  font-family: 'IBM Plex Mono', monospace;
+  transition: background 120ms ease;
+
+  &--active {
+    background: linear-gradient(135deg, #c0356a, #9d2256);
+    color: #ffffff;
+    border-color: transparent;
+  }
+
+  &:not(.market-watch-btn--active):hover { background: #fce7f3; }
+  &:focus, &:focus-visible { outline: none; }
+}
+
+.market-news-list {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
+.market-news-item {
+  display: block;
+  padding: $spacing-04 $spacing-05;
+  background: #fff8fa;
+  border: 1px solid #fbc4d9;
+  border-radius: 0.75rem;
+  text-decoration: none;
+  transition: background 120ms ease;
+
+  &:hover { background: #fce7f3; }
+}
+
+.market-news-source {
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+  margin-bottom: 0.2rem;
+}
+
+.market-news-headline {
+  @include type-style('body-short-02');
+  color: var(--cds-text-primary);
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.market-news-summary {
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+  line-height: 1.5;
+}
+
+.analyst-panel {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+}
+
+.analyst-consensus {
+  display: flex;
+  align-items: center;
+  gap: $spacing-05;
+}
+
+.analyst-verdict {
+  padding: $spacing-03 $spacing-06;
+  border-radius: 0.75rem;
+  @include type-style('heading-04');
+  font-weight: 700;
+
+  &--buy, &--strong.buy  { background: #defbe6; color: #198038; }
+  &--hold                { background: #fef3c7; color: #92400e; }
+  &--sell, &--strong.sell{ background: #ffd7d9; color: #a2191f; }
+}
+
+.analyst-meta {
+  display: flex;
+  gap: $spacing-03;
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+}
+
+.analyst-bars {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
+.analyst-bar-row {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.analyst-bar-label {
+  @include type-style('label-01');
+  color: var(--cds-text-primary);
+  width: 6rem;
+  flex-shrink: 0;
+}
+
+.analyst-bar-track {
+  flex: 1;
+  height: 8px;
+  background: #fce7f3;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.analyst-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 500ms ease;
+}
+
+.analyst-bar-count {
+  @include type-style('label-01');
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 600;
+  color: var(--cds-text-secondary);
+  width: 1.5rem;
+  text-align: right;
+}
+
+// ── Dark mode overrides for new panels ─────────────────────────────────────────
+// (Added inside .theme-dark block further down in the file)
+
+
 // ── Wizard ────────────────────────────────────────────────────────────────────
 .wizard-page {
   display: flex;
