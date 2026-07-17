@@ -1,17 +1,21 @@
 /**
- * server/proxy.js — Candyland Bank local AI proxy
+ * server/proxy.js — Candyland Bank local dev proxy
  *
  * Runs on http://127.0.0.1:3001
- * Keeps watsonx credentials server-side; the browser never sees them.
+ * Keeps watsonx Orchestrate credentials server-side; the browser never sees them.
  *
  * Usage:
- *   node server/proxy.js          (or via `npm run server`)
+ *   npm run server    (or: node --env-file=.env.local server/proxy.js)
  *
- * Required .env.local keys:
- *   WATSONX_API_KEY      — IBM Cloud IAM API key
- *   WATSONX_PROJECT_ID   — watsonx.ai project ID
- *   WATSONX_REGION       — e.g. us-south, eu-gb, jp-tok (default: us-south)
- *   WATSONX_MODEL_ID     — e.g. ibm/granite-13b-chat-v2 (default below)
+ * Required .env.local keys for chat:
+ *   WO_USERNAME  — Your watsonx Orchestrate login email (e.g. user@ibm.com)
+ *                  Same credentials you use to log in at:
+ *                    https://dl.watson-orchestrate.ibm.com
+ *   WO_PASSWORD  — Password for the above login
+ *
+ * Optional:
+ *   RESEND_API_KEY    — for OTP email delivery
+ *   FINNHUB_API_KEY   — for live stock data
  */
 
 import 'dotenv/config';
@@ -21,55 +25,108 @@ import { Resend } from 'resend';
 import { retrieve } from './kb.js';
 
 const PORT = process.env.PORT || 3001;
-const HOST = process.env.HOST || '127.0.0.1'; // 0.0.0.0 in production (set by Railway/Cloud)
+const HOST = process.env.HOST || '127.0.0.1';
 
 const {
-  WATSONX_API_KEY,
-  WATSONX_PROJECT_ID,
-  WATSONX_REGION       = 'us-south',
-  WATSONX_MODEL_ID     = 'ibm/granite-3-8b-instruct',
+  WO_USERNAME,
+  WO_PASSWORD,
   RESEND_API_KEY,
   RESEND_FROM          = 'noreply@team11.uk',
   ALLOWED_EMAIL_DOMAIN = 'ibm.com',
   FINNHUB_API_KEY,
 } = process.env;
 
-const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
+// ── watsonx Orchestrate constants ─────────────────────────────────────────────
+const WO_HOST     = 'https://dl.watson-orchestrate.ibm.com';
+const WO_AGENT_ID = '77dfacb4-0d9a-4cd8-bf9c-6db1c7e554aa';
+const TOKEN_URL       = `${WO_HOST}/v1/auth/token`;
+const COMPLETIONS_URL = `${WO_HOST}/v1/orchestrate/${WO_AGENT_ID}/chat/completions`;
 
-// ── OTP store (in-memory, per-process) ────────────────────────────────────────
-// Map of email → { code, expiresAt }
-const otpStore = new Map();
+// Token cache — reuse within expiry window
+let _woToken  = null;
+let _woExpiry = 0;
 
-function generateOTP() {
-  return String(Math.floor(100000 + Math.random() * 900000));
-}
+async function getWOToken() {
+  if (_woToken && Date.now() < _woExpiry) return _woToken;
 
-// ── IAM token cache ───────────────────────────────────────────────────────────
-let _iamToken = null;
-let _iamExpiry = 0;
-
-async function getIAMToken() {
-  if (_iamToken && Date.now() < _iamExpiry) return _iamToken;
-
-  const res = await fetch('https://iam.cloud.ibm.com/identity/token', {
-    method: 'POST',
+  const res = await fetch(TOKEN_URL, {
+    method:  'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'urn:ibm:params:oauth:grant-type:apikey',
-      apikey: WATSONX_API_KEY,
+    body:    new URLSearchParams({
+      username:   WO_USERNAME,
+      password:   WO_PASSWORD,
+      grant_type: 'password',
+      scope:      '',
     }),
   });
 
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`IAM token fetch failed (${res.status}): ${body}`);
+    const body = await res.text().catch(() => '');
+    throw new Error(`WO auth failed (${res.status}): ${body.slice(0, 200)}`);
   }
 
   const json = await res.json();
-  _iamToken  = json.access_token;
-  // Refresh 5 minutes before expiry
-  _iamExpiry = Date.now() + (json.expires_in - 300) * 1000;
-  return _iamToken;
+  const token = json.access_token ?? json.token ?? json.id_token;
+  if (!token) throw new Error('WO auth response contained no token field');
+
+  // Cache for 50 minutes (WO tokens typically expire in 60 min)
+  _woToken  = token;
+  _woExpiry = Date.now() + 50 * 60 * 1000;
+  return token;
+}
+
+// ── Profile system prompt builder ──────────────────────────────────────────────
+function buildSystemPrompt(profile, context) {
+  const today = new Date().toISOString().slice(0, 10);
+  const base  = [
+    'You are Gumdrop, the Financial Advisor AI for Candyland Bank.',
+    'Help users with budgeting, savings, investing, debt, and financial planning.',
+    'Be encouraging, concise, and actionable. Use bullet points where helpful.',
+    `Today: ${today}.`,
+  ];
+
+  if (profile && Object.keys(profile).length > 0) {
+    const goalMap = {
+      retirement: 'Retirement planning', home: 'Home purchase',
+      education:  'Education funding',   wealth: 'Wealth growth',
+      short_term: 'Short-term savings',  long_term: 'Long-term investing',
+    };
+    const goals       = (profile.goals ?? []).map((g) => goalMap[g] || g).join(', ') || 'Not specified';
+    const investments = (profile.currentInvestments ?? []).join(', ') || 'None listed';
+    const prefs       = (profile.preferences ?? []).join(', ') || 'None';
+
+    base.push(
+      '',
+      'USER PROFILE:',
+      `- Goals: ${goals}`,
+      `- Risk tolerance: ${profile.risk || 'Not specified'}`,
+      `- Time horizon: ${profile.horizon || 'Not specified'}`,
+      `- Annual income: ${profile.annualIncome ? '$' + Number(profile.annualIncome).toLocaleString() : 'Not disclosed'}`,
+      `- Monthly savings: ${profile.monthlySavings ? '$' + Number(profile.monthlySavings).toLocaleString() : 'Not disclosed'}`,
+      `- Emergency fund: ${profile.emergencyFund || 'Unknown'}`,
+      `- Current investments: ${investments}`,
+      `- Employment: ${profile.employmentStatus || 'Not specified'}`,
+      `- Marital status: ${profile.maritalStatus || 'Not specified'}`,
+      `- Credit score: ${profile.creditScore || 'Not disclosed'}`,
+      `- Investment preferences: ${prefs}`,
+      'Use this profile to personalise every response. Be specific, actionable, and encouraging.',
+    );
+  }
+
+  if (context) {
+    base.push('', 'RELEVANT CANDYLAND BANK KNOWLEDGE:', context);
+  }
+
+  return base.filter((l) => l !== undefined).join('\n');
+}
+
+const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
+
+// ── OTP store (in-memory, per-process) ────────────────────────────────────────
+const otpStore = new Map();
+
+function generateOTP() {
+  return String(Math.floor(100000 + Math.random() * 900000));
 }
 
 // ── Express app ───────────────────────────────────────────────────────────────
@@ -83,11 +140,6 @@ app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
 /**
  * GET /api/stock?type=quote&ticker=AAPL
- * GET /api/stock?type=candle&ticker=AAPL&range=1M
- * GET /api/stock?type=profile&ticker=AAPL
- * GET /api/stock?type=search&query=apple
- *
- * Proxies Finnhub so the API key stays server-side.
  */
 const FH_BASE = 'https://finnhub.io/api/v1';
 function fhRangeParams(range) {
@@ -133,8 +185,6 @@ app.get('/api/stock', async (req, res) => {
 
 /**
  * POST /send-otp
- * Body: { email: string }
- * Sends a 6-digit OTP to the given email if it matches ALLOWED_EMAIL_DOMAIN.
  */
 app.post('/send-otp', async (req, res) => {
   const { email = '' } = req.body;
@@ -149,7 +199,7 @@ app.post('/send-otp', async (req, res) => {
   }
 
   const code      = generateOTP();
-  const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+  const expiresAt = Date.now() + 10 * 60 * 1000;
   otpStore.set(normalised, { code, expiresAt });
 
   try {
@@ -175,8 +225,6 @@ app.post('/send-otp', async (req, res) => {
 
 /**
  * POST /verify-otp
- * Body: { email: string, code: string }
- * Returns { ok: true } or { error: string }
  */
 app.post('/verify-otp', (req, res) => {
   const { email = '', code = '' } = req.body;
@@ -187,104 +235,80 @@ app.post('/verify-otp', (req, res) => {
   if (Date.now() > entry.expiresAt)  { otpStore.delete(normalised); return res.status(400).json({ error: 'Code expired. Request a new one.' }); }
   if (entry.code !== code.trim())    return res.status(400).json({ error: 'Incorrect code. Try again.' });
 
-  otpStore.delete(normalised); // single-use
+  otpStore.delete(normalised);
   res.json({ ok: true });
 });
 
 /**
  * POST /chat
- * Body: { messages: [{role, content}], profile: {...}, userMessage: string }
+ * Body: { messages: [...], profile: {...}, userMessage: string }
  * Returns: { reply: string }
  */
 app.post('/chat', async (req, res) => {
-  if (!WATSONX_API_KEY || !WATSONX_PROJECT_ID) {
+  if (!WO_USERNAME || !WO_PASSWORD) {
+    const missing = [!WO_USERNAME && 'WO_USERNAME', !WO_PASSWORD && 'WO_PASSWORD'].filter(Boolean).join(', ');
     return res.status(503).json({
-      error: 'Proxy not configured. Add WATSONX_API_KEY and WATSONX_PROJECT_ID to .env.local and restart the server.',
+      error: `Proxy not configured — missing .env.local key(s): ${missing}. ` +
+             `Add WO_USERNAME (your watsonx Orchestrate email) and WO_PASSWORD to .env.local and restart the server.`,
     });
   }
 
   const { messages = [], profile = {}, userMessage = '' } = req.body;
+  if (!userMessage.trim()) return res.status(400).json({ error: 'userMessage is required.' });
 
-  // ── Retrieve relevant KB chunks for this query ────────────────────────────
-  const context = retrieve(userMessage);
+  const context   = retrieve(userMessage);
+  const sysPrompt = buildSystemPrompt(profile, context);
 
-  // ── Build system prompt ───────────────────────────────────────────────────
-  const systemPrompt = [
-    `You are Gumdrop, a friendly and knowledgeable financial assistant for Candyland Bank.`,
-    `You give concise, accurate, personalised investment guidance. Never give regulated financial advice — always recommend the user consults a qualified adviser for major decisions.`,
-    ``,
-    `USER PROFILE:`,
-    `- Goals: ${profile.goals?.join(', ') || 'not specified'}`,
-    `- Risk tolerance: ${profile.risk || 'not specified'}`,
-    `- Time horizon: ${profile.horizon || 'not specified'}`,
-    `- Age bracket: ${profile.ageBracket || 'not specified'}`,
-    `- Annual income: ${profile.annualIncome ? `$${profile.annualIncome}` : 'not specified'}`,
-    `- Monthly savings: ${profile.monthlySavings ? `$${profile.monthlySavings}` : 'not specified'}`,
-    `- Emergency fund: ${profile.emergencyFund || 'not specified'}`,
-    `- Current investments: ${profile.currentInvestments?.join(', ') || 'none'}`,
-    `- Investment preferences: ${profile.preferences?.join(', ') || 'none'}`,
-    context
-      ? `\nRELEVANT CANDYLAND BANK KNOWLEDGE:\n${context}`
-      : '',
-  ].filter(Boolean).join('\n');
-
-  // ── Call watsonx.ai text generation API ──────────────────────────────────
-  const endpoint = `https://${WATSONX_REGION}.ml.cloud.ibm.com/ml/v1/text/chat?version=2024-05-01`;
+  const fullMessages = [
+    { role: 'system', content: sysPrompt },
+    ...messages
+      .filter((m) => m.sender !== 'system' && !m.pending)
+      .slice(-10)
+      .map((m) => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text })),
+    { role: 'user', content: userMessage },
+  ];
 
   try {
-    const token = await getIAMToken();
+    const token = await getWOToken();
 
-    // Convert our message history to watsonx format
-    const wxMessages = [
-      { role: 'system', content: systemPrompt },
-      ...messages.map((m) => ({
-        role: m.sender === 'user' ? 'user' : 'assistant',
-        content: m.text,
-      })),
-      { role: 'user', content: userMessage },
-    ];
-
-    const wxRes = await fetch(endpoint, {
-      method: 'POST',
+    const woRes = await fetch(COMPLETIONS_URL, {
+      method:  'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type':  'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        model_id: WATSONX_MODEL_ID,
-        project_id: WATSONX_PROJECT_ID,
-        messages: wxMessages,
-        parameters: {
-          max_new_tokens: 512,
-          temperature: 0.7,
-          top_p: 0.9,
-        },
-      }),
+      body: JSON.stringify({ messages: fullMessages, stream: false }),
     });
 
-    if (!wxRes.ok) {
-      const body = await wxRes.text();
-      console.error('watsonx error:', wxRes.status, body);
-      return res.json({ reply: `AI error ${wxRes.status} — ${body.slice(0, 120)}` });
+    if (!woRes.ok) {
+      const errText = await woRes.text().catch(() => '');
+      console.error(`[chat] WO completions error ${woRes.status}:`, errText.slice(0, 400));
+
+      if (woRes.status === 401 || woRes.status === 403) {
+        return res.json({ reply: 'Authentication failed — check WO_USERNAME and WO_PASSWORD in .env.local.' });
+      }
+      if (woRes.status === 404) {
+        return res.json({ reply: `Agent not found (404). Verify agent ID ${WO_AGENT_ID} is published in your Orchestrate instance.` });
+      }
+      return res.json({ reply: `Orchestrate returned an error (${woRes.status}). Check server logs.` });
     }
 
-    const wxJson = await wxRes.json();
-    const reply  = wxJson.choices?.[0]?.message?.content?.trim()
-      ?? wxJson.results?.[0]?.generated_text?.trim()
-      ?? JSON.stringify(wxJson).slice(0, 200);
+    const data  = await woRes.json();
+    const reply = data.choices?.[0]?.message?.content?.trim()
+      ?? data.reply
+      ?? 'I received a response but could not read it. Please try again.';
 
     res.json({ reply });
 
   } catch (err) {
-    console.error('Proxy error:', err.message);
-    res.json({ reply: `Server error: ${err.message}` });
+    console.error('[chat] error:', err.message);
+    res.json({ reply: `Server error: ${err.message.slice(0, 120)}` });
   }
 });
 
 app.listen(PORT, HOST, () => {
-  console.log(`\n🍬 Candyland Bank AI proxy running on http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
-  console.log(`   Model : ${WATSONX_MODEL_ID}`);
-  console.log(`   Region: ${WATSONX_REGION}`);
-  if (!WATSONX_API_KEY)    console.warn('   ⚠  WATSONX_API_KEY not set — /chat will return 503');
-  if (!WATSONX_PROJECT_ID) console.warn('   ⚠  WATSONX_PROJECT_ID not set — /chat will return 503');
+  console.log(`\n🍬 Candyland Bank dev proxy running on http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
+  console.log(`   Agent : ${WO_AGENT_ID}`);
+  if (!WO_USERNAME) console.warn('   ⚠  WO_USERNAME not set — /chat will return 503');
+  if (!WO_PASSWORD) console.warn('   ⚠  WO_PASSWORD not set — /chat will return 503');
 });

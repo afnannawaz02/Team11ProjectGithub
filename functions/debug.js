@@ -9,7 +9,8 @@ export async function onRequestGet({ env }) {
     RESEND_FROM:          env.RESEND_FROM || '(not set)',
     ALLOWED_EMAIL_DOMAIN: env.ALLOWED_EMAIL_DOMAIN || '(not set)',
     OTP_STORE_bound:      !!env.OTP_STORE,
-    WATSONX_API_KEY:      !!env.WATSONX_API_KEY,
-    WATSONX_PROJECT_ID:   !!env.WATSONX_PROJECT_ID,
+    DB_bound:             !!env.DB,
+    WO_USERNAME:          !!env.WO_USERNAME,
+    WO_PASSWORD:          !!env.WO_PASSWORD,
   });
 }

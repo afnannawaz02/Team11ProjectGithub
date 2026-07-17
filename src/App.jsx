@@ -1069,13 +1069,13 @@ function PanelPortfolioPie() {
 function DashboardPage({ profile, username }) {
   const [activePanel, setActivePanel] = useState('assets');
 
-  const isChat = activePanel === 'chat';
-
   const NAV = [
     { id: 'assets',   label: 'Assets',          Icon: Portfolio },
     { id: 'spending', label: 'Spending History', Icon: Finance   },
     { id: 'trades',   label: 'Portfolio',        Icon: Growth    },
   ];
+
+  const isChat = activePanel === 'chat';
 
   return (
     <div className="db-layout">
@@ -1086,18 +1086,23 @@ function DashboardPage({ profile, username }) {
         {activePanel === 'spending'  && <PanelSpending />}
         {activePanel === 'portfolio' && <PanelPortfolio profile={profile} />}
         {activePanel === 'trades'    && <PanelPortfolioPie />}
-        {activePanel === 'chat'      && <ChatView username={username} />}
+        {activePanel === 'chat'      && <ChatView profile={profile} username={username} />}
       </main>
 
       {/* ── Bottom navigation bar ── */}
       <nav className="db-bottom-nav">
-        {/* Gumdrop chat button — always visible, sits with the other nav items */}
+        {/* Gumdrop chat button — sits above the nav bar */}
         <button
           className={`db-bottom-nav-item db-bottom-nav-item--chat${isChat ? ' db-bottom-nav-item--active' : ''}`}
           onClick={() => setActivePanel('chat')}
           aria-label="Gumdrop AI chat"
         >
-          <ChatBot size={20} aria-hidden="true" />
+          <svg viewBox="0 0 32 32" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M28 4H4a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h6l6 4 6-4h6a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
+            <circle cx="10" cy="14" r="1.5" fill="currentColor"/>
+            <circle cx="16" cy="14" r="1.5" fill="currentColor"/>
+            <circle cx="22" cy="14" r="1.5" fill="currentColor"/>
+          </svg>
           <span>Gumdrop</span>
         </button>
         {NAV.map(({ id, label, Icon }) => (
@@ -1115,362 +1120,457 @@ function DashboardPage({ profile, username }) {
   );
 }
 
-// ── Quick action prompts ────────────────────────────────────────────────────────
-const QUICK_ACTIONS = [
-  { label: 'Analyze My Spending',     icon: '📊', prompt: 'Analyze my recent spending patterns and identify where I can cut back.' },
-  { label: 'Crypto Portfolio Review', icon: '₿',  prompt: 'Review my crypto portfolio allocation and give me risk-adjusted recommendations.' },
-  { label: 'Financial Health Score',  icon: '💯', prompt: 'Assess my overall financial health score based on my profile and goals.' },
-  { label: 'Find Savings',            icon: '💰', prompt: 'Identify savings opportunities and subscriptions I can cut or reduce.' },
-  { label: 'Debt Payoff Plan',        icon: '📉', prompt: 'Create a debt payoff strategy optimized for my income and goals.' },
-  { label: 'Emergency Fund Check',    icon: '🛡',  prompt: 'Analyze whether my emergency fund is sufficient for my situation.' },
-  { label: 'Budget Review',           icon: '📋', prompt: 'Review my budget and suggest an optimized allocation for my goals.' },
-  { label: 'Goal Progress',           icon: '🎯', prompt: 'How am I tracking against each of my financial goals?' },
-];
+// ── Floating Gumdrop chat widget ───────────────────────────────────────────────
+function FloatingChat({ profile }) {
+  const [open, setOpen]     = useState(false);
+  const [messages, setMsgs] = useState([{ sender: 'bot', text: 'Hi! Ask me anything about your investments.' }]);
+  const [draft, setDraft]   = useState('');
+  const [loading, setLoad]  = useState(false);
+  const bottomRef           = useRef(null);
 
-// ── Fintech summary cards ──────────────────────────────────────────────────────
-// Static demo values — real values come from Plaid / Coinbase via Orchestrate tools
-const FIN_CARDS = [
-  {
-    id: 'health', title: 'Financial Health', value: '78 / 100',
-    sub: 'Good standing', trend: '+4 pts this month', up: true,
-    color: '#24a148', bg: 'rgba(36,161,72,0.08)', border: 'rgba(36,161,72,0.20)',
-  },
-  {
-    id: 'spending', title: 'Monthly Spending', value: '$2,847',
-    sub: 'Jun 2025', trend: '-$320 vs last month', up: true,
-    color: '#f472a0', bg: 'rgba(244,114,160,0.08)', border: 'rgba(244,114,160,0.20)',
-  },
-  {
-    id: 'portfolio', title: 'Portfolio Value', value: '$12,450',
-    sub: 'All accounts', trend: '+$840 (7.2%)', up: true,
-    color: '#7c5cd8', bg: 'rgba(124,92,216,0.08)', border: 'rgba(124,92,216,0.20)',
-  },
-];
-
-// ── Render a single assistant message with markdown-lite formatting ─────────────
-function GumdropBubble({ text }) {
-  // Split on double-newline for paragraphs, then handle bullets and bold
-  const lines = text.split('\n');
-  return (
-    <div className="gdrop-bubble gdrop-bubble--bot">
-      {lines.map((line, i) => {
-        const trimmed = line.trim();
-        if (!trimmed) return null;
-        // Bullet: lines starting with - or * or •
-        if (/^[-*•]/.test(trimmed)) {
-          const content = trimmed.replace(/^[-*•]\s*/, '');
-          return (
-            <p key={i} className="gdrop-line gdrop-bullet">
-              <span className="gdrop-bullet-dot" aria-hidden="true">•</span>
-              <span dangerouslySetInnerHTML={{ __html: inlineFmt(content) }} />
-            </p>
-          );
-        }
-        // Numbered list
-        if (/^\d+\./.test(trimmed)) {
-          return (
-            <p key={i} className="gdrop-line gdrop-numbered"
-              dangerouslySetInnerHTML={{ __html: inlineFmt(trimmed) }} />
-          );
-        }
-        // Heading (##)
-        if (/^#{1,3}\s/.test(trimmed)) {
-          const content = trimmed.replace(/^#{1,3}\s/, '');
-          return <p key={i} className="gdrop-line gdrop-heading">{content}</p>;
-        }
-        return (
-          <p key={i} className="gdrop-line"
-            dangerouslySetInnerHTML={{ __html: inlineFmt(trimmed) }} />
-        );
-      })}
-    </div>
-  );
-}
-
-// Inline markdown: **bold** and `code`
-function inlineFmt(text) {
-  return text
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>');
-}
-
-// ── Typing indicator ───────────────────────────────────────────────────────────
-function TypingDots() {
-  return (
-    <div className="gdrop-bubble gdrop-bubble--bot gdrop-bubble--typing">
-      <span className="gdrop-typing-dot" />
-      <span className="gdrop-typing-dot" />
-      <span className="gdrop-typing-dot" />
-    </div>
-  );
-}
-
-// ── ChatView ───────────────────────────────────────────────────────────────────
-function ChatView({ username, profile }) {
-  const bottomRef  = useRef(null);
-  const inputRef   = useRef(null);
-  const sessionRef = useRef(null); // session_id from first Orchestrate response
-
-  const [messages, setMessages] = useState(() => [{
-    id:   'welcome',
-    role: 'assistant',
-    text: profile
-      ? `Welcome back, ${username}! I'm Gumdrop, your Financial Advisor AI. Based on your profile I can see you're focused on **${
-          (profile.goals ?? []).slice(0, 2).map((g) => ({
-            retirement: 'retirement', home: 'buying a home', education: 'education',
-            wealth: 'wealth growth', short_term: 'short-term savings', long_term: 'long-term investing',
-          }[g] || g)).join(' and ') || 'financial growth'
-        }** with a **${profile.risk || 'balanced'}** risk approach. What would you like to explore?`
-      : "Hi! I'm Gumdrop, your Candyland Bank Financial Advisor AI. I can help with budgeting, savings, investments, debt, and financial planning. What's on your mind?",
-  }]);
-  const [input,    setInput]    = useState('');
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState('');
-
-  // Auto-scroll to latest message
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, loading]);
+  }, [messages, open]);
 
-  // Auto-focus input on mount
-  useEffect(() => { inputRef.current?.focus(); }, []);
+  const send = async () => {
+    const trimmed = draft.trim();
+    if (!trimmed || loading) return;
+    const next = [...messages, { sender: 'user', text: trimmed }, { sender: 'bot', text: '', pending: true }];
+    setMsgs(next);
+    setDraft('');
+    setLoad(true);
+    try {
+      const res  = await fetch(`${PROXY_URL}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userMessage: trimmed, profile, messages: messages.slice(-6) }),
+      });
+      const data  = await res.json();
+      const reply = res.ok ? (data.reply || 'No response.') : (data.error || 'Something went wrong.');
+      setMsgs((prev) => prev.map((m) => m.pending ? { sender: 'bot', text: reply } : m));
+    } catch {
+      setMsgs((prev) => prev.map((m) => m.pending ? { sender: 'bot', text: 'Could not reach the server.' } : m));
+    } finally {
+      setLoad(false);
+    }
+  };
 
-  const sendMessage = async (text) => {
-    const userText = (text ?? input).trim();
-    if (!userText || loading) return;
-    setInput('');
-    setError('');
+  return (
+    <div className="fc-wrap">
+      {open && (
+        <div className="fc-window">
+          <div className="fc-header">
+            <span className="fc-title">Gumdrop</span>
+            <button className="fc-close" onClick={() => setOpen(false)} aria-label="Close chat"><Close size={16} /></button>
+          </div>
+          <div className="fc-messages">
+            {messages.map((m, i) => (
+              <div key={i} className={`fc-msg fc-msg--${m.sender}`}>
+                {m.pending ? <span className="fc-dots"><span/><span/><span/></span> : m.text}
+              </div>
+            ))}
+            <div ref={bottomRef} />
+          </div>
+          <div className="fc-input-row">
+            <input
+              className="fc-input"
+              placeholder="Ask anything…"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && send()}
+              disabled={loading}
+            />
+            <button className="fc-send" onClick={send} disabled={loading || !draft.trim()} aria-label="Send">
+              <svg viewBox="0 0 20 20" width="16" height="16" fill="none"><path d="M2 10L18 2L12 10L18 18L2 10Z" fill="currentColor"/></svg>
+            </button>
+          </div>
+        </div>
+      )}
+      <button className="fc-fab" onClick={() => setOpen((o) => !o)} aria-label="Open Gumdrop chat">
+        <svg viewBox="0 0 32 32" width="26" height="26" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M28 4H4a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h6l6 4 6-4h6a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
+          <circle cx="10" cy="14" r="1.5" fill="currentColor"/>
+          <circle cx="16" cy="14" r="1.5" fill="currentColor"/>
+          <circle cx="22" cy="14" r="1.5" fill="currentColor"/>
+        </svg>
+      </button>
+    </div>
+  );
+}
 
-    const userMsg = { id: Date.now().toString(), role: 'user', text: userText };
-    setMessages((prev) => [...prev, userMsg]);
+// ── Chat view ──────────────────────────────────────────────────────────────────
+const PROXY_URL = '';  // relative URLs — Vite proxies to localhost:3001 in dev, CF Functions in prod
+
+const SUGGESTED_PROMPTS = [
+  'What should I invest in first?',
+  'Explain ETFs in simple terms',
+  'How do I build an emergency fund?',
+  'What is a good risk strategy for my age?',
+];
+
+const GOAL_ICONS = {
+  retirement: <Growth   size={16} aria-hidden="true" />,
+  home:       <Finance  size={16} aria-hidden="true" />,
+  education:  <Analytics size={16} aria-hidden="true" />,
+  wealth:     <Growth   size={16} aria-hidden="true" />,
+  short_term: <Flash    size={16} aria-hidden="true" />,
+  long_term:  <Sprout   size={16} aria-hidden="true" />,
+};
+
+function TypingDots() {
+  return (
+    <div className="typing-dots" aria-label="Gumdrop is typing">
+      <span /><span /><span />
+    </div>
+  );
+}
+
+function makeSession() {
+  return { id: Date.now(), title: 'New chat', messages: [], pinned: false };
+}
+
+function ChatView({ profile, username }) {
+  const greeting = { sender: 'system', text: buildGreeting(profile) };
+
+  const [sessions, setSessions] = useState(() => {
+    const saved = loadSessions(username);
+    return saved ?? [{ ...makeSession(), messages: [greeting] }];
+  });
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  // Persist sessions to localStorage whenever they change
+  useEffect(() => {
+    saveSessions(username, sessions);
+  }, [sessions, username]);
+
+  const messages = sessions[activeIdx].messages;
+  const setMessages = (updater) =>
+    setSessions((prev) =>
+      prev.map((s, i) =>
+        i === activeIdx
+          ? { ...s, messages: typeof updater === 'function' ? updater(s.messages) : updater }
+          : s
+      )
+    );
+
+  const [draft, setDraft]           = useState('');
+  const [loading, setLoading]       = useState(false);
+  const [editingIdx, setEditingIdx] = useState(null);
+  const [editDraft, setEditDraft]   = useState('');
+  const bottomRef = useRef(null);
+  const inputRef  = useRef(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const newChat = () => {
+    const session = { ...makeSession(), messages: [greeting] };
+    setSessions((prev) => [session, ...prev]);
+    setActiveIdx(0);
+    setDraft('');
+  };
+
+  const switchSession = (idx) => {
+    setActiveIdx(idx);
+    setDraft('');
+  };
+
+  const togglePin = (e, id) => {
+    e.stopPropagation();
+    setSessions((prev) => {
+      const updated  = prev.map((s) => s.id === id ? { ...s, pinned: !s.pinned } : s);
+      const pinned   = updated.filter((s) => s.pinned);
+      const unpinned = updated.filter((s) => !s.pinned);
+      const reordered = [...pinned, ...unpinned];
+      const activeId  = prev[activeIdx].id;
+      setActiveIdx(reordered.findIndex((s) => s.id === activeId));
+      return reordered;
+    });
+  };
+
+  const deleteSession = (e, id) => {
+    e.stopPropagation();
+    setSessions((prev) => {
+      if (prev.length === 1) {
+        const fresh = { ...makeSession(), messages: [greeting] };
+        setActiveIdx(0);
+        return [fresh];
+      }
+      const next       = prev.filter((s) => s.id !== id);
+      const deletedIdx = prev.findIndex((s) => s.id === id);
+      const currentId  = prev[activeIdx].id;
+      if (currentId === id) {
+        setActiveIdx(Math.min(deletedIdx, next.length - 1));
+      } else {
+        setActiveIdx(next.findIndex((s) => s.id === currentId));
+      }
+      return next;
+    });
+  };
+
+  // priorMessages: explicit history to use (for edits); falls back to current messages
+  const send = async (text, priorMessages) => {
+    const trimmed = text.trim();
+    if (!trimmed || loading) return;
+
+    const history = priorMessages ?? messages;
+
+    // Set session title from first user message
+    setSessions((prev) =>
+      prev.map((s, i) =>
+        i === activeIdx && s.title === 'New chat'
+          ? { ...s, title: trimmed.length > 30 ? trimmed.slice(0, 30) + '…' : trimmed }
+          : s
+      )
+    );
+
+    setMessages(() => [
+      ...history,
+      { sender: 'user', text: trimmed },
+      { sender: 'bot', text: '', pending: true },
+    ]);
+    setDraft('');
     setLoading(true);
-
-    // Build conversation history for the API (exclude welcome message, keep last 20)
-    const history = [...messages.filter((m) => m.id !== 'welcome'), userMsg]
-      .slice(-20)
-      .map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text }));
+    inputRef.current?.focus();
 
     try {
-      const res = await fetch('/api/agent', {
-        method:      'POST',
-        credentials: 'same-origin',
-        headers:     { 'Content-Type': 'application/json' },
-        body:        JSON.stringify({ messages: history, session_id: sessionRef.current }),
+      const res = await fetch(`${PROXY_URL}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userMessage: trimmed,
+          profile,
+          messages: history.filter((m) => !m.pending).slice(-10),
+        }),
       });
-
-      const ct = res.headers.get('content-type') || '';
-
-      // Guard against HTML error pages (misconfigured proxy, 404, etc.)
-      if (!ct.includes('application/json')) {
-        const raw = await res.text();
-        throw new Error(
-          res.status === 503
-            ? 'Gumdrop is not configured yet. Ask your admin to add the WXO_ZEN_API_KEY secret in Cloudflare Pages settings.'
-            : `Unexpected response (${res.status}). Check console for details.`
-        );
-      }
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || `Server error ${res.status}`);
-      }
-
-      // Extract assistant text from Orchestrate response envelope
-      // The Agent Completions API wraps the reply in data.message.output.generic[]
-      // or data.message.choices[0].message.content (OpenAI-compat mode)
-      let replyText = '';
-      const msg = data.message;
-      if (msg?.output?.generic?.length) {
-        replyText = msg.output.generic
-          .filter((g) => g.response_type === 'text')
-          .map((g) => g.text)
-          .join('\n');
-      } else if (msg?.choices?.[0]?.message?.content) {
-        replyText = msg.choices[0].message.content;
-      } else if (typeof msg === 'string') {
-        replyText = msg;
-      } else {
-        replyText = 'I received a response but could not parse it. Please try again.';
-      }
-
-      // Persist session_id for multi-turn context
-      if (msg?.context?.global?.session_id) {
-        sessionRef.current = msg.context.global.session_id;
-      }
-
-      setMessages((prev) => [
-        ...prev,
-        { id: Date.now().toString() + '-bot', role: 'assistant', text: replyText },
-      ]);
-    } catch (err) {
-      console.error('Gumdrop agent error:', err);
-      setError(err.message || 'Something went wrong. Please try again.');
+      const data  = await res.json();
+      const reply = res.ok
+        ? (data.reply  || 'Sorry, I received an empty response.')
+        : (data.error  || 'Something went wrong. Please try again.');
+      setMessages((prev) => prev.map((m) => (m.pending ? { sender: 'bot', text: reply } : m)));
+    } catch {
+      setMessages((prev) => prev.map((m) =>
+        m.pending ? { sender: 'bot', text: 'Could not reach the AI server. In dev: run `npm run server` and set WO_USERNAME + WO_PASSWORD in .env.local. In production: add those as Cloudflare Pages secrets.' } : m
+      ));
     } finally {
       setLoading(false);
     }
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
+  const handleKey = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(draft); }
   };
 
   return (
-    <div className="advisor-page" id="chat">
+    <div className="chat-page" id="chat">
 
-      {/* ── Left sidebar ──────────────────────────────────────────────────── */}
-      <aside className="advisor-sidebar">
-
-        {/* Advisor identity card */}
-        <div className="advisor-sidebar-header">
-          <div className="advisor-avatar-lg">
-            <svg viewBox="0 0 24 24" fill="none" width="22" height="22">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" fill="currentColor"/>
+      {/* ── History sidebar ───────────────────────────────────────────────── */}
+      <aside className="chat-history-sidebar">
+        <Button
+          kind="tertiary"
+          size="sm"
+          className="chat-history-new-btn"
+          onClick={newChat}
+          renderIcon={() => (
+            <svg viewBox="0 0 16 16" fill="none" width="14" height="14" xmlns="http://www.w3.org/2000/svg">
+              <path d="M8 1v14M1 8h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
             </svg>
-          </div>
-          <div className="advisor-sidebar-identity">
-            <span className="advisor-sidebar-name">Gumdrop AI</span>
-            <span className="advisor-sidebar-status">
-              <span className="advisor-status-dot" />
-              Online · IBM watsonx
-            </span>
-          </div>
-        </div>
-
-        {/* Fintech summary cards */}
-        <div className="advisor-fin-cards">
-          {FIN_CARDS.map((c) => (
-            <div key={c.id} className="advisor-fin-card"
-              style={{ background: c.bg, borderColor: c.border }}>
-              <span className="advisor-fin-card-title">{c.title}</span>
-              <span className="advisor-fin-card-value" style={{ color: c.color }}>{c.value}</span>
-              <span className="advisor-fin-card-sub">{c.sub}</span>
-              <span className={`advisor-fin-card-trend${c.up ? ' up' : ' down'}`}>
-                {c.up ? '↑' : '↓'} {c.trend}
-              </span>
+          )}
+        >
+          New chat
+        </Button>
+        <div className="chat-history-list">
+          {sessions.some((s) => s.pinned) && (
+            <span className="chat-history-group-label">Pinned</span>
+          )}
+          {sessions.filter((s) => s.pinned).map((s) => (
+            <div
+              key={s.id}
+              className={`chat-history-item${sessions.indexOf(s) === activeIdx ? ' chat-history-item--active' : ''}`}
+              onClick={() => switchSession(sessions.indexOf(s))}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && switchSession(sessions.indexOf(s))}
+            >
+              <svg viewBox="0 0 16 16" fill="none" width="13" height="13" xmlns="http://www.w3.org/2000/svg" style={{flexShrink:0}}>
+                <path d="M14 1H2a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3l3 3 3-3h3a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
+              </svg>
+              <span className="chat-history-item-title">{s.title}</span>
+              <div className="chat-history-item-actions">
+                <button
+                  className="chat-history-pin-btn chat-history-pin-btn--active"
+                  onClick={(e) => togglePin(e, s.id)}
+                  aria-label="Unpin chat"
+                  title="Unpin"
+                ><PinFilled size={14} /></button>
+                <button
+                  className="chat-history-del-btn"
+                  onClick={(e) => deleteSession(e, s.id)}
+                  aria-label="Delete chat"
+                  title="Delete"
+                ><TrashCan size={14} /></button>
+              </div>
+            </div>
+          ))}
+          {sessions.some((s) => s.pinned) && sessions.some((s) => !s.pinned) && (
+            <span className="chat-history-group-label">Recent</span>
+          )}
+          {sessions.filter((s) => !s.pinned).map((s) => (
+            <div
+              key={s.id}
+              className={`chat-history-item${sessions.indexOf(s) === activeIdx ? ' chat-history-item--active' : ''}`}
+              onClick={() => switchSession(sessions.indexOf(s))}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && switchSession(sessions.indexOf(s))}
+            >
+              <svg viewBox="0 0 16 16" fill="none" width="13" height="13" xmlns="http://www.w3.org/2000/svg" style={{flexShrink:0}}>
+                <path d="M14 1H2a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3l3 3 3-3h3a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
+              </svg>
+              <span className="chat-history-item-title">{s.title}</span>
+              <div className="chat-history-item-actions">
+                <button
+                  className="chat-history-pin-btn"
+                  onClick={(e) => togglePin(e, s.id)}
+                  aria-label="Pin chat"
+                  title="Pin"
+                ><Pin size={14} /></button>
+                <button
+                  className="chat-history-del-btn"
+                  onClick={(e) => deleteSession(e, s.id)}
+                  aria-label="Delete chat"
+                  title="Delete"
+                ><TrashCan size={14} /></button>
+              </div>
             </div>
           ))}
         </div>
-
-        {/* Quick-action chips */}
-        <div className="advisor-sidebar-actions">
-          <p className="advisor-quick-label">Quick actions</p>
-          <div className="advisor-sidebar-chips">
-            {QUICK_ACTIONS.map(({ label, icon, prompt }) => (
-              <button key={label} className="advisor-quick-btn"
-                disabled={loading}
-                onClick={() => sendMessage(prompt)}>
-                <span className="advisor-quick-icon" aria-hidden="true">{icon}</span>
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <p className="advisor-disclaimer">
-          Financial insights are for educational purposes only and do not constitute financial, legal, tax, or investment advice.
-        </p>
       </aside>
 
-      {/* ── Main chat panel ────────────────────────────────────────────────── */}
-      <div className="advisor-main">
+      {/* ── Main chat area ────────────────────────────────────────────────── */}
+      <div className="chat-main">
 
-        {/* Branded topbar */}
-        <div className="advisor-topbar">
-          <div className="advisor-topbar-left">
-            <div className="advisor-avatar-sm">
-              <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" fill="currentColor"/>
-              </svg>
-            </div>
-            <div>
-              <p className="advisor-topbar-name">Gumdrop — Financial Advisor AI</p>
-              <p className="advisor-topbar-sub">Powered by IBM watsonx Orchestrate · Candyland Bank</p>
-            </div>
-          </div>
-          <div className="advisor-status-pill">
-            <span className="advisor-status-dot" />
-            Online
-          </div>
-        </div>
-
-        {/* ── Message list ── */}
-        <div className="gdrop-messages" role="log" aria-live="polite" aria-label="Chat messages">
-          {messages.map((m) =>
-            m.role === 'user' ? (
-              <div key={m.id} className="gdrop-row gdrop-row--user">
-                <div className="gdrop-bubble gdrop-bubble--user">{m.text}</div>
-                <div className="gdrop-avatar gdrop-avatar--user" aria-hidden="true">
-                  {(username?.[0] ?? 'U').toUpperCase()}
+        {/* Messages */}
+        <div className="chat-messages" role="log" aria-live="polite" aria-label="Conversation">
+          {messages.map((msg, i) => (
+            <div key={i} className={`chat-row chat-row--${msg.sender}`}>
+              {msg.sender !== 'user' && (
+                <div className="chat-avatar chat-avatar--bot">G</div>
+              )}
+              <div className="chat-row-content">
+                <span className="chat-row-label">{SENDER_LABEL[msg.sender]}</span>
+                {editingIdx === i ? (
+                  <div className="chat-edit-wrap">
+                    <TextArea
+                      id={`chat-edit-${i}`}
+                      labelText=""
+                      hideLabel
+                      className="chat-edit-textarea"
+                      value={editDraft}
+                      onChange={(e) => setEditDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          if (editDraft.trim()) {
+                            const prior = messages.slice(0, i);
+                            setEditingIdx(null);
+                            send(editDraft.trim(), prior);
+                          }
+                        }
+                        if (e.key === 'Escape') { setEditingIdx(null); }
+                      }}
+                      autoFocus
+                    />
+                    <div className="chat-edit-actions">
+                      <Button
+                        kind="primary"
+                        size="sm"
+                        onClick={() => {
+                          if (editDraft.trim()) {
+                            const prior = messages.slice(0, i);
+                            setEditingIdx(null);
+                            send(editDraft.trim(), prior);
+                          }
+                        }}
+                      >Save</Button>
+                      <Button
+                        kind="ghost"
+                        size="sm"
+                        onClick={() => setEditingIdx(null)}
+                      >Cancel</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={`chat-bubble-new${msg.pending ? ' chat-bubble-new--pending' : ''}${msg.sender === 'user' ? ' chat-bubble-new--user' : ''}`}>
+                    {msg.pending ? <TypingDots /> : msg.text}
+                    {msg.sender === 'user' && !msg.pending && (
+                      <button
+                        className="chat-edit-btn"
+                        onClick={() => { setEditingIdx(i); setEditDraft(msg.text); }}
+                        aria-label="Edit message"
+                        title="Edit"
+                      >✏️</button>
+                    )}
+                  </div>
+                )}
+              </div>
+              {msg.sender === 'user' && (
+                <div className="chat-avatar chat-avatar--user">
+                  {username ? username[0].toUpperCase() : 'Y'}
                 </div>
-              </div>
-            ) : (
-              <div key={m.id} className="gdrop-row gdrop-row--bot">
-                <div className="gdrop-avatar gdrop-avatar--bot" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" width="14" height="14">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" fill="currentColor"/>
-                  </svg>
-                </div>
-                <GumdropBubble text={m.text} />
-              </div>
-            )
-          )}
-          {loading && (
-            <div className="gdrop-row gdrop-row--bot">
-              <div className="gdrop-avatar gdrop-avatar--bot" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" width="14" height="14">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" fill="currentColor"/>
-                </svg>
-              </div>
-              <TypingDots />
+              )}
             </div>
-          )}
-          {error && (
-            <div className="gdrop-error-banner">
-              <span>⚠ {error}</span>
-              <button className="gdrop-error-dismiss" onClick={() => setError('')}>✕</button>
-            </div>
-          )}
+          ))}
           <div ref={bottomRef} />
         </div>
 
-        {/* ── Input bar ── */}
-        <div className="gdrop-input-area">
-          <div className="gdrop-input-wrap">
-            <textarea
+        {/* Input */}
+        <div className="chat-input-area">
+          {messages.length <= 1 && (
+            <div className="chat-inline-suggestions">
+              {SUGGESTED_PROMPTS.map((p) => (
+                <Tag
+                  key={p}
+                  type="blue"
+                  className="chat-inline-suggestion-btn"
+                  onClick={() => !loading && send(p)}
+                  style={{ cursor: loading ? 'not-allowed' : 'pointer' }}
+                >
+                  {p}
+                </Tag>
+              ))}
+            </div>
+          )}
+          <div className="chat-input-wrap">
+            <TextArea
               ref={inputRef}
-              className="gdrop-input"
-              placeholder="Ask Gumdrop anything about your finances…"
-              value={input}
+              id="chat-input"
+              labelText=""
+              hideLabel
               rows={1}
-              onChange={(e) => {
-                setInput(e.target.value);
-                // Auto-grow up to 5 lines
-                e.target.style.height = 'auto';
-                e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
-              }}
-              onKeyDown={handleKeyDown}
+              placeholder={loading ? 'Gumdrop is thinking…' : 'Ask me anything about investing…'}
+              value={draft}
               disabled={loading}
-              aria-label="Type your message"
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={handleKey}
             />
-            <button
-              className="gdrop-send-btn"
-              onClick={() => sendMessage()}
-              disabled={!input.trim() || loading}
+            <Button
+              kind="primary"
+              size="sm"
+              onClick={() => send(draft)}
+              disabled={loading || !draft.trim()}
               aria-label="Send message"
-            >
-              <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
-                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" fill="currentColor"/>
-              </svg>
-            </button>
+              hasIconOnly
+              iconDescription="Send message"
+              renderIcon={() => (
+                <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="18">
+                  <path d="M2 10L18 2L12 10L18 18L2 10Z" fill="currentColor" />
+                </svg>
+              )}
+            />
           </div>
-          <p className="gdrop-input-hint">
-            Press <kbd>Enter</kbd> to send · <kbd>Shift+Enter</kbd> for a new line
-          </p>
+          <p className="chat-input-hint">Press Enter to send · Shift+Enter for new line</p>
         </div>
 
       </div>
