@@ -1232,35 +1232,36 @@ function PanelSpending() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ── Panel: Portfolio Overview ─────────────────────────────────────────────────
+// ── Panel: Portfolio + Net Worth (combined) ───────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
-function PanelPortfolio({ profile }) {
-  const [view, setView] = useState('allocation'); // 'allocation' | 'stocks' | 'crypto' | 'profile'
+function PanelPortfolioAndWealth({ profile }) {
+  const [view, setView] = useState('allocation');
   const { data, loading, error } = useApi('/api/finance?type=portfolio');
+  const { data: nwHistory, loading: hLoad, error: hErr } = useApi('/api/finance?type=networth');
 
-  const RISK_DESC = { conservative: 'Low risk', moderate: 'Balanced', aggressive: 'High risk' };
+  const RISK_DESC    = { conservative: 'Low risk', moderate: 'Balanced', aggressive: 'High risk' };
   const HORIZON_DESC = { short: '< 3 years', medium: '3–10 years', long: '10+ years' };
-  const goals = (profile?.goals ?? []).map((g) => GOAL_LABELS[g] ?? g);
+  const goals        = (profile?.goals ?? []).map((g) => GOAL_LABELS[g] ?? g);
 
   return (
     <div className="db-panel">
       <div className="panel-header-row">
         <div>
-          <h2 className="db-panel-heading">Portfolio Overview</h2>
+          <h2 className="db-panel-heading">Portfolio & Net Worth</h2>
           <p className="db-panel-sub">Plaid · Coinbase · Finnhub — unified view.</p>
         </div>
         <div className="panel-tab-row">
-          {[['allocation','Allocation'],['stocks','Stocks'],['crypto','Crypto'],['profile','Profile']].map(([id, label]) => (
+          {[['allocation','Allocation'],['networth','Net Worth'],['stocks','Stocks'],['crypto','Crypto'],['profile','Profile']].map(([id, label]) => (
             <button key={id} className={`panel-tab${view === id ? ' panel-tab--active' : ''}`} onClick={() => setView(id)}>{label}</button>
           ))}
         </div>
       </div>
 
+      {/* ── Allocation tab ── */}
       {view === 'allocation' && (
         <PanelLoadingOrError loading={loading} error={error}>
           {data && (
             <>
-              {/* Net worth banner */}
               <div className="portfolio-net-worth-banner">
                 <div>
                   <span className="portfolio-nw-label">Net Worth</span>
@@ -1275,14 +1276,8 @@ function PanelPortfolio({ profile }) {
                   <span className="portfolio-nw-value db-down">{fmt$(data.totalDebt)}</span>
                 </div>
               </div>
-
-              {/* Donut + legend */}
               <div className="db-pie-wrap">
-                <DonutChart
-                  slices={data.allocation}
-                  totalLabel="Net Worth"
-                  totalValue={fmt$(data.netWorth)}
-                />
+                <DonutChart slices={data.allocation} totalLabel="Net Worth" totalValue={fmt$(data.netWorth)} />
                 <ul className="db-pie-legend">
                   {data.allocation.map((a) => (
                     <li key={a.label} className="db-pie-legend-item">
@@ -1293,14 +1288,12 @@ function PanelPortfolio({ profile }) {
                   ))}
                 </ul>
               </div>
-
-              {/* Risk / diversity metrics */}
               <div className="portfolio-metrics-grid">
                 {[
-                  { label: 'Diversification Score', value: `${data.diversScore}/100`, good: data.diversScore >= 65 },
-                  { label: 'Crypto Exposure',        value: `${data.cryptoPct}%`,       good: data.cryptoPct <= 15  },
-                  { label: 'Top Holding',            value: `${data.topConcentration}%`,good: data.topConcentration <= 20 },
-                  { label: 'Health Score',           value: `${data.healthScore}/100`,  good: data.healthScore >= 65 },
+                  { label: 'Diversification Score', value: `${data.diversScore}/100`,      good: data.diversScore >= 65 },
+                  { label: 'Crypto Exposure',        value: `${data.cryptoPct}%`,           good: data.cryptoPct <= 15 },
+                  { label: 'Top Holding',            value: `${data.topConcentration}%`,    good: data.topConcentration <= 20 },
+                  { label: 'Health Score',           value: `${data.healthScore}/100`,      good: data.healthScore >= 65 },
                 ].map(({ label, value, good }) => (
                   <div key={label} className="portfolio-metric-card">
                     <span className="portfolio-metric-label">{label}</span>
@@ -1308,8 +1301,6 @@ function PanelPortfolio({ profile }) {
                   </div>
                 ))}
               </div>
-
-              {/* Sector exposure */}
               {data.sectors?.length > 0 && (
                 <div className="spend-cats">
                   <h3 className="spend-section-title">Sector Exposure (Equities)</h3>
@@ -1336,6 +1327,50 @@ function PanelPortfolio({ profile }) {
         </PanelLoadingOrError>
       )}
 
+      {/* ── Net Worth tab ── */}
+      {view === 'networth' && (
+        <PanelLoadingOrError loading={loading || hLoad} error={error || hErr}>
+          {data && nwHistory && (
+            <>
+              <div className="nw-snapshot-grid">
+                {[
+                  { label: 'Net Worth',    value: fmt$(data.netWorth),   note: 'Assets minus debt',     color: '#24a148' },
+                  { label: 'Total Assets', value: fmt$(data.totalAssets), note: 'All holdings combined', color: '#f472a0' },
+                  { label: 'Total Debt',   value: fmt$(data.totalDebt),   note: 'Credit cards & loans',  color: '#da1e28' },
+                  { label: 'Liquid Cash',  value: fmt$(data.plaidAccounts?.filter((a) => a.type === 'checking' || a.type === 'savings').reduce((s, a) => s + a.balance, 0) || 0), note: 'Checking + savings', color: '#3b82d4' },
+                ].map(({ label, value, note, color }) => (
+                  <div key={label} className="nw-snapshot-card">
+                    <div className="nw-snapshot-indicator" style={{ background: color }} />
+                    <div>
+                      <span className="nw-snapshot-label">{label}</span>
+                      <span className="nw-snapshot-value" style={{ color }}>{value}</span>
+                      <span className="nw-snapshot-note">{note}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <NetWorthChart history={nwHistory.history} />
+              <h3 className="spend-section-title">Account Breakdown</h3>
+              <div className="db-table-wrap">
+                <table className="db-table">
+                  <thead><tr><th>Account</th><th>Type</th><th>Balance</th></tr></thead>
+                  <tbody>
+                    {(data.plaidAccounts || []).map((a) => (
+                      <tr key={a.id}>
+                        <td>{a.name}</td>
+                        <td><span className={`db-badge db-badge--${a.type === 'credit' ? 'sell' : a.type === 'investment' ? 'buy' : 'debit'}`}>{a.type}</span></td>
+                        <td className={a.balance < 0 ? 'db-down' : 'db-up'}>{fmt$(Math.abs(a.balance))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </PanelLoadingOrError>
+      )}
+
+      {/* ── Stocks tab ── */}
       {view === 'stocks' && (
         <PanelLoadingOrError loading={loading} error={error}>
           {data && (
@@ -1362,6 +1397,7 @@ function PanelPortfolio({ profile }) {
         </PanelLoadingOrError>
       )}
 
+      {/* ── Crypto tab ── */}
       {view === 'crypto' && (
         <PanelLoadingOrError loading={loading} error={error}>
           {data && (
@@ -1389,7 +1425,7 @@ function PanelPortfolio({ profile }) {
                           <td style={{ fontFamily: 'IBM Plex Mono' }}>{fmt$(h.price)}</td>
                           <td style={{ fontFamily: 'IBM Plex Mono', fontSize: '0.8rem' }}>{h.qty}</td>
                           <td className="db-up">{fmt$(h.value)}</td>
-                          <td><span className="alloc-bar-inline" style={{ '--bar-color': '#7c5cd8' }}><span style={{ width: `${weight}%`, background: '#7c5cd8' }} />{weight}%</span></td>
+                          <td><span className="alloc-bar-inline"><span style={{ width: `${weight}%`, background: '#7c5cd8' }} />{weight}%</span></td>
                         </tr>
                       );
                     })}
@@ -1404,6 +1440,7 @@ function PanelPortfolio({ profile }) {
         </PanelLoadingOrError>
       )}
 
+      {/* ── Profile tab ── */}
       {view === 'profile' && (
         <div className="db-kv-grid">
           {[
@@ -1430,85 +1467,25 @@ function PanelPortfolio({ profile }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ── Panel: Net Worth Tracking ─────────────────────────────────────────────────
+// ── Panel: Spending + Financial Health (combined) ─────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
-function PanelNetWorth() {
-  const { data: portfolio, loading: pLoad, error: pErr } = useApi('/api/finance?type=portfolio');
-  const { data: nwHistory, loading: hLoad, error: hErr } = useApi('/api/finance?type=networth');
-
-  const loading = pLoad || hLoad;
-  const error   = pErr || hErr;
-
-  return (
-    <div className="db-panel">
-      <h2 className="db-panel-heading">Net Worth</h2>
-      <p className="db-panel-sub">12-month trajectory across all accounts and holdings.</p>
-      <PanelLoadingOrError loading={loading} error={error}>
-        {portfolio && nwHistory && (
-          <>
-            {/* Current snapshot */}
-            <div className="nw-snapshot-grid">
-              {[
-                { label: 'Net Worth',     value: fmt$(portfolio.netWorth),    note: 'Assets minus debt', color: '#24a148' },
-                { label: 'Total Assets',  value: fmt$(portfolio.totalAssets),  note: 'All holdings combined', color: '#f472a0' },
-                { label: 'Total Debt',    value: fmt$(portfolio.totalDebt),    note: 'Credit cards & loans',  color: '#da1e28' },
-                { label: 'Liquid Cash',   value: fmt$(portfolio.plaidAccounts?.filter((a) => a.type === 'checking' || a.type === 'savings').reduce((s, a) => s + a.balance, 0) || 0), note: 'Checking + savings', color: '#3b82d4' },
-              ].map(({ label, value, note, color }) => (
-                <div key={label} className="nw-snapshot-card">
-                  <div className="nw-snapshot-indicator" style={{ background: color }} />
-                  <div>
-                    <span className="nw-snapshot-label">{label}</span>
-                    <span className="nw-snapshot-value" style={{ color }}>{value}</span>
-                    <span className="nw-snapshot-note">{note}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Line chart */}
-            <NetWorthChart history={nwHistory.history} />
-
-            {/* Account breakdown */}
-            <h3 className="spend-section-title">Account Breakdown</h3>
-            <div className="db-table-wrap">
-              <table className="db-table">
-                <thead><tr><th>Account</th><th>Type</th><th>Balance</th></tr></thead>
-                <tbody>
-                  {(portfolio.plaidAccounts || []).map((a) => (
-                    <tr key={a.id}>
-                      <td>{a.name}</td>
-                      <td><span className={`db-badge db-badge--${a.type === 'credit' ? 'sell' : a.type === 'investment' ? 'buy' : 'debit'}`}>{a.type}</span></td>
-                      <td className={a.balance < 0 ? 'db-down' : 'db-up'}>{fmt$(Math.abs(a.balance))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-      </PanelLoadingOrError>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// ── Panel: Financial Health Score ─────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════════
-function PanelFinancialHealth() {
+function PanelSpendingAndHealth() {
+  const [view, setView] = useState('overview');
+  const { data: analysis, loading: aLoad, error: aErr } = useApi('/api/spending?type=analysis');
+  const { data: txnData,  loading: tLoad, error: tErr  } = useApi('/api/spending?type=transactions');
+  const { data: subData,  loading: sLoad, error: sErr  } = useApi('/api/spending?type=subscriptions');
   const { data: portfolio } = useApi('/api/finance?type=portfolio');
-  const { data: analysis  } = useApi('/api/spending?type=analysis');
 
-  // Compute health components from live data
   const healthScore = portfolio?.healthScore ?? null;
   const savingsRate = analysis?.savingsRate ?? null;
   const diversScore = portfolio?.diversScore ?? null;
   const cryptoPct   = portfolio?.cryptoPct ?? null;
 
   const components = healthScore !== null ? [
-    { label: 'Diversification',  score: diversScore ?? 70,              detail: cryptoPct > 20 ? `Crypto at ${cryptoPct}% — consider reducing.` : 'Well balanced across asset classes.' },
-    { label: 'Savings Rate',     score: savingsRate !== null ? Math.min(100, Math.round(savingsRate * 4)) : 70, detail: savingsRate !== null ? `${savingsRate}% savings rate${savingsRate >= 20 ? ' — on target!' : ' — aim for 20%+.'}` : 'Loading…' },
-    { label: 'Debt Ratio',       score: Math.round(Math.max(0, 100 - (portfolio?.totalDebt / Math.max(portfolio?.totalAssets, 1)) * 200)), detail: `Debt is ${portfolio ? ((portfolio.totalDebt / portfolio.totalAssets) * 100).toFixed(1) : '—'}% of assets.` },
-    { label: 'Net Worth Growth', score: 72, detail: 'Net worth growing year-over-year.' },
+    { label: 'Diversification', score: diversScore ?? 70, detail: cryptoPct > 20 ? `Crypto at ${cryptoPct}% — consider reducing.` : 'Well balanced across asset classes.' },
+    { label: 'Savings Rate',    score: savingsRate !== null ? Math.min(100, Math.round(savingsRate * 4)) : 70, detail: savingsRate !== null ? `${savingsRate}% savings rate${savingsRate >= 20 ? ' — on target!' : ' — aim for 20%+.'}` : 'Loading…' },
+    { label: 'Debt Ratio',      score: Math.round(Math.max(0, 100 - (portfolio?.totalDebt / Math.max(portfolio?.totalAssets, 1)) * 200)), detail: `Debt is ${portfolio ? ((portfolio.totalDebt / portfolio.totalAssets) * 100).toFixed(1) : '—'}% of assets.` },
+    { label: 'Net Worth Growth',score: 72, detail: 'Net worth growing year-over-year.' },
   ] : [];
 
   const topActions = [
@@ -1521,74 +1498,215 @@ function PanelFinancialHealth() {
 
   return (
     <div className="db-panel">
-      <h2 className="db-panel-heading">Financial Health</h2>
-      <p className="db-panel-sub">Your overall financial wellness score and AI recommendations.</p>
-
-      {/* Score ring + grade */}
-      <div className="health-top">
-        <div className="health-score-wrap">
-          {healthScore !== null ? (
-            <HealthScoreRing score={healthScore} />
-          ) : (
-            <div className="panel-loading"><span className="panel-loading-spinner" /></div>
-          )}
-          <div className="health-label-block">
-            <p className="health-label">Overall Score</p>
-            <p className="health-desc">
-              {healthScore !== null
-                ? healthScore >= 80 ? 'Excellent financial health. Keep it up!'
-                  : healthScore >= 65 ? 'Good — a few tweaks will push you to excellent.'
-                  : healthScore >= 50 ? 'Fair — focus on savings rate and diversification.'
-                  : 'Needs attention — prioritise debt and savings.'
-                : 'Computing your score…'}
-            </p>
-          </div>
+      <div className="panel-header-row">
+        <div>
+          <h2 className="db-panel-heading">Spending & Health</h2>
+          <p className="db-panel-sub">Plaid-powered analysis · AI financial wellness score.</p>
         </div>
-
-        {/* Component scores */}
-        {components.length > 0 && (
-          <div className="health-components">
-            {components.map(({ label, score, detail }) => {
-              const color = score >= 75 ? '#24a148' : score >= 55 ? '#f472a0' : '#da1e28';
-              return (
-                <div key={label} className="health-component-row">
-                  <div className="health-component-header">
-                    <span className="health-component-label">{label}</span>
-                    <span className="health-component-score" style={{ color }}>{score}/100</span>
-                  </div>
-                  <div className="health-component-track">
-                    <div className="health-component-fill" style={{ width: `${score}%`, background: color }} />
-                  </div>
-                  <span className="health-component-detail">{detail}</span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* AI Recommendations */}
-      {topActions.length > 0 && (
-        <div className="health-actions">
-          <h3 className="spend-section-title">✦ AI Recommendations</h3>
-          {topActions.map((action, i) => (
-            <div key={i} className="health-action-row">
-              <span className="health-action-num">{i + 1}</span>
-              <span className="health-action-text">{action}</span>
-            </div>
+        <div className="panel-tab-row">
+          {[['overview','Overview'],['health','Health'],['transactions','Transactions'],['subscriptions','Subscriptions']].map(([id, label]) => (
+            <button key={id} className={`panel-tab${view === id ? ' panel-tab--active' : ''}`} onClick={() => setView(id)}>{label}</button>
           ))}
         </div>
+      </div>
+
+      {/* ── Spending Overview tab ── */}
+      {view === 'overview' && (
+        <PanelLoadingOrError loading={aLoad} error={aErr}>
+          {analysis && (
+            <>
+              <div className="spend-summary-grid">
+                {[
+                  { label: 'Monthly Income', value: fmt$(analysis.income),  sub: 'This month', accent: 'green' },
+                  { label: 'Total Expenses', value: fmt$(analysis.expense), sub: analysis.expenseChange !== 0 ? `${fmtPct(analysis.expenseChange)} vs last month` : 'This month', accent: analysis.expenseChange > 5 ? 'red' : 'neutral' },
+                  { label: 'Net Savings',    value: fmt$(analysis.savings), sub: `${analysis.savingsRate}% savings rate`, accent: analysis.savings >= 0 ? 'green' : 'red' },
+                ].map(({ label, value, sub, accent }) => (
+                  <div key={label} className={`spend-summary-card spend-summary-card--${accent}`}>
+                    <span className="spend-summary-label">{label}</span>
+                    <span className="spend-summary-value">{value}</span>
+                    <span className="spend-summary-sub">{sub}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="spend-cats">
+                <h3 className="spend-section-title">Spending by Category</h3>
+                {(analysis.categories || []).map((c) => (
+                  <div key={c.category} className="spend-cat-row">
+                    <div className="spend-cat-meta">
+                      <span className="spend-cat-dot" style={{ background: c.color }} />
+                      <span className="spend-cat-name">{c.category}</span>
+                      <span className="spend-cat-pct">{c.pct}%</span>
+                      <span className="spend-cat-amt">{fmt$(c.total)}</span>
+                    </div>
+                    <div className="spend-cat-bar-track">
+                      <div className="spend-cat-bar" style={{ width: `${c.pct}%`, background: c.color }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {analysis.monthlyTrends?.length > 0 && (
+                <div className="spend-trend">
+                  <h3 className="spend-section-title">Monthly Trend</h3>
+                  <div className="spend-trend-bars">
+                    {analysis.monthlyTrends.map((m) => (
+                      <div key={m.month} className="spend-trend-col">
+                        <div className="spend-trend-bar-group">
+                          <div className="spend-trend-bar spend-trend-bar--income"  style={{ height: `${(m.income   / Math.max(...analysis.monthlyTrends.map((x) => x.income),   1)) * 80}px` }} title={`Income: ${fmt$(m.income)}`}/>
+                          <div className="spend-trend-bar spend-trend-bar--expense" style={{ height: `${(m.expenses / Math.max(...analysis.monthlyTrends.map((x) => x.expenses), 1)) * 80}px` }} title={`Expenses: ${fmt$(m.expenses)}`}/>
+                        </div>
+                        <span className="spend-trend-label">{m.month}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="spend-trend-legend">
+                    <span className="spend-trend-legend-dot spend-trend-legend-dot--income" />Income
+                    <span className="spend-trend-legend-dot spend-trend-legend-dot--expense" />Expenses
+                  </div>
+                </div>
+              )}
+              {analysis.unusual?.length > 0 && (
+                <div className="spend-unusual">
+                  <h3 className="spend-section-title">⚠ Unusual Transactions</h3>
+                  {analysis.unusual.map((t, i) => (
+                    <div key={i} className="spend-unusual-row">
+                      <div>
+                        <span className="spend-unusual-desc">{t.desc}</span>
+                        <span className="spend-unusual-reason">{t.flagReason}</span>
+                      </div>
+                      <span className="db-down">{fmt$(Math.abs(t.amount))}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </PanelLoadingOrError>
+      )}
+
+      {/* ── Health tab ── */}
+      {view === 'health' && (
+        <>
+          <div className="health-top">
+            <div className="health-score-wrap">
+              {healthScore !== null ? (
+                <HealthScoreRing score={healthScore} />
+              ) : (
+                <div className="panel-loading"><span className="panel-loading-spinner" /></div>
+              )}
+              <div className="health-label-block">
+                <p className="health-label">Overall Score</p>
+                <p className="health-desc">
+                  {healthScore !== null
+                    ? healthScore >= 80 ? 'Excellent financial health. Keep it up!'
+                      : healthScore >= 65 ? 'Good — a few tweaks will push you to excellent.'
+                      : healthScore >= 50 ? 'Fair — focus on savings rate and diversification.'
+                      : 'Needs attention — prioritise debt and savings.'
+                    : 'Computing your score…'}
+                </p>
+              </div>
+            </div>
+            {components.length > 0 && (
+              <div className="health-components">
+                {components.map(({ label, score, detail }) => {
+                  const color = score >= 75 ? '#24a148' : score >= 55 ? '#f472a0' : '#da1e28';
+                  return (
+                    <div key={label} className="health-component-row">
+                      <div className="health-component-header">
+                        <span className="health-component-label">{label}</span>
+                        <span className="health-component-score" style={{ color }}>{score}/100</span>
+                      </div>
+                      <div className="health-component-track">
+                        <div className="health-component-fill" style={{ width: `${score}%`, background: color }} />
+                      </div>
+                      <span className="health-component-detail">{detail}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          {topActions.length > 0 && (
+            <div className="health-actions">
+              <h3 className="spend-section-title">✦ AI Recommendations</h3>
+              {topActions.map((action, i) => (
+                <div key={i} className="health-action-row">
+                  <span className="health-action-num">{i + 1}</span>
+                  <span className="health-action-text">{action}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Transactions tab ── */}
+      {view === 'transactions' && (
+        <PanelLoadingOrError loading={tLoad} error={tErr}>
+          {txnData && (
+            <div className="db-table-wrap">
+              <table className="db-table">
+                <thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th></tr></thead>
+                <tbody>
+                  {(txnData.transactions || []).map((t, i) => (
+                    <tr key={i}>
+                      <td style={{ fontFamily: 'IBM Plex Mono', fontSize: '0.8rem' }}>{t.date}</td>
+                      <td>{t.desc}</td>
+                      <td><span className="spend-cat-chip" style={{ background: t.category === 'Income' ? '#d1fae5' : '#fce7f3', color: t.category === 'Income' ? '#065f46' : '#9d2256' }}>{t.category}</span></td>
+                      <td className={t.amount > 0 ? 'db-up' : 'db-down'}>{t.amount > 0 ? '+' : ''}{fmt$(Math.abs(t.amount))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </PanelLoadingOrError>
+      )}
+
+      {/* ── Subscriptions tab ── */}
+      {view === 'subscriptions' && (
+        <PanelLoadingOrError loading={sLoad} error={sErr}>
+          {subData && (
+            <>
+              <div className="sub-summary">
+                <div className="sub-summary-card">
+                  <span className="sub-summary-label">Total Monthly</span>
+                  <span className="sub-summary-value">{fmt$(subData.totalMonthly)}</span>
+                </div>
+                <div className="sub-summary-card">
+                  <span className="sub-summary-label">Annual Cost</span>
+                  <span className="sub-summary-value">{fmt$(subData.totalMonthly * 12)}</span>
+                </div>
+              </div>
+              <div className="db-table-wrap">
+                <table className="db-table">
+                  <thead><tr><th>Service</th><th>Category</th><th>Monthly</th><th>Annual</th></tr></thead>
+                  <tbody>
+                    {(subData.subscriptions || []).map((s, i) => (
+                      <tr key={i}>
+                        <td><strong>{s.service}</strong></td>
+                        <td><span className="spend-cat-chip" style={{ background: '#fce7f3', color: '#9d2256' }}>{s.category}</span></td>
+                        <td className="db-down">{fmt$(s.amount)}</td>
+                        <td className="db-down">{fmt$(s.amount * 12)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="panel-hint">💡 Review entertainment subscriptions — you have {(subData.subscriptions || []).filter((s) => s.category === 'Entertainment').length} active at {fmt$((subData.subscriptions || []).filter((s) => s.category === 'Entertainment').reduce((acc, s) => acc + s.amount, 0))}/month.</p>
+            </>
+          )}
+        </PanelLoadingOrError>
       )}
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ── Panel: Market Insights ────────────────────────────────────────────────────
+// ── Panel: Markets + Insights (combined) ─────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
-function PanelMarketInsights() {
+function PanelMarketsAndInsights() {
   const [activeTicker, setActiveTicker] = useState('AAPL');
-  const [view, setView] = useState('news'); // 'news' | 'analyst' | 'earnings'
+  const [view, setView] = useState('news');
 
   const { data: newsData, loading: nLoad, error: nErr } = useApi(
     view === 'news' ? `/api/stock?type=news&ticker=${activeTicker}` : null
@@ -1601,7 +1719,6 @@ function PanelMarketInsights() {
   );
 
   const WATCH = ['AAPL', 'MSFT', 'GOOGL', 'NVDA'];
-
   const loading = nLoad || rLoad || eLoad;
   const error   = (view === 'news' ? nErr : view === 'analyst' ? rErr : eErr) || null;
 
@@ -1609,18 +1726,21 @@ function PanelMarketInsights() {
     <div className="db-panel">
       <div className="panel-header-row">
         <div>
-          <h2 className="db-panel-heading">Market Insights</h2>
-          <p className="db-panel-sub">Finnhub · Analyst ratings · Earnings · News</p>
+          <h2 className="db-panel-heading">Markets & Insights</h2>
+          <p className="db-panel-sub">Live quotes · Analyst ratings · Earnings · News</p>
         </div>
         <div className="panel-tab-row">
-          {[['news','News'],['analyst','Analyst Ratings'],['earnings','Earnings']].map(([id, label]) => (
+          {[['news','News'],['analyst','Analyst'],['earnings','Earnings']].map(([id, label]) => (
             <button key={id} className={`panel-tab${view === id ? ' panel-tab--active' : ''}`} onClick={() => setView(id)}>{label}</button>
           ))}
         </div>
       </div>
 
-      {/* Watchlist */}
-      <div className="market-watchlist">
+      {/* Stock chart strip */}
+      <PanelAssets />
+
+      {/* Watchlist ticker selector */}
+      <div className="market-watchlist" style={{ marginTop: '1rem' }}>
         {WATCH.map((t) => (
           <button
             key={t}
@@ -1642,28 +1762,23 @@ function PanelMarketInsights() {
             ))}
           </div>
         )}
-
         {view === 'analyst' && recData && (
           <div className="analyst-panel">
             <div className="analyst-consensus">
-              <div className={`analyst-verdict analyst-verdict--${(recData.consensus || 'Hold').toLowerCase()}`}>
-                {recData.consensus || '—'}
-              </div>
+              <div className={`analyst-verdict analyst-verdict--${(recData.consensus || 'Hold').toLowerCase()}`}>{recData.consensus || '—'}</div>
               <div className="analyst-meta">
-                <span>{recData.total || 0} analysts</span>
-                <span>·</span>
-                <span>{recData.buy_pct || 0}% bullish</span>
-                <span>·</span>
+                <span>{recData.total || 0} analysts</span><span>·</span>
+                <span>{recData.buy_pct || 0}% bullish</span><span>·</span>
                 <span>{recData.period || ''}</span>
               </div>
             </div>
             <div className="analyst-bars">
               {[
-                { label: 'Strong Buy', count: recData.strong_buy  || 0, color: '#24a148' },
-                { label: 'Buy',        count: recData.buy         || 0, color: '#6fdc8c' },
-                { label: 'Hold',       count: recData.hold        || 0, color: '#f4b45a' },
-                { label: 'Sell',       count: recData.sell        || 0, color: '#ff8389' },
-                { label: 'Strong Sell',count: recData.strong_sell || 0, color: '#da1e28' },
+                { label: 'Strong Buy',  count: recData.strong_buy  || 0, color: '#24a148' },
+                { label: 'Buy',         count: recData.buy         || 0, color: '#6fdc8c' },
+                { label: 'Hold',        count: recData.hold        || 0, color: '#f4b45a' },
+                { label: 'Sell',        count: recData.sell        || 0, color: '#ff8389' },
+                { label: 'Strong Sell', count: recData.strong_sell || 0, color: '#da1e28' },
               ].map(({ label, count, color }) => (
                 <div key={label} className="analyst-bar-row">
                   <span className="analyst-bar-label">{label}</span>
@@ -1676,7 +1791,6 @@ function PanelMarketInsights() {
             </div>
           </div>
         )}
-
         {view === 'earnings' && (earnData || []).length > 0 && (
           <div className="db-table-wrap">
             <table className="db-table">
@@ -1699,8 +1813,6 @@ function PanelMarketInsights() {
             </table>
           </div>
         )}
-
-        {/* Fallback when no data */}
         {!loading && !error && view === 'news'     && (!newsData || !Array.isArray(newsData) || newsData.length === 0)  && <p className="panel-hint">No recent news available. Ensure FINNHUB_API_KEY is configured.</p>}
         {!loading && !error && view === 'analyst'  && !recData  && <p className="panel-hint">No analyst data available for {activeTicker}.</p>}
         {!loading && !error && view === 'earnings' && (!earnData || !Array.isArray(earnData) || earnData.length === 0) && <p className="panel-hint">No earnings data available for {activeTicker}.</p>}
@@ -1711,15 +1823,12 @@ function PanelMarketInsights() {
 
 // ── Dashboard Page ─────────────────────────────────────────────────────────────
 function DashboardPage({ profile, username }) {
-  const [activePanel, setActivePanel] = useState('assets');
+  const [activePanel, setActivePanel] = useState('markets');
 
   const NAV = [
-    { id: 'assets',    label: 'Markets',  Icon: Portfolio },
-    { id: 'portfolio', label: 'Portfolio',Icon: Growth    },
-    { id: 'spending',  label: 'Spending', Icon: Finance   },
-    { id: 'networth',  label: 'Net Worth',Icon: Analytics },
-    { id: 'health',    label: 'Health',   Icon: Task      },
-    { id: 'insights',  label: 'Insights', Icon: ChartLine },
+    { id: 'markets',   label: 'Markets',   Icon: ChartLine },
+    { id: 'portfolio', label: 'Portfolio', Icon: Growth    },
+    { id: 'spending',  label: 'Spending',  Icon: Finance   },
   ];
 
   const isChat = activePanel === 'chat';
@@ -1729,12 +1838,9 @@ function DashboardPage({ profile, username }) {
       {/* ── Main content ── */}
       <main className={`db-content${isChat ? ' db-content--chat' : ''}`}>
         {!isChat && <p className="db-sidebar-greeting">Welcome{username ? `, ${username}` : ''}.</p>}
-        {activePanel === 'assets'    && <PanelAssets />}
-        {activePanel === 'portfolio' && <PanelPortfolio profile={profile} />}
-        {activePanel === 'spending'  && <PanelSpending />}
-        {activePanel === 'networth'  && <PanelNetWorth />}
-        {activePanel === 'health'    && <PanelFinancialHealth />}
-        {activePanel === 'insights'  && <PanelMarketInsights />}
+        {activePanel === 'markets'   && <PanelMarketsAndInsights />}
+        {activePanel === 'portfolio' && <PanelPortfolioAndWealth profile={profile} />}
+        {activePanel === 'spending'  && <PanelSpendingAndHealth />}
         {activePanel === 'chat'      && <ChatView profile={profile} username={username} />}
       </main>
 

@@ -2128,7 +2128,7 @@ body {
   padding: $spacing-02 $spacing-04;
   border: 1.5px solid #fbc4d9;
   border-radius: 2rem;
-  background: #ffffff;
+  background: transparent;
   color: #9d2256;
   cursor: pointer;
   font-weight: 500;
@@ -2140,7 +2140,7 @@ body {
     border-color: transparent;
   }
 
-  &:not(.panel-tab--active):hover { background: #fce7f3; }
+  &:not(.panel-tab--active):hover { background: rgba(244, 114, 160, 0.08); }
   &:focus, &:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(244,114,160,0.4); }
 }
 
@@ -2177,7 +2177,7 @@ body {
 .panel-hint {
   @include type-style('label-01');
   color: var(--cds-text-secondary);
-  background: #fff8fa;
+  background: transparent;
   border: 1px solid #fbc4d9;
   border-radius: 0.5rem;
   padding: $spacing-03 $spacing-04;
@@ -2200,10 +2200,10 @@ body {
   padding: $spacing-05;
   border-radius: 0.85rem;
   border: 1.5px solid #fbc4d9;
-  background: #fff8fa;
+  background: transparent;
 
-  &--green { border-color: #a7f3d0; background: #f0fdf9; }
-  &--red   { border-color: #ffd7d9; background: #fff1f1; }
+  &--green { border-color: #a7f3d0; }
+  &--red   { border-color: #ffd7d9; }
 }
 
 .spend-summary-label {
@@ -2407,7 +2407,7 @@ body {
   flex-direction: column;
   gap: 0.25rem;
   padding: $spacing-04 $spacing-05;
-  background: #fff8fa;
+  background: transparent;
   border: 1.5px solid #fbc4d9;
   border-radius: 0.75rem;
 }
@@ -2431,7 +2431,7 @@ body {
   gap: $spacing-06;
   flex-wrap: wrap;
   padding: $spacing-05 $spacing-06;
-  background: linear-gradient(135deg, #fce7f3 0%, #ede9fe 100%);
+  background: transparent;
   border-radius: 0.85rem;
   border: 1px solid #fbc4d9;
 
@@ -2468,7 +2468,7 @@ body {
   flex-direction: column;
   gap: 0.25rem;
   padding: $spacing-04;
-  background: #fff8fa;
+  background: transparent;
   border: 1px solid #fbc4d9;
   border-radius: 0.65rem;
   text-align: center;
@@ -2518,7 +2518,7 @@ body {
   align-items: center;
   gap: $spacing-04;
   padding: $spacing-04 $spacing-05;
-  background: #fff8fa;
+  background: transparent;
   border: 1.5px solid #fbc4d9;
   border-radius: 0.85rem;
 }
@@ -2657,7 +2657,7 @@ body {
   align-items: flex-start;
   gap: $spacing-04;
   padding: $spacing-04 $spacing-05;
-  background: linear-gradient(135deg, #fce7f3 0%, #ede9fe 100%);
+  background: transparent;
   border: 1px solid #fbc4d9;
   border-radius: 0.75rem;
 }
@@ -2694,7 +2694,7 @@ body {
   padding: $spacing-02 $spacing-04;
   border: 1.5px solid #fbc4d9;
   border-radius: 2rem;
-  background: #ffffff;
+  background: transparent;
   color: #9d2256;
   cursor: pointer;
   font-weight: 600;
@@ -2707,7 +2707,7 @@ body {
     border-color: transparent;
   }
 
-  &:not(.market-watch-btn--active):hover { background: #fce7f3; }
+  &:not(.market-watch-btn--active):hover { background: rgba(244, 114, 160, 0.08); }
   &:focus, &:focus-visible { outline: none; }
 }
 
@@ -2720,13 +2720,13 @@ body {
 .market-news-item {
   display: block;
   padding: $spacing-04 $spacing-05;
-  background: #fff8fa;
+  background: transparent;
   border: 1px solid #fbc4d9;
   border-radius: 0.75rem;
   text-decoration: none;
   transition: background 120ms ease;
 
-  &:hover { background: #fce7f3; }
+  &:hover { background: rgba(244, 114, 160, 0.07); }
 }
 
 .market-news-source {
@@ -3107,63 +3107,53 @@ body {
 
   // ── Panel shared ─────────────────────────────────────────────────────────────
   .panel-tab {
-    background: #2e2e2e;
     border-color: #5a1a30;
     color: #f9a8b8;
     &--active { background: linear-gradient(135deg, #5a0e28, #3d0f20); color: #ffffff; border-color: transparent; }
-    &:not(.panel-tab--active):hover { background: #3d1a28; }
+    &:not(.panel-tab--active):hover { background: rgba(244, 114, 160, 0.10); }
   }
-  .panel-hint  { background: #2e2e2e; border-color: #5a1a30; }
+  .panel-hint  { border-color: #5a1a30; }
   .panel-error { background: #2a1010; border-color: #6b2020; color: #ff8389; }
 
   // ── Spending Panel ────────────────────────────────────────────────────────────
   .spend-summary-card {
-    background: #2e2e2e;
     border-color: #5a1a30;
-    &--green { background: #0d2018; border-color: #1a5c3a; }
-    &--red   { background: #2a1010; border-color: #6b2020; }
+    &--green { border-color: #1a5c3a; }
+    &--red   { border-color: #6b2020; }
   }
   .spend-summary-value {
     .spend-summary-card--green & { color: #42be65; }
     .spend-summary-card--red   & { color: #ff8389; }
   }
   .spend-cat-bar-track { background: #3d3d3d; }
-  .spend-unusual-row   { background: #2a2210; border-color: #5c4a00; }
+  .spend-unusual-row   { background: rgba(255, 220, 100, 0.06); border-color: #5c4a00; }
   .spend-unusual-reason { color: #f1c21b; }
 
   // ── Subscription cards ────────────────────────────────────────────────────────
-  .sub-summary-card { background: #2e2e2e; border-color: #5a1a30; }
+  .sub-summary-card { border-color: #5a1a30; }
 
   // ── Portfolio Panel ───────────────────────────────────────────────────────────
-  .portfolio-net-worth-banner {
-    background: linear-gradient(135deg, #2a1520 0%, #1e1a2e 100%);
-    border-color: #5a1a30;
-  }
-  .portfolio-metric-card { background: #2e2e2e; border-color: #5a1a30; }
+  .portfolio-net-worth-banner { border-color: #5a1a30; }
+  .portfolio-metric-card { border-color: #5a1a30; }
   .alloc-bar-inline span { background: #c0356a; }
 
   // ── Net Worth Panel ───────────────────────────────────────────────────────────
-  .nw-snapshot-card { background: #2e2e2e; border-color: #5a1a30; }
+  .nw-snapshot-card { border-color: #5a1a30; }
 
   // ── Financial Health Panel ────────────────────────────────────────────────────
   .health-component-track { background: #3d3d3d; }
-  .health-action-row {
-    background: linear-gradient(135deg, #2a1520 0%, #1e1a2e 100%);
-    border-color: #5a1a30;
-  }
+  .health-action-row { border-color: #5a1a30; }
 
   // ── Market Insights Panel ─────────────────────────────────────────────────────
   .market-watch-btn {
-    background: #2e2e2e;
     border-color: #5a1a30;
     color: #f9a8b8;
     &--active { background: linear-gradient(135deg, #5a0e28, #3d0f20); color: #ffffff; border-color: transparent; }
-    &:not(.market-watch-btn--active):hover { background: #3d1a28; }
+    &:not(.market-watch-btn--active):hover { background: rgba(244, 114, 160, 0.10); }
   }
   .market-news-item {
-    background: #2e2e2e;
     border-color: #5a1a30;
-    &:hover { background: #3d1a28; }
+    &:hover { background: rgba(244, 114, 160, 0.07); }
   }
 
   // ── Analyst bars ──────────────────────────────────────────────────────────────
@@ -3176,7 +3166,7 @@ body {
 
   // ── Table / ticker / kv-row ───────────────────────────────────────────────────
   .db-ticker { background: #3d1a28; color: #f9a8b8; }
-  .db-kv-row { background: #2e2e2e; border-color: #3d3d3d; }
+  .db-kv-row { border-color: #3d3d3d; }
 
   // Header in dark mode — keep the same gradient but slightly deeper
   .cds--header {
