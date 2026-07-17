@@ -2,107 +2,81 @@
  * functions/chat.js — Cloudflare Pages Function
  * POST /chat
  *
- * Calls the IBM watsonx Orchestrate Agent Completions API:
- *   POST https://dl.watson-orchestrate.ibm.com/v1/orchestrate/{agent_id}/chat/completions
+ * Calls the IBM watsonx Orchestrate Agent Completions API using
+ * MCSP v2 API-key authentication (AWS-hosted instance).
  *
- * Authentication flow (two-step):
- *   1. Exchange WO_USERNAME + WO_PASSWORD → Bearer token via /v1/auth/token
- *   2. Call the agent completions endpoint with that token
+ * Auth flow:
+ *   Exchange WXO_API_KEY → MCSP bearer token
+ *   → POST /v1/orchestrate/{agent_id}/chat/completions
  *
- * Required Cloudflare secrets (set via Dashboard or wrangler):
- *   WO_USERNAME  — Your watsonx Orchestrate login email (e.g. user@ibm.com)
- *   WO_PASSWORD  — Your watsonx Orchestrate login password
+ * Required Cloudflare Pages secret (set once via dashboard or wrangler):
+ *   WXO_API_KEY  — the API key from:
+ *                  watsonx Orchestrate → Settings → API details → Generate API key
  *
- * These are NOT an IBM Cloud IAM key and NOT WATSONX_PROJECT_ID.
- * They are the credentials you use to log in to
- *   https://dl.watson-orchestrate.ibm.com
+ * Instance URL: https://api.dl.watson-orchestrate.ibm.com/instances/20260716-1822-4087-90fe-3b3ba1d4cc84
  */
 
-const WO_HOST     = 'https://dl.watson-orchestrate.ibm.com';
-const WO_AGENT_ID = '77dfacb4-0d9a-4cd8-bf9c-6db1c7e554aa';
+const WXO_INSTANCE_URL = 'https://api.dl.watson-orchestrate.ibm.com/instances/20260716-1822-4087-90fe-3b3ba1d4cc84';
+const WXO_AGENT_ID     = '77dfacb4-0d9a-4cd8-bf9c-6db1c7e554aa';
 
-const TOKEN_URL       = `${WO_HOST}/v1/auth/token`;
-const COMPLETIONS_URL = `${WO_HOST}/v1/orchestrate/${WO_AGENT_ID}/chat/completions`;
+const MCSP_TOKEN_URL   = 'https://iam.platform.saas.ibm.com/siusermgr/api/1.0/apikeys/token';
+const COMPLETIONS_URL  = `${WXO_INSTANCE_URL}/v1/orchestrate/${WXO_AGENT_ID}/chat/completions`;
 
-// ── Auth ───────────────────────────────────────────────────────────────────────
-async function getWOToken(username, password) {
-  const res = await fetch(TOKEN_URL, {
+// ── MCSP v2 token exchange ─────────────────────────────────────────────────────
+async function getMCSPToken(apiKey) {
+  const res = await fetch(MCSP_TOKEN_URL, {
     method:  'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body:    new URLSearchParams({
-      username,
-      password,
-      grant_type: 'password',
-      scope:      '',
-    }),
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ apikey: apiKey }),
   });
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(`WO auth failed (${res.status}): ${text.slice(0, 200)}`);
+    throw new Error(`MCSP token exchange failed (${res.status}): ${text.slice(0, 200)}`);
   }
 
   const data = await res.json();
-  const token = data.access_token ?? data.token ?? data.id_token;
-  if (!token) throw new Error('WO auth response had no token field');
+  const token = data.token ?? data.access_token;
+  if (!token) throw new Error('MCSP token response contained no token field');
   return token;
 }
 
-// ── Profile context ────────────────────────────────────────────────────────────
-function buildSystemPrompt(profile) {
-  const today = new Date().toISOString().slice(0, 10);
-
-  if (!profile || Object.keys(profile).length === 0) {
-    return [
-      'You are Gumdrop, the Financial Advisor AI for Candyland Bank.',
-      'Help users with budgeting, savings, investing, debt, and financial planning.',
-      'Be encouraging, concise, and actionable. Use bullet points where helpful.',
-      `Today: ${today}.`,
-    ].join('\n');
-  }
+// ── Build a profile context prefix for the user message ──────────────────────
+// The agent itself has instructions; we only pass structured profile data so it
+// can personalise responses. We do NOT inject a system prompt override.
+function buildProfileContext(profile) {
+  if (!profile || Object.keys(profile).length === 0) return null;
 
   const goalMap = {
     retirement: 'Retirement planning', home: 'Home purchase',
     education:  'Education funding',   wealth: 'Wealth growth',
     short_term: 'Short-term savings',  long_term: 'Long-term investing',
   };
-
-  const goals = (profile.goals ?? []).map((g) => goalMap[g] || g).join(', ') || 'Not specified';
+  const goals       = (profile.goals ?? []).map((g) => goalMap[g] || g).join(', ') || 'Not specified';
   const investments = (profile.currentInvestments ?? []).join(', ') || 'None listed';
-  const prefs = (profile.preferences ?? []).join(', ') || 'None';
 
-  return `You are Gumdrop, the Financial Advisor AI for Candyland Bank.
-
-USER PROFILE:
-- Goals: ${goals}
-- Risk tolerance: ${profile.risk || 'Not specified'}
-- Time horizon: ${profile.horizon || 'Not specified'}
-- Annual income: ${profile.annualIncome ? '$' + Number(profile.annualIncome).toLocaleString() : 'Not disclosed'}
-- Monthly savings: ${profile.monthlySavings ? '$' + Number(profile.monthlySavings).toLocaleString() : 'Not disclosed'}
-- Emergency fund: ${profile.emergencyFund || 'Unknown'}
-- Current investments: ${investments}
-- Employment: ${profile.employmentStatus || 'Not specified'}
-- Marital status: ${profile.maritalStatus || 'Not specified'}
-- Credit score: ${profile.creditScore || 'Not disclosed'}
-- Investment preferences: ${prefs}
-
-Use this profile to personalise every response. Be specific, actionable, and encouraging.
-Today: ${today}.`;
+  return [
+    '[User financial profile for context]',
+    `Goals: ${goals}`,
+    `Risk tolerance: ${profile.risk || 'Not specified'}`,
+    `Time horizon: ${profile.horizon || 'Not specified'}`,
+    profile.annualIncome    ? `Annual income: $${Number(profile.annualIncome).toLocaleString()}`    : null,
+    profile.monthlySavings  ? `Monthly savings: $${Number(profile.monthlySavings).toLocaleString()}` : null,
+    profile.emergencyFund   ? `Emergency fund: ${profile.emergencyFund}`                              : null,
+    investments !== 'None listed' ? `Current investments: ${investments}`                             : null,
+    profile.employmentStatus ? `Employment: ${profile.employmentStatus}`                              : null,
+    profile.creditScore      ? `Credit score band: ${profile.creditScore}`                           : null,
+  ].filter(Boolean).join('\n');
 }
 
 // ── Handler ────────────────────────────────────────────────────────────────────
 export async function onRequestPost({ request, env }) {
-  const WO_USERNAME = env.WO_USERNAME;
-  const WO_PASSWORD = env.WO_PASSWORD;
+  const apiKey = env.WXO_API_KEY;
 
-  if (!WO_USERNAME || !WO_PASSWORD) {
-    const missing = [
-      !WO_USERNAME && 'WO_USERNAME',
-      !WO_PASSWORD && 'WO_PASSWORD',
-    ].filter(Boolean).join(', ');
+  if (!apiKey) {
     return Response.json({
-      reply: `Gumdrop is not configured yet — missing secret(s): ${missing}. ` +
-             `Add them in Cloudflare Pages → Settings → Environment variables.`,
+      reply: 'Gumdrop is not configured — missing WXO_API_KEY secret. ' +
+             'Add it in Cloudflare Pages → Settings → Environment variables.',
     });
   }
 
@@ -113,11 +87,15 @@ export async function onRequestPost({ request, env }) {
     return Response.json({ reply: 'Please send a message.' });
   }
 
-  // Build the full message list with system context prepended
-  const systemPrompt = buildSystemPrompt(profile);
+  // Build message list — no system prompt injection; prepend profile context
+  // to the first user turn of this request so the agent can personalise.
+  const profileCtx = buildProfileContext(profile);
+  const userContent = profileCtx
+    ? `${profileCtx}\n\n${userMessage}`
+    : userMessage;
+
   const fullMessages = [
-    { role: 'system', content: systemPrompt },
-    // Include recent conversation history (skip system messages, limit to last 10)
+    // Include recent history (skip pending/system, last 10 turns)
     ...messages
       .filter((m) => m.sender !== 'system' && !m.pending)
       .slice(-10)
@@ -125,39 +103,33 @@ export async function onRequestPost({ request, env }) {
         role:    m.sender === 'user' ? 'user' : 'assistant',
         content: m.text,
       })),
-    { role: 'user', content: userMessage },
+    { role: 'user', content: userContent },
   ];
 
   try {
-    // Step 1: get a bearer token from WO
-    const token = await getWOToken(WO_USERNAME, WO_PASSWORD);
+    const token = await getMCSPToken(apiKey);
 
-    // Step 2: call the agent completions endpoint
     const woRes = await fetch(COMPLETIONS_URL, {
       method:  'POST',
       headers: {
         'Content-Type':  'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        messages: fullMessages,
-        stream:   false,
-      }),
+      body: JSON.stringify({ messages: fullMessages, stream: false }),
     });
 
     if (!woRes.ok) {
       const errText = await woRes.text().catch(() => '');
-      console.error(`[chat] WO completions error ${woRes.status}:`, errText.slice(0, 400));
+      console.error(`[chat] Orchestrate error ${woRes.status}:`, errText.slice(0, 400));
 
-      // Surface clear diagnostic messages without leaking credentials
       if (woRes.status === 401 || woRes.status === 403) {
         return Response.json({
-          reply: 'Authentication failed — check WO_USERNAME and WO_PASSWORD are correct.',
+          reply: 'Authentication failed — check that WXO_API_KEY is correct and not expired.',
         });
       }
       if (woRes.status === 404) {
         return Response.json({
-          reply: `Agent not found (404). Verify the agent ID ${WO_AGENT_ID} is published in your Orchestrate instance.`,
+          reply: `Agent not found (404). Verify agent ID ${WXO_AGENT_ID} is published in your Orchestrate instance.`,
         });
       }
       return Response.json({
@@ -166,19 +138,17 @@ export async function onRequestPost({ request, env }) {
     }
 
     const data  = await woRes.json();
-
-    // The WO completions endpoint returns OpenAI-compatible shape:
-    // { choices: [{ message: { role: "assistant", content: "..." } }] }
+    // OpenAI-compatible shape: { choices: [{ message: { content: "..." } }] }
     const reply = data.choices?.[0]?.message?.content?.trim()
       ?? data.reply
-      ?? 'I received a response but could not read it. Please try again.';
+      ?? 'I received a response but could not parse it. Please try again.';
 
     return Response.json({ reply });
 
   } catch (err) {
     console.error('[chat] error:', err.message);
     return Response.json({
-      reply: `Error: ${err.message.slice(0, 120)}`,
+      reply: `Error reaching Orchestrate: ${err.message.slice(0, 120)}`,
     });
   }
 }

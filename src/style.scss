@@ -1660,6 +1660,43 @@ body {
 }
 
 // Sidebar
+// ── Financial Advisor panel header (top of sidebar) ────────────────────────────
+.chat-advisor-panel {
+  display: flex;
+  align-items: center;
+  gap: $spacing-04;
+  padding: $spacing-05;
+  background: linear-gradient(135deg, #c0356a 0%, #9d2256 100%);
+  color: #ffffff;
+  flex-shrink: 0;
+}
+
+.chat-advisor-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #ffffff;
+}
+
+.chat-advisor-name {
+  @include type-style('body-short-02');
+  font-weight: 700;
+  margin: 0;
+  color: #ffffff;
+}
+
+.chat-advisor-sub {
+  @include type-style('label-01');
+  margin: 0;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.3;
+}
+
 .chat-history-sidebar {
   width: 14rem;
   flex-shrink: 0;
@@ -1939,10 +1976,56 @@ body {
   }
 }
 
-.chat-inline-suggestions {
+// ── Quick action chips ─────────────────────────────────────────────────────────
+.chat-quick-actions {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+  padding-bottom: $spacing-03;
+}
+
+.chat-quick-actions-label {
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.chat-quick-actions-grid {
   display: flex;
   flex-wrap: wrap;
   gap: $spacing-03;
+}
+
+.chat-quick-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-02;
+  padding: $spacing-02 $spacing-04;
+  border: 1.5px solid #fbc4d9;
+  border-radius: 2rem;
+  background: #ffffff;
+  color: #9d2256;
+  @include type-style('label-01');
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+
+  &:hover:not(:disabled) {
+    background: #fce7f3;
+    border-color: #f472a0;
+    color: #c0356a;
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  &:focus, &:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(244, 114, 160, 0.4); }
+
+  svg { flex-shrink: 0; }
 }
 
 .chat-input-wrap {
@@ -2008,6 +2091,20 @@ body {
   @include type-style('label-01');
   color: var(--cds-text-secondary);
   margin: 0;
+}
+
+// ── Bot message markdown rendering ─────────────────────────────────────────────
+.chat-bot-text {
+  @include type-style('body-01');
+  line-height: 1.65;
+
+  p   { margin: 0 0 0.5em; &:last-child { margin-bottom: 0; } }
+  ul  { margin: 0.4em 0 0.4em 1.2em; padding: 0; }
+  li  { margin-bottom: 0.2em; }
+  pre { background: rgba(0,0,0,0.04); border-radius: 0.4rem; padding: 0.6rem 0.8rem; overflow-x: auto; margin: 0.5em 0; }
+  code { font-family: 'IBM Plex Mono', monospace; font-size: 0.85em; background: rgba(0,0,0,0.04); padding: 0.1em 0.3em; border-radius: 0.25rem; }
+  pre code { background: transparent; padding: 0; }
+  strong { font-weight: 700; }
 }
 
 // ── Wizard ────────────────────────────────────────────────────────────────────
@@ -2277,10 +2374,15 @@ body {
 
   .chat-page { background: transparent; }
   .chat-history-sidebar { background: transparent; border-right-color: #3d3d3d; }
+  .chat-advisor-panel { background: linear-gradient(135deg, #5a0e28 0%, #3d0f20 100%); }
   .chat-main  { background: transparent; }
   .chat-bubble-new--user { background: linear-gradient(135deg, #5a0e28, #3d0f20); }
   .chat-input-area { background: transparent; border-top-color: #3d3d3d; }
   .chat-input-wrap { background: #262626; border-color: #3d3d3d; &:focus-within { border-color: #f472a0; } }
+  .chat-quick-action-btn { background: #2e2e2e; border-color: #5a1a30; color: #f9a8b8;
+    &:hover:not(:disabled) { background: #3d1a28; border-color: #f472a0; color: #f472a0; } }
+  .chat-bot-text pre { background: rgba(255,255,255,0.06); }
+  .chat-bot-text code { background: rgba(255,255,255,0.06); }
 
   .fc-window { background: #262626; border-color: #3d3d3d; }
   .fc-header  { background: linear-gradient(135deg, #6b1a34, #3d0f20); }

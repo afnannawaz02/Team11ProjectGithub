@@ -27,7 +27,12 @@
     },
     "watsonx-orchestrate-adk-docs": {
       "type": "streamable-http",
-      "url": "https://developer.watson-orchestrate.ibm.com/mcp"
+      "url": "https://developer.watson-orchestrate.ibm.com/mcp",
+      "alwaysAllow": [
+        "search_ibm_watsonx_orchestrate_adk",
+        "query_docs_filesystem_ibm_watsonx_orchestrate_adk",
+        "submit_feedback"
+      ]
     }
   }
 }

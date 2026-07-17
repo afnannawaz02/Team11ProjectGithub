@@ -1,0 +1,53 @@
+{
+  "routes": [
+    {
+      "routePath": "/api/stock",
+      "mountPath": "/api",
+      "method": "GET",
+      "module": [
+        "api/stock.js:onRequestGet"
+      ]
+    },
+    {
+      "routePath": "/api/auth",
+      "mountPath": "/api",
+      "method": "",
+      "module": [
+        "api/auth.js:onRequest"
+      ]
+    },
+    {
+      "routePath": "/chat",
+      "mountPath": "/",
+      "method": "POST",
+      "module": [
+        "chat.js:onRequestPost"
+      ]
+    },
+    {
+      "routePath": "/debug",
+      "mountPath": "/",
+      "method": "GET",
+      "module": [
+        "debug.js:onRequestGet"
+      ]
+    },
+    {
+      "routePath": "/send-otp",
+      "mountPath": "/",
+      "method": "POST",
+      "module": [
+        "send-otp.js:onRequestPost"
+      ]
+    },
+    {
+      "routePath": "/verify-otp",
+      "mountPath": "/",
+      "method": "POST",
+      "module": [
+        "verify-otp.js:onRequestPost"
+      ]
+    }
+  ],
+  "baseURL": "/"
+}

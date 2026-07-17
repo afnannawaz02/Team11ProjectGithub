@@ -24,17 +24,13 @@ database_id   = "effb499d-cbb7-4fa9-b5cf-9ea2ca8ad81a"
 # ── Secrets (DO NOT add values here) ─────────────────────────────────────────
 # Run these commands once to store them encrypted in Cloudflare:
 #
-#   npx wrangler pages secret put WO_USERNAME    --project-name team11projectgithub
-#   npx wrangler pages secret put WO_PASSWORD    --project-name team11projectgithub
+#   npx wrangler pages secret put WXO_API_KEY    --project-name team11projectgithub
 #   npx wrangler pages secret put RESEND_API_KEY --project-name team11projectgithub
 #
-# WO_USERNAME  — The email address you use to log in to watsonx Orchestrate
-#                (e.g. yourname@ibm.com)
-#                This is NOT an IBM Cloud IAM API key.
-#                This is NOT WATSONX_PROJECT_ID.
-#                It is the same login you use at:
-#                  https://dl.watson-orchestrate.ibm.com
-#
-# WO_PASSWORD  — The password for the above Orchestrate login.
+# WXO_API_KEY  — API key from:
+#                watsonx Orchestrate → user icon → Settings → API details → Generate API key
+#                Instance: https://api.dl.watson-orchestrate.ibm.com/instances/20260716-1822-4087-90fe-3b3ba1d4cc84
+#                Auth type: MCSP v2 (AWS-hosted)
+#                This is NOT an IBM Cloud IAM key. NOT a username/password.
 #
 # RESEND_API_KEY — Resend transactional email key for OTP delivery.

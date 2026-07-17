@@ -1199,29 +1199,49 @@ function FloatingChat({ profile }) {
 }
 
 // ── Chat view ──────────────────────────────────────────────────────────────────
-const PROXY_URL = '';  // relative URLs — Vite proxies to localhost:3001 in dev, CF Functions in prod
+// Uses watsonx Orchestrate ADK via /chat Cloudflare Function (MCSP auth).
+// No custom LLM calls, no system-prompt injection, no Watson-branded UI.
 
-const SUGGESTED_PROMPTS = [
-  'What should I invest in first?',
-  'Explain ETFs in simple terms',
-  'How do I build an emergency fund?',
-  'What is a good risk strategy for my age?',
+const QUICK_ACTIONS = [
+  { label: 'Review my portfolio', icon: <Growth size={14} aria-hidden="true" /> },
+  { label: 'Build emergency fund', icon: <Finance size={14} aria-hidden="true" /> },
+  { label: 'Explain ETFs', icon: <Analytics size={14} aria-hidden="true" /> },
+  { label: 'Debt payoff strategy', icon: <Flash size={14} aria-hidden="true" /> },
+  { label: 'Retirement planning', icon: <Sprout size={14} aria-hidden="true" /> },
+  { label: 'Reduce monthly spending', icon: <Notebook size={14} aria-hidden="true" /> },
 ];
-
-const GOAL_ICONS = {
-  retirement: <Growth   size={16} aria-hidden="true" />,
-  home:       <Finance  size={16} aria-hidden="true" />,
-  education:  <Analytics size={16} aria-hidden="true" />,
-  wealth:     <Growth   size={16} aria-hidden="true" />,
-  short_term: <Flash    size={16} aria-hidden="true" />,
-  long_term:  <Sprout   size={16} aria-hidden="true" />,
-};
 
 function TypingDots() {
   return (
-    <div className="typing-dots" aria-label="Gumdrop is typing">
+    <div className="typing-dots" aria-label="Gumdrop is thinking">
       <span /><span /><span />
     </div>
+  );
+}
+
+// Lightweight markdown → HTML for bot replies (bold, bullets, code)
+function BotMessage({ text }) {
+  const html = text
+    // Code blocks
+    .replace(/```[\s\S]*?```/g, (m) => `<pre><code>${m.slice(3, -3).replace(/^\w*\n/, '')}</code></pre>`)
+    // Inline code
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    // Bold
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    // Bullet lines
+    .replace(/^[*\-•] (.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>[\s\S]*?<\/li>)(\n<li>)/g, '$1$2')
+    .replace(/(<li>)/g, '<ul>$1').replace(/(<\/li>)(?!\n<li>)/g, '$1</ul>')
+    // Numbered lists
+    .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+    // Line breaks
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/\n/g, '<br/>');
+  return (
+    <div
+      className="chat-bot-text"
+      dangerouslySetInnerHTML={{ __html: `<p>${html}</p>` }}
+    />
   );
 }
 
@@ -1238,7 +1258,6 @@ function ChatView({ profile, username }) {
   });
   const [activeIdx, setActiveIdx] = useState(0);
 
-  // Persist sessions to localStorage whenever they change
   useEffect(() => {
     saveSessions(username, sessions);
   }, [sessions, username]);
@@ -1271,17 +1290,14 @@ function ChatView({ profile, username }) {
     setDraft('');
   };
 
-  const switchSession = (idx) => {
-    setActiveIdx(idx);
-    setDraft('');
-  };
+  const switchSession = (idx) => { setActiveIdx(idx); setDraft(''); };
 
   const togglePin = (e, id) => {
     e.stopPropagation();
     setSessions((prev) => {
-      const updated  = prev.map((s) => s.id === id ? { ...s, pinned: !s.pinned } : s);
-      const pinned   = updated.filter((s) => s.pinned);
-      const unpinned = updated.filter((s) => !s.pinned);
+      const updated   = prev.map((s) => s.id === id ? { ...s, pinned: !s.pinned } : s);
+      const pinned    = updated.filter((s) => s.pinned);
+      const unpinned  = updated.filter((s) => !s.pinned);
       const reordered = [...pinned, ...unpinned];
       const activeId  = prev[activeIdx].id;
       setActiveIdx(reordered.findIndex((s) => s.id === activeId));
@@ -1293,9 +1309,8 @@ function ChatView({ profile, username }) {
     e.stopPropagation();
     setSessions((prev) => {
       if (prev.length === 1) {
-        const fresh = { ...makeSession(), messages: [greeting] };
         setActiveIdx(0);
-        return [fresh];
+        return [{ ...makeSession(), messages: [greeting] }];
       }
       const next       = prev.filter((s) => s.id !== id);
       const deletedIdx = prev.findIndex((s) => s.id === id);
@@ -1309,14 +1324,11 @@ function ChatView({ profile, username }) {
     });
   };
 
-  // priorMessages: explicit history to use (for edits); falls back to current messages
   const send = async (text, priorMessages) => {
     const trimmed = text.trim();
     if (!trimmed || loading) return;
-
     const history = priorMessages ?? messages;
 
-    // Set session title from first user message
     setSessions((prev) =>
       prev.map((s, i) =>
         i === activeIdx && s.title === 'New chat'
@@ -1324,7 +1336,6 @@ function ChatView({ profile, username }) {
           : s
       )
     );
-
     setMessages(() => [
       ...history,
       { sender: 'user', text: trimmed },
@@ -1335,10 +1346,10 @@ function ChatView({ profile, username }) {
     inputRef.current?.focus();
 
     try {
-      const res = await fetch(`${PROXY_URL}/chat`, {
-        method: 'POST',
+      const res  = await fetch('/chat', {
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body:    JSON.stringify({
           userMessage: trimmed,
           profile,
           messages: history.filter((m) => !m.pending).slice(-10),
@@ -1346,12 +1357,14 @@ function ChatView({ profile, username }) {
       });
       const data  = await res.json();
       const reply = res.ok
-        ? (data.reply  || 'Sorry, I received an empty response.')
-        : (data.error  || 'Something went wrong. Please try again.');
+        ? (data.reply || 'Sorry, I received an empty response.')
+        : (data.error || 'Something went wrong. Please try again.');
       setMessages((prev) => prev.map((m) => (m.pending ? { sender: 'bot', text: reply } : m)));
     } catch {
       setMessages((prev) => prev.map((m) =>
-        m.pending ? { sender: 'bot', text: 'Could not reach the AI server. In dev: run `npm run server` and set WO_USERNAME + WO_PASSWORD in .env.local. In production: add those as Cloudflare Pages secrets.' } : m
+        m.pending
+          ? { sender: 'bot', text: 'Could not reach the server. In dev: run `npm run server` and add WXO_API_KEY to .env.local.' }
+          : m
       ));
     } finally {
       setLoading(false);
@@ -1362,11 +1375,30 @@ function ChatView({ profile, username }) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(draft); }
   };
 
+  const isNew = messages.length <= 1;
+
   return (
     <div className="chat-page" id="chat">
 
       {/* ── History sidebar ───────────────────────────────────────────────── */}
       <aside className="chat-history-sidebar">
+        {/* Financial Advisor panel header */}
+        <div className="chat-advisor-panel">
+          <div className="chat-advisor-icon" aria-hidden="true">
+            <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" width="22" height="22">
+              <path d="M28 4H4a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h6l6 4 6-4h6a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Z"
+                stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
+              <circle cx="10" cy="14" r="1.5" fill="currentColor"/>
+              <circle cx="16" cy="14" r="1.5" fill="currentColor"/>
+              <circle cx="22" cy="14" r="1.5" fill="currentColor"/>
+            </svg>
+          </div>
+          <div>
+            <p className="chat-advisor-name">Gumdrop</p>
+            <p className="chat-advisor-sub">Financial Advisor AI · Powered by watsonx Orchestrate</p>
+          </div>
+        </div>
+
         <Button
           kind="tertiary"
           size="sm"
@@ -1380,6 +1412,7 @@ function ChatView({ profile, username }) {
         >
           New chat
         </Button>
+
         <div className="chat-history-list">
           {sessions.some((s) => s.pinned) && (
             <span className="chat-history-group-label">Pinned</span>
@@ -1389,8 +1422,7 @@ function ChatView({ profile, username }) {
               key={s.id}
               className={`chat-history-item${sessions.indexOf(s) === activeIdx ? ' chat-history-item--active' : ''}`}
               onClick={() => switchSession(sessions.indexOf(s))}
-              role="button"
-              tabIndex={0}
+              role="button" tabIndex={0}
               onKeyDown={(e) => e.key === 'Enter' && switchSession(sessions.indexOf(s))}
             >
               <svg viewBox="0 0 16 16" fill="none" width="13" height="13" xmlns="http://www.w3.org/2000/svg" style={{flexShrink:0}}>
@@ -1398,18 +1430,8 @@ function ChatView({ profile, username }) {
               </svg>
               <span className="chat-history-item-title">{s.title}</span>
               <div className="chat-history-item-actions">
-                <button
-                  className="chat-history-pin-btn chat-history-pin-btn--active"
-                  onClick={(e) => togglePin(e, s.id)}
-                  aria-label="Unpin chat"
-                  title="Unpin"
-                ><PinFilled size={14} /></button>
-                <button
-                  className="chat-history-del-btn"
-                  onClick={(e) => deleteSession(e, s.id)}
-                  aria-label="Delete chat"
-                  title="Delete"
-                ><TrashCan size={14} /></button>
+                <button className="chat-history-pin-btn chat-history-pin-btn--active" onClick={(e) => togglePin(e, s.id)} aria-label="Unpin" title="Unpin"><PinFilled size={14} /></button>
+                <button className="chat-history-del-btn" onClick={(e) => deleteSession(e, s.id)} aria-label="Delete" title="Delete"><TrashCan size={14} /></button>
               </div>
             </div>
           ))}
@@ -1421,8 +1443,7 @@ function ChatView({ profile, username }) {
               key={s.id}
               className={`chat-history-item${sessions.indexOf(s) === activeIdx ? ' chat-history-item--active' : ''}`}
               onClick={() => switchSession(sessions.indexOf(s))}
-              role="button"
-              tabIndex={0}
+              role="button" tabIndex={0}
               onKeyDown={(e) => e.key === 'Enter' && switchSession(sessions.indexOf(s))}
             >
               <svg viewBox="0 0 16 16" fill="none" width="13" height="13" xmlns="http://www.w3.org/2000/svg" style={{flexShrink:0}}>
@@ -1430,18 +1451,8 @@ function ChatView({ profile, username }) {
               </svg>
               <span className="chat-history-item-title">{s.title}</span>
               <div className="chat-history-item-actions">
-                <button
-                  className="chat-history-pin-btn"
-                  onClick={(e) => togglePin(e, s.id)}
-                  aria-label="Pin chat"
-                  title="Pin"
-                ><Pin size={14} /></button>
-                <button
-                  className="chat-history-del-btn"
-                  onClick={(e) => deleteSession(e, s.id)}
-                  aria-label="Delete chat"
-                  title="Delete"
-                ><TrashCan size={14} /></button>
+                <button className="chat-history-pin-btn" onClick={(e) => togglePin(e, s.id)} aria-label="Pin" title="Pin"><Pin size={14} /></button>
+                <button className="chat-history-del-btn" onClick={(e) => deleteSession(e, s.id)} aria-label="Delete" title="Delete"><TrashCan size={14} /></button>
               </div>
             </div>
           ))}
@@ -1464,52 +1475,37 @@ function ChatView({ profile, username }) {
                   <div className="chat-edit-wrap">
                     <TextArea
                       id={`chat-edit-${i}`}
-                      labelText=""
-                      hideLabel
+                      labelText="" hideLabel
                       className="chat-edit-textarea"
                       value={editDraft}
                       onChange={(e) => setEditDraft(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
-                          if (editDraft.trim()) {
-                            const prior = messages.slice(0, i);
-                            setEditingIdx(null);
-                            send(editDraft.trim(), prior);
-                          }
+                          if (editDraft.trim()) { const prior = messages.slice(0, i); setEditingIdx(null); send(editDraft.trim(), prior); }
                         }
-                        if (e.key === 'Escape') { setEditingIdx(null); }
+                        if (e.key === 'Escape') setEditingIdx(null);
                       }}
                       autoFocus
                     />
                     <div className="chat-edit-actions">
-                      <Button
-                        kind="primary"
-                        size="sm"
-                        onClick={() => {
-                          if (editDraft.trim()) {
-                            const prior = messages.slice(0, i);
-                            setEditingIdx(null);
-                            send(editDraft.trim(), prior);
-                          }
-                        }}
-                      >Save</Button>
-                      <Button
-                        kind="ghost"
-                        size="sm"
-                        onClick={() => setEditingIdx(null)}
-                      >Cancel</Button>
+                      <Button kind="primary" size="sm" onClick={() => { if (editDraft.trim()) { const prior = messages.slice(0, i); setEditingIdx(null); send(editDraft.trim(), prior); } }}>Save</Button>
+                      <Button kind="ghost"   size="sm" onClick={() => setEditingIdx(null)}>Cancel</Button>
                     </div>
                   </div>
                 ) : (
                   <div className={`chat-bubble-new${msg.pending ? ' chat-bubble-new--pending' : ''}${msg.sender === 'user' ? ' chat-bubble-new--user' : ''}`}>
-                    {msg.pending ? <TypingDots /> : msg.text}
+                    {msg.pending
+                      ? <TypingDots />
+                      : msg.sender !== 'user'
+                        ? <BotMessage text={msg.text} />
+                        : msg.text
+                    }
                     {msg.sender === 'user' && !msg.pending && (
                       <button
                         className="chat-edit-btn"
                         onClick={() => { setEditingIdx(i); setEditDraft(msg.text); }}
-                        aria-label="Edit message"
-                        title="Edit"
+                        aria-label="Edit message" title="Edit"
                       >✏️</button>
                     )}
                   </div>
@@ -1527,42 +1523,44 @@ function ChatView({ profile, username }) {
 
         {/* Input */}
         <div className="chat-input-area">
-          {messages.length <= 1 && (
-            <div className="chat-inline-suggestions">
-              {SUGGESTED_PROMPTS.map((p) => (
-                <Tag
-                  key={p}
-                  type="blue"
-                  className="chat-inline-suggestion-btn"
-                  onClick={() => !loading && send(p)}
-                  style={{ cursor: loading ? 'not-allowed' : 'pointer' }}
-                >
-                  {p}
-                </Tag>
-              ))}
+
+          {/* Quick actions — visible only on a fresh / empty conversation */}
+          {isNew && (
+            <div className="chat-quick-actions">
+              <p className="chat-quick-actions-label">Quick actions</p>
+              <div className="chat-quick-actions-grid">
+                {QUICK_ACTIONS.map(({ label, icon }) => (
+                  <button
+                    key={label}
+                    className="chat-quick-action-btn"
+                    onClick={() => !loading && send(label)}
+                    disabled={loading}
+                  >
+                    {icon}
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
+
           <div className="chat-input-wrap">
             <TextArea
               ref={inputRef}
               id="chat-input"
-              labelText=""
-              hideLabel
+              labelText="" hideLabel
               rows={1}
-              placeholder={loading ? 'Gumdrop is thinking…' : 'Ask me anything about investing…'}
+              placeholder={loading ? 'Gumdrop is thinking…' : 'Ask me anything about your finances…'}
               value={draft}
               disabled={loading}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={handleKey}
             />
             <Button
-              kind="primary"
-              size="sm"
+              kind="primary" size="sm"
               onClick={() => send(draft)}
               disabled={loading || !draft.trim()}
-              aria-label="Send message"
-              hasIconOnly
-              iconDescription="Send message"
+              aria-label="Send message" hasIconOnly iconDescription="Send message"
               renderIcon={() => (
                 <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="18">
                   <path d="M2 10L18 2L12 10L18 18L2 10Z" fill="currentColor" />
@@ -1570,9 +1568,8 @@ function ChatView({ profile, username }) {
               )}
             />
           </div>
-          <p className="chat-input-hint">Press Enter to send · Shift+Enter for new line</p>
+          <p className="chat-input-hint">Enter to send · Shift+Enter for new line · Responses from watsonx Orchestrate Financial Advisor</p>
         </div>
-
       </div>
     </div>
   );
