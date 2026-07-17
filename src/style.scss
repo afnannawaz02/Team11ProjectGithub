@@ -2820,9 +2820,6 @@ body {
   text-align: right;
 }
 
-// ── Dark mode overrides for new panels ─────────────────────────────────────────
-// (Added inside .theme-dark block further down in the file)
-
 
 // ── Wizard ────────────────────────────────────────────────────────────────────
 .wizard-page {
@@ -3107,6 +3104,79 @@ body {
   // Pin gate
   .pin-gate { background: linear-gradient(160deg, #1c1c1c 0%, #262626 100%); }
   .pin-card { background: #262626; border-color: #3d3d3d; }
+
+  // ── Panel shared ─────────────────────────────────────────────────────────────
+  .panel-tab {
+    background: #2e2e2e;
+    border-color: #5a1a30;
+    color: #f9a8b8;
+    &--active { background: linear-gradient(135deg, #5a0e28, #3d0f20); color: #ffffff; border-color: transparent; }
+    &:not(.panel-tab--active):hover { background: #3d1a28; }
+  }
+  .panel-hint  { background: #2e2e2e; border-color: #5a1a30; }
+  .panel-error { background: #2a1010; border-color: #6b2020; color: #ff8389; }
+
+  // ── Spending Panel ────────────────────────────────────────────────────────────
+  .spend-summary-card {
+    background: #2e2e2e;
+    border-color: #5a1a30;
+    &--green { background: #0d2018; border-color: #1a5c3a; }
+    &--red   { background: #2a1010; border-color: #6b2020; }
+  }
+  .spend-summary-value {
+    .spend-summary-card--green & { color: #42be65; }
+    .spend-summary-card--red   & { color: #ff8389; }
+  }
+  .spend-cat-bar-track { background: #3d3d3d; }
+  .spend-unusual-row   { background: #2a2210; border-color: #5c4a00; }
+  .spend-unusual-reason { color: #f1c21b; }
+
+  // ── Subscription cards ────────────────────────────────────────────────────────
+  .sub-summary-card { background: #2e2e2e; border-color: #5a1a30; }
+
+  // ── Portfolio Panel ───────────────────────────────────────────────────────────
+  .portfolio-net-worth-banner {
+    background: linear-gradient(135deg, #2a1520 0%, #1e1a2e 100%);
+    border-color: #5a1a30;
+  }
+  .portfolio-metric-card { background: #2e2e2e; border-color: #5a1a30; }
+  .alloc-bar-inline span { background: #c0356a; }
+
+  // ── Net Worth Panel ───────────────────────────────────────────────────────────
+  .nw-snapshot-card { background: #2e2e2e; border-color: #5a1a30; }
+
+  // ── Financial Health Panel ────────────────────────────────────────────────────
+  .health-component-track { background: #3d3d3d; }
+  .health-action-row {
+    background: linear-gradient(135deg, #2a1520 0%, #1e1a2e 100%);
+    border-color: #5a1a30;
+  }
+
+  // ── Market Insights Panel ─────────────────────────────────────────────────────
+  .market-watch-btn {
+    background: #2e2e2e;
+    border-color: #5a1a30;
+    color: #f9a8b8;
+    &--active { background: linear-gradient(135deg, #5a0e28, #3d0f20); color: #ffffff; border-color: transparent; }
+    &:not(.market-watch-btn--active):hover { background: #3d1a28; }
+  }
+  .market-news-item {
+    background: #2e2e2e;
+    border-color: #5a1a30;
+    &:hover { background: #3d1a28; }
+  }
+
+  // ── Analyst bars ──────────────────────────────────────────────────────────────
+  .analyst-bar-track { background: #3d3d3d; }
+  .analyst-verdict {
+    &--buy, &--strong.buy   { background: #0d2018; color: #42be65; }
+    &--hold                  { background: #2a2210; color: #f1c21b; }
+    &--sell, &--strong.sell  { background: #2a1010; color: #ff8389; }
+  }
+
+  // ── Table / ticker / kv-row ───────────────────────────────────────────────────
+  .db-ticker { background: #3d1a28; color: #f9a8b8; }
+  .db-kv-row { background: #2e2e2e; border-color: #3d3d3d; }
 
   // Header in dark mode — keep the same gradient but slightly deeper
   .cds--header {
