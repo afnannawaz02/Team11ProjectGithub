@@ -2544,10 +2544,15 @@ body {
   overflow: hidden;
 }
 
+@keyframes bar-fill-ltr {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
 .spend-cat-bar {
   height: 100%;
   border-radius: 3px;
-  transition: width 400ms ease;
+  transform-origin: left center;
 }
 
 .spend-cat-chip {
@@ -2715,6 +2720,12 @@ body {
   font-weight: 700;
   color: #ffffff;
   font-variant-numeric: tabular-nums;
+}
+
+// Donut fill animation (stroke-dashoffset from full circumference → 0)
+@keyframes donut-fill {
+  from { stroke-dashoffset: 477; } // 2π × 76 ≈ 477
+  to   { stroke-dashoffset: 0; }
 }
 
 // Donut chart + legend section

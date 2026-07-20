@@ -1084,25 +1084,52 @@ function PanelLoadingOrError({ loading, error, children }) {
 }
 
 // ── Donut chart (shared) ────────────────────────────────────────────────────────
-function DonutChart({ slices, totalLabel, totalValue }) {
-  const R = 95, IR = 58, CX = 115, CY = 115;
+function DonutChart({ slices, totalLabel, totalValue, animate = false }) {
+  // Use stroked arcs on a mid-radius so each segment can animate via stroke-dashoffset
+  const CX = 115, CY = 115;
+  const R  = 76;                          // mid-radius of the ring
+  const SW = 37;                          // stroke-width = ring thickness
+  const CIRC = 2 * Math.PI * R;           // full circumference
+
   let cum = 0;
-  const paths = slices.map((s) => {
-    const a0 = (cum / 100) * 2 * Math.PI - Math.PI / 2;
+  const arcs = slices.map((s, i) => {
+    const startDeg = (cum / 100) * 360 - 90;   // -90 so it starts at the top
     cum += s.pct;
-    const a1 = (cum / 100) * 2 * Math.PI - Math.PI / 2;
-    if (s.pct >= 99.9) {
-      return { ...s, d: `M${CX},${CY - R} A${R},${R},0,1,1,${CX - 0.001},${CY - R} Z` };
-    }
-    const x1 = CX + R * Math.cos(a0), y1 = CY + R * Math.sin(a0);
-    const x2 = CX + R * Math.cos(a1), y2 = CY + R * Math.sin(a1);
-    return { ...s, d: `M${CX},${CY} L${x1},${y1} A${R},${R},0,${s.pct > 50 ? 1 : 0},1,${x2},${y2} Z` };
+    const dash    = (s.pct / 100) * CIRC;      // filled arc length
+    const gap     = CIRC - dash;               // remaining gap
+    // rotate so this arc begins where the previous one ended
+    const rotate  = startDeg;
+    return { ...s, dash, gap, rotate, delay: i * 80 };
   });
+
   return (
     <svg viewBox="0 0 230 230" width="230" height="230" aria-hidden="true">
-      {paths.map((p) => <path key={p.label} d={p.d} fill={p.color} stroke="#1a0e18" strokeWidth="2.5" />)}
+      {/* Background ring */}
+      <circle cx={CX} cy={CY} r={R} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={SW} />
+
+      {arcs.map((a) => (
+        <circle
+          key={a.label}
+          cx={CX} cy={CY} r={R}
+          fill="none"
+          stroke={a.color}
+          strokeWidth={SW}
+          strokeDasharray={`${a.dash} ${a.gap}`}
+          strokeDashoffset={animate ? CIRC : 0}
+          strokeLinecap="butt"
+          style={{
+            transformOrigin: `${CX}px ${CY}px`,
+            transform: `rotate(${a.rotate}deg)`,
+            ...(animate ? {
+              animation: `donut-fill 700ms cubic-bezier(0.4,0,0.2,1) ${a.delay}ms both`,
+            } : {}),
+          }}
+        />
+      ))}
+
       {/* Donut hole */}
-      <circle cx={CX} cy={CY} r={IR} fill="#0c0009" />
+      <circle cx={CX} cy={CY} r={R - SW / 2 - 1} fill="#0c0009" />
+
       <text x={CX} y={CY - 8} textAnchor="middle" fontSize="10" fill="rgba(255,255,255,0.42)" fontFamily="inherit">{totalLabel}</text>
       <text x={CX} y={CY + 10} textAnchor="middle" fontSize="13" fontWeight="700" fill="#ffffff" fontFamily="inherit">{totalValue}</text>
     </svg>
@@ -1357,12 +1384,18 @@ function PanelSpending() {
 // ═══════════════════════════════════════════════════════════════════════════════
 function PanelPortfolioAndWealth({ profile }) {
   const [view, setView] = useState('allocation');
+  const [allocAnimKey, setAllocAnimKey] = useState(0);
   const { data, loading, error } = useApi('/api/finance?type=portfolio');
   const { data: nwHistory, loading: hLoad, error: hErr } = useApi('/api/finance?type=networth');
 
   const RISK_DESC    = { conservative: 'Low risk', moderate: 'Balanced', aggressive: 'High risk' };
   const HORIZON_DESC = { short: '< 3 years', medium: '3–10 years', long: '10+ years' };
   const goals        = (profile?.goals ?? []).map((g) => GOAL_LABELS[g] ?? g);
+
+  const switchView = (id) => {
+    setView(id);
+    if (id === 'allocation') setAllocAnimKey((k) => k + 1);
+  };
 
   return (
     <div className="db-panel">
@@ -1373,7 +1406,7 @@ function PanelPortfolioAndWealth({ profile }) {
         </div>
         <div className="panel-tab-row">
           {[['allocation','Allocation'],['networth','Net Worth'],['stocks','Stocks'],['crypto','Crypto'],['profile','Profile']].map(([id, label]) => (
-            <button key={id} className={`panel-tab${view === id ? ' panel-tab--active' : ''}`} onClick={() => setView(id)}>{label}</button>
+            <button key={id} className={`panel-tab${view === id ? ' panel-tab--active' : ''}`} onClick={() => switchView(id)}>{label}</button>
           ))}
         </div>
       </div>
@@ -1399,7 +1432,7 @@ function PanelPortfolioAndWealth({ profile }) {
 
               {/* Donut centred + 2-col legend below */}
               <div className="alloc-donut-section">
-                <DonutChart slices={data.allocation} totalLabel="Net Worth" totalValue={fmt$(data.netWorth)} />
+                <DonutChart key={allocAnimKey} slices={data.allocation} totalLabel="Net Worth" totalValue={fmt$(data.netWorth)} animate={true} />
                 <div className="alloc-legend-grid">
                   {data.allocation.map((a) => (
                     <div key={a.label} className="alloc-legend-item">
@@ -1441,7 +1474,14 @@ function PanelPortfolioAndWealth({ profile }) {
                           <span className="spend-cat-amt">{fmt$(s.value)}</span>
                         </div>
                         <div className="spend-cat-bar-track">
-                          <div className="spend-cat-bar" style={{ width: `${s.pct}%`, background: `linear-gradient(90deg,${colors[i % colors.length]},${colors[i % colors.length]}aa)` }} />
+                          <div
+                            className="spend-cat-bar"
+                            style={{
+                              width: `${s.pct}%`,
+                              background: `linear-gradient(90deg,${colors[i % colors.length]},${colors[i % colors.length]}aa)`,
+                              animation: `bar-fill-ltr 600ms cubic-bezier(0.4,0,0.2,1) ${i * 60}ms both`,
+                            }}
+                          />
                         </div>
                       </div>
                     );
