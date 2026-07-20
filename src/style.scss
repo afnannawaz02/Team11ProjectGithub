@@ -2760,12 +2760,6 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-// Donut fill animation (stroke-dashoffset from full circumference → 0)
-@keyframes donut-fill {
-  from { stroke-dashoffset: 477; } // 2π × 76 ≈ 477
-  to   { stroke-dashoffset: 0; }
-}
-
 .donut-svg {
   width: 115px;
   height: 115px;

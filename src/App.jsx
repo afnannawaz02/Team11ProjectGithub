@@ -1235,53 +1235,101 @@ function PanelLoadingOrError({ loading, error, children }) {
 }
 
 // ── Donut chart (shared) ────────────────────────────────────────────────────────
-function DonutChart({ slices, totalLabel, totalValue, animate = false }) {
-  // Use stroked arcs on a mid-radius so each segment can animate via stroke-dashoffset
-  const CX = 115, CY = 115;
-  const R  = 76;                          // mid-radius of the ring
-  const SW = 37;                          // stroke-width = ring thickness
-  const CIRC = 2 * Math.PI * R;           // full circumference
+// Builds the SVG arc path for a wedge that sweeps from angle `a0` to `a1` (radians).
+// Used by the rAF reveal mask.
+function sweepArcPath(cx, cy, r, a0, a1) {
+  const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
+  const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+  const large = (a1 - a0) > Math.PI ? 1 : 0;
+  return `M${cx},${cy} L${x0},${y0} A${r},${r},0,${large},1,${x1},${y1} Z`;
+}
 
+function DonutChart({ slices, totalLabel, totalValue, animate = false }) {
+  const CX = 115, CY = 115;
+  const R  = 76;
+  const SW = 37;
+  const CIRC = 2 * Math.PI * R;
+  const DURATION = 1200; // ms — ease-out sweep duration
+
+  // Build the static arc segments (always rendered at full allocation)
   let cum = 0;
-  const arcs = slices.map((s, i) => {
-    const startDeg = (cum / 100) * 360 - 90;   // -90 so it starts at the top
+  const arcs = slices.map((s) => {
+    const startDeg = (cum / 100) * 360 - 90;
     cum += s.pct;
-    const dash    = (s.pct / 100) * CIRC;      // filled arc length
-    const gap     = CIRC - dash;               // remaining gap
-    // rotate so this arc begins where the previous one ended
-    const rotate  = startDeg;
-    return { ...s, dash, gap, rotate, delay: i * 80 };
+    const dash = (s.pct / 100) * CIRC;
+    const gap  = CIRC - dash;
+    return { ...s, dash, gap, rotate: startDeg };
   });
+
+  // clipAngle tracks how far clockwise the reveal has swept (0–360 degrees)
+  const [clipAngle, setClipAngle] = useState(animate ? 0 : 360);
+  const rafRef   = useRef(null);
+  const startRef = useRef(null);
+
+  // Re-run the sweep whenever animate/slices change
+  useEffect(() => {
+    if (!animate) { setClipAngle(360); return; }
+
+    setClipAngle(0);
+    startRef.current = null;
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+
+    const step = (ts) => {
+      if (!startRef.current) startRef.current = ts;
+      const t      = Math.min((ts - startRef.current) / DURATION, 1);
+      const eased  = 1 - Math.pow(1 - t, 3); // easeOutCubic
+      setClipAngle(eased * 360);
+      if (t < 1) rafRef.current = requestAnimationFrame(step);
+    };
+
+    rafRef.current = requestAnimationFrame(step);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [animate, slices]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Build the reveal clipPath — a filled wedge from -90° sweeping clockwise
+  // by `clipAngle` degrees. When clipAngle=360 the whole circle is revealed.
+  const clipId      = 'donut-reveal-clip';
+  const startRad    = -Math.PI / 2; // top of circle
+  const endRad      = startRad + (clipAngle / 360) * 2 * Math.PI;
+  const clipPathStr = clipAngle >= 359.9
+    ? `M${CX},${CY} m-${R + SW},0 a${R + SW},${R + SW},0,1,1,0,0.001 Z` // full circle
+    : sweepArcPath(CX, CY, R + SW + 2, startRad, endRad);
 
   return (
     <svg viewBox="0 0 230 230" className="donut-svg" aria-hidden="true">
+      <defs>
+        <clipPath id={clipId}>
+          <path d={clipPathStr} />
+        </clipPath>
+      </defs>
+
       {/* Background ring */}
       <circle cx={CX} cy={CY} r={R} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={SW} />
 
-      {arcs.map((a) => (
-        <circle
-          key={a.label}
-          cx={CX} cy={CY} r={R}
-          fill="none"
-          stroke={a.color}
-          strokeWidth={SW}
-          strokeDasharray={`${a.dash} ${a.gap}`}
-          strokeDashoffset={animate ? CIRC : 0}
-          strokeLinecap="butt"
-          style={{
-            transformOrigin: `${CX}px ${CY}px`,
-            transform: `rotate(${a.rotate}deg)`,
-            ...(animate ? {
-              animation: `donut-fill 700ms cubic-bezier(0.4,0,0.2,1) ${a.delay}ms both`,
-            } : {}),
-          }}
-        />
-      ))}
+      {/* Coloured segments — all rendered at full size, revealed by the sweep clipPath */}
+      <g clipPath={`url(#${clipId})`}>
+        {arcs.map((a) => (
+          <circle
+            key={a.label}
+            cx={CX} cy={CY} r={R}
+            fill="none"
+            stroke={a.color}
+            strokeWidth={SW}
+            strokeDasharray={`${a.dash} ${a.gap}`}
+            strokeDashoffset={0}
+            strokeLinecap="butt"
+            style={{
+              transformOrigin: `${CX}px ${CY}px`,
+              transform: `rotate(${a.rotate}deg)`,
+            }}
+          />
+        ))}
+      </g>
 
       {/* Donut hole */}
       <circle cx={CX} cy={CY} r={R - SW / 2 - 1} fill="#0c0009" />
 
-      <text x={CX} y={CY - 8} textAnchor="middle" fontSize="10" fill="rgba(255,255,255,0.42)" fontFamily="inherit">{totalLabel}</text>
+      <text x={CX} y={CY - 8}  textAnchor="middle" fontSize="10" fill="rgba(255,255,255,0.42)" fontFamily="inherit">{totalLabel}</text>
       <text x={CX} y={CY + 10} textAnchor="middle" fontSize="13" fontWeight="700" fill="#ffffff" fontFamily="inherit">{totalValue}</text>
     </svg>
   );
