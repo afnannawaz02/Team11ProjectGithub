@@ -598,7 +598,7 @@ function StockLineChart({ seriesData }) {
   const prevRef     = useRef(null);     // { pts, yTicks, smoothPath, areaPath }
   const morphKeyRef = useRef(0);
 
-  const W = 600, H = 120, PAD = { top: 8, right: 8, bottom: 28, left: 0 };
+  const W = 600, H = 180, PAD = { top: 8, right: 8, bottom: 28, left: 38 };
   const cW = W - PAD.left - PAD.right;
   const cH = H - PAD.top  - PAD.bottom;
   const lineColor = '#d4006e';
@@ -618,12 +618,15 @@ function StockLineChart({ seriesData }) {
     const area   = smooth
       + ` L${pts[pts.length - 1][0].toFixed(2)},${(PAD.top + cH).toFixed(2)}`
       + ` L${pts[0][0].toFixed(2)},${(PAD.top + cH).toFixed(2)} Z`;
+    // 5 y-axis ticks matching Figma ($172–$180 in $2 steps)
     const yTicks = [0, 0.25, 0.5, 0.75, 1].map((t) => ({
       y:     PAD.top + cH - t * cH,
       label: `$${Math.round(minP + t * (maxP - minP))}`,
     }));
-    const xTicks = [0, 1, 2, 3].map((k) => {
-      const idx = Math.round((k / 3) * (POINTS - 1));
+    // Up to 13 evenly-spaced x-axis ticks (capped so they don't crowd)
+    const maxTicks = Math.min(POINTS, 13);
+    const xTicks = Array.from({ length: maxTicks }, (_, k) => {
+      const idx = Math.round((k / (maxTicks - 1)) * (POINTS - 1));
       return { x: scX(idx), label: fmtDate(seriesData[idx].date) };
     });
     return { pts, smooth, area, yTicks, xTicks, minP, maxP, prices, POINTS, scX, scY };
@@ -711,7 +714,7 @@ function StockLineChart({ seriesData }) {
   };
 
   if (!validData || !derived) {
-    return <div className="st-chart-wrap" style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'120px', color:'rgba(255,255,255,0.42)' }}>No chart data</div>;
+    return <div className="st-chart-wrap" style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'180px', color:'rgba(255,255,255,0.42)' }}>No chart data</div>;
   }
 
   const { prices, POINTS, scX, scY, xTicks, yTicks, minP, maxP } = derived;
@@ -736,30 +739,31 @@ function StockLineChart({ seriesData }) {
       >
         <defs>
           <linearGradient id="st-grad-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%"   stopColor={lineColor} stopOpacity="0.18"/>
-            <stop offset="100%" stopColor={lineColor} stopOpacity="0.02"/>
+            <stop offset="0%"   stopColor={lineColor} stopOpacity="0.32"/>
+            <stop offset="60%"  stopColor={lineColor} stopOpacity="0.08"/>
+            <stop offset="100%" stopColor={lineColor} stopOpacity="0"/>
           </linearGradient>
           <filter id="st-shadow" x="-20%" y="-20%" width="140%" height="140%">
             <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.10"/>
           </filter>
         </defs>
 
-        {/* Y-axis labels — positions animated via SMIL, text swapped after morph */}
+        {/* Y-axis labels — right-aligned in left margin */}
         {yTicks.map(({ y, label }, i) => (
           <text
             key={i}
             ref={(el) => { yTickRefs.current[i] = el; }}
-            x={4}
+            x={PAD.left - 4}
             y={y + 4}
-            textAnchor="start"
-            fontSize="8"
+            textAnchor="end"
+            fontSize="9"
             fill="rgba(255,255,255,0.28)"
           >{label}</text>
         ))}
 
-        {/* X-axis labels — fade in on change */}
+        {/* X-axis labels — evenly spaced, fade in on change */}
         {xTicks.map(({ x, label }) => (
-          <text key={label} x={x} y={PAD.top + cH + 18} textAnchor="middle" fontSize="8" fill="rgba(255,255,255,0.28)"
+          <text key={label} x={x} y={PAD.top + cH + 18} textAnchor="middle" fontSize="9" fill="rgba(255,255,255,0.28)"
             className="st-axis-label">{label}</text>
         ))}
 

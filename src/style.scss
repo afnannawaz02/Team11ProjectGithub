@@ -1192,7 +1192,7 @@ body {
 }
 
 .st-chart-loading {
-  height: 120px;
+  height: 180px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1486,7 +1486,7 @@ body {
 .st-line-svg,
 .st-vol-svg {
   width: 100%;
-  height: 120px;
+  height: 180px;
   display: block;
   overflow: visible;
 }
@@ -2764,6 +2764,12 @@ body {
 @keyframes donut-fill {
   from { stroke-dashoffset: 477; } // 2π × 76 ≈ 477
   to   { stroke-dashoffset: 0; }
+}
+
+.donut-svg {
+  width: 115px;
+  height: 115px;
+  display: block;
 }
 
 // Donut chart + legend section
