@@ -1365,6 +1365,7 @@ body {
 .st-change {
   @include type-style('body-01');
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .st-range-btns {
@@ -1529,6 +1530,7 @@ body {
   @include type-style('heading-03');
   color: #ffffff;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 // Place order
@@ -2912,6 +2914,7 @@ body {
   color: #ffffff;
   display: block;
   font-family: 'IBM Plex Mono', monospace;
+  font-variant-numeric: tabular-nums;
 }
 
 .nw-snapshot-note {

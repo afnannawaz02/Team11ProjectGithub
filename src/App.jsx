@@ -1051,9 +1051,18 @@ function PanelAssets() {
       <div className="st-detail">
         <div className="st-detail-left">
           <span className="st-name">{pr.name || active}</span>
-          <div className="st-price">{loadingQ ? '…' : q.price ? `$${q.price.toFixed(2)}` : '—'}</div>
+          <div className="st-price">
+            {loadingQ ? '…' : q.price
+              ? <AnimatedValue value={`$${q.price.toFixed(2)}`} />
+              : '—'}
+          </div>
           <div className={`st-change ${priceUp ? 'st-up' : 'st-down'}`}>
-            {q.price ? `${priceUp ? '▲' : '▼'} ${priceUp ? '+' : ''}${q.change?.toFixed(2)} / ${priceUp ? '+' : ''}${Number(q.pct || 0).toFixed(2)}%` : ''}
+            {q.price ? <>
+              {priceUp ? '▲' : '▼'}{' '}
+              <AnimatedValue value={`${priceUp ? '+' : ''}${q.change?.toFixed(2)}`} />
+              {' / '}
+              <AnimatedValue value={`${priceUp ? '+' : ''}${Number(q.pct || 0).toFixed(2)}%`} />
+            </> : ''}
           </div>
         </div>
         <div className="st-range-btns">
@@ -1083,7 +1092,7 @@ function PanelAssets() {
         ].map(({ label, value }) => (
           <div key={label} className="st-stat-card">
             <span className="st-stat-label">{label}</span>
-            <span className="st-stat-value">{value}</span>
+            <AnimatedValue value={value} className="st-stat-value" />
           </div>
         ))}
       </div>
@@ -1095,6 +1104,92 @@ function PanelAssets() {
 // ── Shared helpers ─────────────────────────────────────────────────────────────
 function fmt$(n) { return typeof n === 'number' ? `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'; }
 function fmtPct(n) { return typeof n === 'number' ? `${n > 0 ? '+' : ''}${n.toFixed(1)}%` : '—'; }
+
+// ── Count-up animation ─────────────────────────────────────────────────────────
+// easeOutExpo — fast start, silky deceleration into final value
+function easeOutExpo(t) { return t >= 1 ? 1 : 1 - Math.pow(2, -10 * t); }
+
+// Parses a formatted string like "$1,234.56" or "+2.45%" into
+// { prefix, suffix, value } so we animate only the number.
+function parseAnimValue(str) {
+  if (!str || str === '—' || str === '…') return null;
+  // Strip leading sign for parsing, remember it
+  const sign   = str.startsWith('+') ? '+' : str.startsWith('-') ? '-' : '';
+  const noSign = sign ? str.slice(1) : str;
+  // Collect prefix non-digit chars (e.g. "$")
+  const prefixMatch = noSign.match(/^([^0-9]*)([\d,]+\.?\d*)(.*)$/);
+  if (!prefixMatch) return null;
+  const [, pre, numStr, suf] = prefixMatch;
+  const value = parseFloat(numStr.replace(/,/g, ''));
+  if (isNaN(value)) return null;
+  return { prefix: sign + pre, suffix: suf, value };
+}
+
+// Hook: given a target numeric value, returns a smoothly interpolated current value.
+// Resets and re-animates whenever `target` changes.
+function useCountUp(target, duration = 800) {
+  const [display, setDisplay] = useState(target);
+  const frameRef  = useRef(null);
+  const startRef  = useRef(null);
+  const fromRef   = useRef(target);
+  const targetRef = useRef(target);
+
+  useEffect(() => {
+    const from = fromRef.current;
+    const to   = target;
+    targetRef.current = to;
+
+    if (from === to) return;
+
+    // Cancel any in-flight animation
+    if (frameRef.current) cancelAnimationFrame(frameRef.current);
+    startRef.current = null;
+
+    const step = (ts) => {
+      if (!startRef.current) startRef.current = ts;
+      const elapsed = ts - startRef.current;
+      const t       = Math.min(elapsed / duration, 1);
+      const eased   = easeOutExpo(t);
+      const current = from + (targetRef.current - from) * eased;
+      setDisplay(current);
+      if (t < 1) {
+        frameRef.current = requestAnimationFrame(step);
+      } else {
+        setDisplay(targetRef.current);
+        fromRef.current = targetRef.current;
+      }
+    };
+
+    frameRef.current = requestAnimationFrame(step);
+    return () => { if (frameRef.current) cancelAnimationFrame(frameRef.current); };
+  }, [target, duration]);
+
+  return display;
+}
+
+// Component: wraps a formatted string value, animates the numeric part.
+// Falls back to static text if the value isn't parseable as a number.
+// `decimals` controls how many decimal places to show during animation.
+function AnimatedValue({ value, decimals, className, style }) {
+  const parsed = useMemo(() => parseAnimValue(String(value ?? '')), [value]);
+  const animNum = useCountUp(parsed?.value ?? 0, 800);
+
+  if (!parsed) return <span className={className} style={style}>{value}</span>;
+
+  // Reconstruct the formatted number — match original decimal places
+  const dp      = decimals ?? (String(parsed.value).includes('.') ? String(parsed.value).split('.')[1].length : 0);
+  const formatted = animNum.toLocaleString('en-US', {
+    minimumFractionDigits: dp,
+    maximumFractionDigits: dp,
+  });
+
+  return (
+    <span className={className} style={{ ...style, fontVariantNumeric: 'tabular-nums' }}>
+      {parsed.prefix}{formatted}{parsed.suffix}
+    </span>
+  );
+}
+
 function useApi(url) {
   const [data, setData]     = useState(null);
   const [loading, setLoad]  = useState(false);
@@ -1138,7 +1233,7 @@ function DonutChart({ slices, totalLabel, totalValue, animate = false }) {
   });
 
   return (
-    <svg viewBox="0 0 230 230" width="230" height="230" aria-hidden="true">
+    <svg viewBox="0 0 230 230" className="donut-svg" aria-hidden="true">
       {/* Background ring */}
       <circle cx={CX} cy={CY} r={R} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={SW} />
 
@@ -1197,7 +1292,7 @@ function HealthScoreRing({ score }) {
   const color = score >= 80 ? '#24a148' : score >= 60 ? '#f472a0' : '#da1e28';
   const grade = score >= 85 ? 'A' : score >= 70 ? 'B' : score >= 55 ? 'C' : 'D';
   return (
-    <svg viewBox="0 0 140 140" width="130" height="130" aria-label={`Health score ${score}`}>
+    <svg viewBox="0 0 140 140" className="health-ring-svg" aria-label={`Health score ${score}`}>
       <circle cx="70" cy="70" r={r} fill="none" stroke="#f0e0e8" strokeWidth="12" />
       <circle cx="70" cy="70" r={r} fill="none" stroke={color} strokeWidth="12"
         strokeDasharray={`${filled} ${circ - filled}`} strokeLinecap="round"
@@ -1460,7 +1555,7 @@ function PanelPortfolioAndWealth({ profile }) {
                 ].map(({ label, value }) => (
                   <div key={label} className="alloc-summary-card">
                     <span className="alloc-summary-label">{label}</span>
-                    <span className="alloc-summary-value">{value}</span>
+                    <AnimatedValue value={value} className="alloc-summary-value" />
                   </div>
                 ))}
               </div>
@@ -1489,7 +1584,7 @@ function PanelPortfolioAndWealth({ profile }) {
                 ].map(({ label, value }, i, arr) => (
                   <div key={label} className={`alloc-metric-cell${i < arr.length - 1 ? ' alloc-metric-cell--border' : ''}`}>
                     <span className="alloc-metric-label">{label}</span>
-                    <span className="alloc-metric-value">{value}</span>
+                    <AnimatedValue value={value} className="alloc-metric-value" />
                   </div>
                 ))}
               </div>
@@ -1544,7 +1639,7 @@ function PanelPortfolioAndWealth({ profile }) {
                     <div className="nw-snapshot-indicator" style={{ background: color }} />
                     <div>
                       <span className="nw-snapshot-label">{label}</span>
-                      <span className="nw-snapshot-value" style={{ color }}>{value}</span>
+                      <AnimatedValue value={value} className="nw-snapshot-value" style={{ color }} />
                       <span className="nw-snapshot-note">{note}</span>
                     </div>
                   </div>
