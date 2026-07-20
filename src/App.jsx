@@ -875,11 +875,28 @@ function PanelAssets() {
   };
 
   const makeFallbackSeries = (ticker, r) => {
-    const days  = r === '1D' ? 1 : r === '1W' ? 7 : r === '1M' ? 30 : 90;
     const rand  = seededRand(ticker.split('').reduce((a, c) => a + c.charCodeAt(0), 0));
     const base  = { AAPL: 185, MSFT: 415, GOOGL: 175, TSLA: 245 }[ticker] ?? 100;
     let price   = base;
     const now   = Date.now();
+
+    if (r === '1D') {
+      // 30 intraday points (~16 min apart) for a single trading day
+      const points = 30;
+      const open   = new Date(now);
+      open.setHours(9, 30, 0, 0);
+      return Array.from({ length: points }, (_, i) => {
+        price = Math.max(price * (0.9985 + rand() * 0.003), 1);
+        const d = new Date(open.getTime() + i * 16 * 60 * 1000);
+        return {
+          date:   d.toISOString().slice(0, 10),
+          close:  parseFloat(price.toFixed(2)),
+          volume: Math.round(rand() * 5e6 + 5e5),
+        };
+      });
+    }
+
+    const days = r === '1W' ? 7 : r === '1M' ? 30 : 90;
     return Array.from({ length: days }, (_, i) => {
       price = Math.max(price * (0.985 + rand() * 0.03), 1);
       const d = new Date(now - (days - 1 - i) * 86400000);
