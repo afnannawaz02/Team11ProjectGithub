@@ -591,14 +591,34 @@ function smilAnimate(el, attr, from, to, durStr, id) {
 
 function StockLineChart({ seriesData }) {
   const [hoverIdx, setHoverIdx]   = useState(null);
+  const [containerW, setContainerW] = useState(900); // measured pixel width
   const svgRef      = useRef(null);
+  const wrapRef     = useRef(null);
   const lineRef     = useRef(null);
   const areaRef     = useRef(null);
   const yTickRefs   = useRef([]);       // refs for the 5 y-axis <text> nodes
   const prevRef     = useRef(null);     // { pts, yTicks, smoothPath, areaPath }
   const morphKeyRef = useRef(0);
 
-  const W = 600, H = 180, PAD = { top: 8, right: 8, bottom: 28, left: 38 };
+  // ── Measure container width so the viewBox always matches ───────────────────
+  useEffect(() => {
+    if (!wrapRef.current) return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width;
+      if (w && w > 0) {
+        // Clear prevRef so the next render does a clean first-paint (no SMIL morph
+        // from old coordinate space into new coordinate space)
+        prevRef.current = null;
+        setContainerW(Math.round(w));
+      }
+    });
+    ro.observe(wrapRef.current);
+    // Seed immediately
+    setContainerW(Math.round(wrapRef.current.getBoundingClientRect().width) || 900);
+    return () => ro.disconnect();
+  }, []);
+
+  const W = containerW, H = 180, PAD = { top: 8, right: 6, bottom: 28, left: 38 };
   const cW = W - PAD.left - PAD.right;
   const cH = H - PAD.top  - PAD.bottom;
   const lineColor = '#d4006e';
@@ -623,14 +643,15 @@ function StockLineChart({ seriesData }) {
       y:     PAD.top + cH - t * cH,
       label: `$${Math.round(minP + t * (maxP - minP))}`,
     }));
-    // Up to 13 evenly-spaced x-axis ticks (capped so they don't crowd)
-    const maxTicks = Math.min(POINTS, 13);
+    // Scale tick count with container width so labels don't crowd
+    const tickTarget = W >= 800 ? 13 : W >= 500 ? 9 : 6;
+    const maxTicks = Math.min(POINTS, tickTarget);
     const xTicks = Array.from({ length: maxTicks }, (_, k) => {
       const idx = Math.round((k / (maxTicks - 1)) * (POINTS - 1));
       return { x: scX(idx), label: fmtDate(seriesData[idx].date) };
     });
     return { pts, smooth, area, yTicks, xTicks, minP, maxP, prices, POINTS, scX, scY };
-  }, [seriesData]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [seriesData, containerW]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── SMIL morph whenever seriesData changes ───────────────────────────────
   useEffect(() => {
@@ -729,10 +750,11 @@ function StockLineChart({ seriesData }) {
   const tipY   = Math.max(PAD.top, Math.min(hY - tipH / 2, PAD.top + cH - tipH));
 
   return (
-    <div className="st-chart-wrap">
+    <div className="st-chart-wrap" ref={wrapRef}>
       <svg
         ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="xMidYMid meet"
         className="st-line-svg"
         onMouseMove={handleMouseMove}
         onMouseLeave={() => setHoverIdx(null)}

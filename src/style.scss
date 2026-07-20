@@ -1133,7 +1133,7 @@ body {
 .st-wrap {
   display: flex;
   flex-direction: column;
-  gap: $spacing-03;
+  gap: $spacing-02;
   width: 100%;
 }
 
@@ -1185,9 +1185,12 @@ body {
 }
 
 // Chart bleed wrapper — breaks out of the 1.5rem panel padding to run edge-to-edge
+// The ResizeObserver in StockLineChart measures this wrapper's width, so the
+// viewBox coordinate space always equals the rendered pixel width exactly.
 .st-chart-bleed {
   margin: 0 -1.5rem;
   width: calc(100% + 3rem);
+  overflow: hidden; // prevent horizontal scroll on any layout edge case
 }
 
 .st-chart-loading {
@@ -1476,18 +1479,16 @@ body {
 
 // Charts
 .st-chart-wrap {
-  padding: $spacing-02 0;
-  display: flex;
-  flex-direction: column;
-  gap: $spacing-02;
+  display: block;
   width: 100%;
+  line-height: 0; // prevent inline-block gap under SVG
 }
 
 .st-line-svg,
 .st-vol-svg {
+  display: block;
   width: 100%;
   height: 180px;
-  display: block;
   overflow: visible;
 }
 
