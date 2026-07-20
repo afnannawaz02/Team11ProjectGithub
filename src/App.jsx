@@ -2086,74 +2086,148 @@ function TypingDots() {
 
 // ── Budget pie chart helpers ──────────────────────────────────────────────────
 
-// Colour palette for pie slices (candy-bank palette then fall back to neutrals)
-const PIE_COLOURS = [
-  '#f472a0', '#f9a8b8', '#a78bfa', '#34d399', '#fbbf24',
-  '#60a5fa', '#f87171', '#4ade80', '#fb923c', '#e879f9',
+/**
+ * CANONICAL_CATEGORIES
+ * Fixed colour + display label for every category Gumdrop can mention.
+ * Keys are lowercase match strings; the parser checks if any known key
+ * appears in the text near a dollar or percent value.
+ */
+const CANONICAL_CATEGORIES = [
+  { keys: ['food & dining', 'food and dining', 'dining', 'groceries', 'restaurants'], label: 'Food & Dining',    color: '#f472a0' },
+  { keys: ['shopping'],                                                                label: 'Shopping',         color: '#a78bfa' },
+  { keys: ['transportation', 'transport', 'gas', 'commute', 'uber', 'lyft'],          label: 'Transportation',   color: '#60a5fa' },
+  { keys: ['utilities', 'utility', 'electric', 'water', 'internet', 'phone'],         label: 'Utilities',        color: '#34d399' },
+  { keys: ['entertainment'],                                                            label: 'Entertainment',    color: '#fbbf24' },
+  { keys: ['health', 'medical', 'pharmacy', 'gym', 'fitness'],                        label: 'Health',           color: '#f87171' },
+  { keys: ['subscriptions', 'subscription', 'streaming'],                              label: 'Subscriptions',    color: '#e879f9' },
+  { keys: ['housing', 'rent', 'mortgage'],                                             label: 'Housing',          color: '#fb923c' },
+  { keys: ['savings', 'saving', 'emergency fund'],                                     label: 'Savings',          color: '#4ade80' },
+  { keys: ['income', 'salary', 'paycheck', 'earnings'],                               label: 'Income',           color: '#38bdf8' },
+  { keys: ['total expenses', 'total spending', 'expenses'],                            label: 'Total Expenses',   color: '#c084fc' },
+  { keys: ['investments', 'investing', 'portfolio contribution'],                      label: 'Investments',      color: '#2dd4bf' },
+  { keys: ['debt', 'loan', 'credit card payment'],                                     label: 'Debt Payments',    color: '#f97316' },
+  { keys: ['travel', 'vacation'],                                                      label: 'Travel',           color: '#94a3b8' },
+  { keys: ['education', 'tuition', 'books'],                                           label: 'Education',        color: '#a3e635' },
+  { keys: ['personal care', 'personal', 'clothing'],                                   label: 'Personal Care',    color: '#fb7185' },
 ];
+
+// Fallback colours for any category not in the canonical list
+const FALLBACK_COLOURS = ['#f472a0','#a78bfa','#34d399','#fbbf24','#60a5fa','#f87171','#4ade80','#fb923c','#e879f9','#38bdf8'];
+
+/** Resolve a raw label to a canonical entry (or return null) */
+function resolveCategory(raw) {
+  const lower = raw.toLowerCase();
+  return CANONICAL_CATEGORIES.find((c) => c.keys.some((k) => lower.includes(k))) ?? null;
+}
 
 /**
  * parseBudgetPieData(text)
- * Scans a Gumdrop reply for lines/phrases of the form:
- *   "Housing: 30%"  "Food - $400"  "Savings (20%)"  "• Rent: $1,200 (25%)"
- * Returns an array of { label, pct } objects (percentages normalised to 100)
- * or null if fewer than 2 items were found.
+ *
+ * Two-pass extraction:
+ *   Pass 1 — scan for ALL known canonical category names near a $ or % value.
+ *   Pass 2 — generic regex for any label: value pairs not caught in pass 1.
+ *
+ * Dollar amounts are converted to proportional percentages.
+ * Percentages are used directly and then re-normalised to 100.
+ * Returns null if fewer than 2 slices are found.
  */
 function parseBudgetPieData(text) {
-  const results = [];
+  const lower = text.toLowerCase();
+  const found = new Map(); // label → { amount?, pct?, color }
 
-  // Pattern A – explicit percentage: "Label: 30%" or "Label — 30 %" or "Label (30%)"
-  const pctRe = /([A-Za-z][A-Za-z &\/\-']+?)\s*[:\-–—(]\s*(\d+(?:\.\d+)?)\s*%/g;
+  // ── Pass 1: canonical category scan ─────────────────────────────────────────
+  for (const cat of CANONICAL_CATEGORIES) {
+    for (const key of cat.keys) {
+      const idx = lower.indexOf(key);
+      if (idx === -1) continue;
+      // Look for a dollar or percent value within 80 chars after (or 30 before) the keyword
+      const window = text.slice(Math.max(0, idx - 30), Math.min(text.length, idx + key.length + 80));
+      const dollarMatch = window.match(/\$\s*([\d,]+(?:\.\d+)?)/);
+      const pctMatch    = window.match(/(\d+(?:\.\d+)?)\s*%/);
+      if (dollarMatch) {
+        const val = parseFloat(dollarMatch[1].replace(/,/g, ''));
+        if (val > 0 && val < 1_000_000 && !found.has(cat.label)) {
+          found.set(cat.label, { amount: val, color: cat.color });
+        }
+      } else if (pctMatch) {
+        const pct = parseFloat(pctMatch[1]);
+        if (pct > 0 && pct <= 100 && !found.has(cat.label)) {
+          found.set(cat.label, { pct, color: cat.color });
+        }
+      }
+      break; // matched this category, move on
+    }
+  }
+
+  // ── Pass 2: generic regex for remaining label–value pairs ────────────────────
+  // Only runs for additional labels not already captured
+  const genericRe = /([A-Za-z][A-Za-z &\/\-']+?)\s*[:\-–—]\s*\$?([\d,]+(?:\.\d+)?)\s*(%)?/g;
   let m;
-  while ((m = pctRe.exec(text)) !== null) {
-    const label = m[1].trim().replace(/^[*\-•\d.]+\s*/, '');
-    const pct   = parseFloat(m[2]);
-    if (label && pct > 0 && pct <= 100) results.push({ label, pct });
-  }
-
-  // Pattern B – dollar amounts without explicit % (derive proportionally)
-  if (results.length < 2) {
-    const dollarRe = /([A-Za-z][A-Za-z &\/\-']+?)\s*[:\-–—(]\s*\$?([\d,]+(?:\.\d+)?)/g;
-    const dollarItems = [];
-    while ((m = dollarRe.exec(text)) !== null) {
-      const label = m[1].trim().replace(/^[*\-•\d.]+\s*/, '');
-      const val   = parseFloat(m[2].replace(/,/g, ''));
-      if (label && val > 0 && val < 1_000_000) dollarItems.push({ label, val });
-    }
-    if (dollarItems.length >= 2) {
-      const total = dollarItems.reduce((s, d) => s + d.val, 0);
-      dollarItems.forEach((d) => results.push({ label: d.label, pct: (d.val / total) * 100 }));
+  while ((m = genericRe.exec(text)) !== null) {
+    const rawLabel = m[1].trim().replace(/^[*\-•\d.]+\s*/, '');
+    if (!rawLabel || rawLabel.length < 3) continue;
+    const canonical = resolveCategory(rawLabel);
+    const resolvedLabel = canonical ? canonical.label : rawLabel;
+    if (found.has(resolvedLabel)) continue; // already have it
+    const isPercent = !!m[3];
+    const val = parseFloat(m[2].replace(/,/g, ''));
+    if (!val || val <= 0) continue;
+    if (isPercent && val <= 100) {
+      found.set(resolvedLabel, { pct: val, color: canonical?.color ?? null });
+    } else if (!isPercent && val < 1_000_000) {
+      found.set(resolvedLabel, { amount: val, color: canonical?.color ?? null });
     }
   }
 
-  if (results.length < 2) return null;
+  if (found.size < 2) return null;
 
-  // Deduplicate by label (keep first occurrence)
-  const seen = new Set();
-  const deduped = results.filter(({ label }) => {
-    if (seen.has(label.toLowerCase())) return false;
-    seen.add(label.toLowerCase());
-    return true;
-  });
+  // ── Convert dollar amounts to percentages ─────────────────────────────────
+  const hasDollar  = [...found.values()].some((v) => v.amount !== undefined);
+  const hasPct     = [...found.values()].some((v) => v.pct    !== undefined);
 
-  // Normalise so slices sum to exactly 100
-  const sum = deduped.reduce((s, d) => s + d.pct, 0);
-  return deduped.map((d, i) => ({
-    label: d.label,
-    pct:   Math.round((d.pct / sum) * 1000) / 10, // 1 decimal place
-    color: PIE_COLOURS[i % PIE_COLOURS.length],
-  }));
+  let items = [...found.entries()].map(([label, v]) => ({ label, ...v }));
+
+  if (hasDollar && !hasPct) {
+    // All dollar — derive proportions from amounts
+    const total = items.reduce((s, i) => s + (i.amount ?? 0), 0);
+    if (total === 0) return null;
+    items = items.map((i) => ({ ...i, pct: (i.amount / total) * 100 }));
+  } else if (hasDollar && hasPct) {
+    // Mixed — convert dollar items relative to the sum of dollar items,
+    // then scale them to fill the remaining (100 - sum-of-pct) share
+    const pctSum   = items.filter((i) => i.pct !== undefined).reduce((s, i) => s + i.pct, 0);
+    const dolItems = items.filter((i) => i.amount !== undefined);
+    const dolTotal = dolItems.reduce((s, i) => s + i.amount, 0);
+    const remaining = Math.max(0, 100 - pctSum);
+    items = items.map((i) => {
+      if (i.pct !== undefined) return i;
+      return { ...i, pct: dolTotal > 0 ? (i.amount / dolTotal) * remaining : 0 };
+    });
+  }
+  // else all % — use as-is
+
+  // ── Normalise to 100 and assign colours ──────────────────────────────────
+  const sum = items.reduce((s, i) => s + (i.pct ?? 0), 0);
+  if (sum === 0) return null;
+
+  return items
+    .filter((i) => (i.pct ?? 0) > 0)
+    .map((i, idx) => ({
+      label:  i.label,
+      pct:    Math.round((i.pct / sum) * 1000) / 10,
+      amount: i.amount ?? null,
+      color:  i.color ?? FALLBACK_COLOURS[idx % FALLBACK_COLOURS.length],
+    }));
 }
 
 // ── SVG pie chart rendered inside bot messages ────────────────────────────────
 function BudgetPieChart({ slices }) {
-  const R = 90, CX = 110, CY = 110;
+  const R = 100, CX = 120, CY = 120;
   let cum = 0;
   const paths = slices.map((s) => {
     const startAngle = (cum / 100) * 2 * Math.PI - Math.PI / 2;
     cum += s.pct;
     const endAngle = (cum / 100) * 2 * Math.PI - Math.PI / 2;
-    // For a slice that is exactly 100%, draw as full circle approximation
     if (s.pct >= 99.9) {
       return { ...s, d: `M${CX},${CY - R} A${R},${R},0,1,1,${CX - 0.001},${CY - R} Z` };
     }
@@ -2165,19 +2239,27 @@ function BudgetPieChart({ slices }) {
 
   return (
     <div className="budget-pie-wrap">
-      <svg viewBox="0 0 220 220" width="180" height="180" aria-label="Budget allocation pie chart" role="img">
-        {paths.map((p) => (
-          <path key={p.label} d={p.d} fill={p.color} stroke="#fff" strokeWidth="2">
-            <title>{p.label}: {p.pct}%</title>
-          </path>
-        ))}
-      </svg>
+      <div className="budget-pie-chart-col">
+        <svg viewBox="0 0 240 240" width="210" height="210" aria-label="Budget allocation pie chart" role="img">
+          {paths.map((p) => (
+            <path key={p.label} d={p.d} fill={p.color} stroke="#fff" strokeWidth="2.5">
+              <title>{p.label}: {p.pct}%{p.amount ? ` ($${p.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` : ''}</title>
+            </path>
+          ))}
+        </svg>
+        <p className="budget-pie-title">Budget Breakdown</p>
+      </div>
       <ul className="budget-pie-legend" aria-label="Chart legend">
         {slices.map((s) => (
           <li key={s.label} className="budget-pie-legend-item">
             <span className="budget-pie-swatch" style={{ background: s.color }} aria-hidden="true" />
             <span className="budget-pie-legend-label">{s.label}</span>
-            <span className="budget-pie-legend-pct">{s.pct}%</span>
+            <span className="budget-pie-legend-values">
+              <span className="budget-pie-legend-pct">{s.pct}%</span>
+              {s.amount != null && (
+                <span className="budget-pie-legend-amt">${s.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              )}
+            </span>
           </li>
         ))}
       </ul>

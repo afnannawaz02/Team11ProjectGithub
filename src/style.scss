@@ -2171,16 +2171,35 @@ body {
 // ── Budget pie chart (rendered inside Gumdrop chat replies) ────────────────────
 .budget-pie-wrap {
   display: flex;
-  align-items: center;
-  gap: $spacing-05;
-  margin-top: $spacing-04;
-  padding: $spacing-04 $spacing-05;
+  align-items: flex-start;
+  gap: $spacing-06;
+  margin-top: $spacing-05;
+  padding: $spacing-05 $spacing-06;
   background: var(--cds-layer-02);
   border: 1px solid var(--cds-border-subtle-01);
-  border-radius: 0.75rem;
+  border-radius: 0.875rem;
   flex-wrap: wrap;
+}
 
-  svg { flex-shrink: 0; }
+.budget-pie-chart-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: $spacing-02;
+  flex-shrink: 0;
+
+  svg { display: block; }
+}
+
+.budget-pie-title {
+  @include type-style('label-01');
+  font-weight: 600;
+  color: var(--cds-text-secondary);
+  margin: 0;
+  text-align: center;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-size: 0.7rem;
 }
 
 .budget-pie-legend {
@@ -2189,9 +2208,10 @@ body {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: $spacing-02;
+  gap: $spacing-03;
   flex: 1;
-  min-width: 140px;
+  min-width: 180px;
+  justify-content: center;
 }
 
 .budget-pie-legend-item {
@@ -2204,9 +2224,9 @@ body {
 
 .budget-pie-swatch {
   display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
   flex-shrink: 0;
 }
 
@@ -2215,11 +2235,24 @@ body {
   color: var(--cds-text-primary);
 }
 
+.budget-pie-legend-values {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
 .budget-pie-legend-pct {
-  font-weight: 600;
+  font-weight: 700;
+  color: var(--cds-text-primary);
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
+.budget-pie-legend-amt {
+  font-size: 0.7rem;
   color: var(--cds-text-secondary);
-  min-width: 36px;
-  text-align: right;
+  line-height: 1.2;
 }
 
 // ── Panel shared ────────────────────────────────────────────────────────────────
