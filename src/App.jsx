@@ -858,109 +858,96 @@ function PanelAssets() {
     <div className="st-wrap">
 
       {/* ── Search bar ── */}
-      <div className="st-search-wrap">
-        <Search size={16} className="st-search-icon" aria-hidden="true" />
-        <input
-          className="st-search-input"
-          placeholder="Search ticker or company…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-        />
-        <button className="st-search-btn" onClick={handleSearch} disabled={searching} aria-label="Search">
-          {searching ? '…' : <Add size={16} />}
-        </button>
-        {results.length > 0 && (
-          <div className="st-search-dropdown">
-            {results.map((r) => (
-              <button key={r.symbol} onClick={() => addTicker(r.symbol)} className="st-search-result">
-                <strong>{r.displaySymbol}</strong> — {r.description}
-              </button>
-            ))}
-          </div>
-        )}
+      <div className="st-search-row">
+        <div className="st-search-wrap">
+          <Search size={14} className="st-search-icon" aria-hidden="true" />
+          <input
+            className="st-search-input"
+            placeholder="Search stocks or company..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+          />
+          <button className="st-search-btn" onClick={handleSearch} disabled={searching} aria-label="Search">
+            {searching ? '…' : <Add size={14} />}
+          </button>
+          {results.length > 0 && (
+            <div className="st-search-dropdown">
+              {results.map((r) => (
+                <button key={r.symbol} onClick={() => addTicker(r.symbol)} className="st-search-result">
+                  <strong>{r.displaySymbol}</strong> — {r.description}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
+      {/* ── Demo / error banners ── */}
       {isDemo && (
-        <div style={{ padding:'0.45rem 0.85rem', marginBottom:'0.5rem', background:'#fff8e1', border:'1px solid #ffe082', borderRadius:'0.5rem', fontSize:'0.8rem', color:'#7c5c00' }}>
-          Live market data unavailable — showing simulated chart data.
+        <div className="st-demo-banner">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+            <path d="M10.865 9L6.865 2C6.65 1.64 6.34 1.49 5.995 1.49c-.345 0-.655.15-.87.51L1.125 9c-.37.65.09 1.5.875 1.5h8c.785 0 1.245-.85.865-1.5Z" stroke="#ffd700" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M6 4.5V8.5M6 8.5h.01" stroke="#ffd700" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Live market data unavailable — showing simulated chart data
         </div>
       )}
       {error && (
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'1rem', padding:'0.6rem 0.85rem', marginBottom:'0.75rem', background:'#fff1f1', border:'1px solid #ffd7d9', borderRadius:'0.5rem', fontSize:'0.85rem', color:'#a2191f' }}>
+        <div className="st-error-banner">
           <span>⚠ {error}</span>
-          <button onClick={retryActive} style={{ flexShrink:0, padding:'0.3rem 0.75rem', background:'#da1e28', color:'#fff', border:'none', borderRadius:'0.375rem', cursor:'pointer', fontSize:'0.8rem', fontWeight:600 }}>
-            Retry
-          </button>
+          <button onClick={retryActive} className="st-retry-btn">Retry</button>
         </div>
       )}
 
       {/* ── Ticker pills ── */}
       <div className="st-tickers">
-        {tickers.map((t) => {
-          const tq = quotes[t];
-          const up = tq ? tq.change >= 0 : true;
-          const pct = tq ? `${tq.change >= 0 ? '+' : ''}${Number(tq.pct).toFixed(2)}%` : '—';
-          return (
-            <span key={t} className={`st-pill${active === t ? ' st-pill--active' : ''} ${up ? 'st-pill--up' : 'st-pill--down'}`}>
-              <button className="st-pill-label" onClick={() => setActive(t)}>
-                {t} <span>{pct}</span>
+        {tickers.map((t) => (
+          <span key={t} className={`st-pill${active === t ? ' st-pill--active' : ''}`}>
+            <button className="st-pill-label" onClick={() => setActive(t)}>{t}</button>
+            {tickers.length > 1 && (
+              <button className="st-pill-remove" aria-label={`Remove ${t}`}
+                onClick={() => { const next = tickers.filter((x) => x !== t); setTickers(next); if (active === t) setActive(next[0]); }}>
+                ✕
               </button>
-              {tickers.length > 1 && (
-                <button
-                  className="st-pill-remove"
-                  aria-label={`Remove ${t}`}
-                  onClick={() => {
-                    const next = tickers.filter((x) => x !== t);
-                    setTickers(next);
-                    if (active === t) setActive(next[0]);
-                  }}
-                >
-                  <Close size={10} />
-                </button>
-              )}
-            </span>
-          );
-        })}
+            )}
+          </span>
+        ))}
       </div>
 
-      {/* ── Stock detail ── */}
+      {/* ── Stock detail: name/price left, range buttons right ── */}
       <div className="st-detail">
         <div className="st-detail-left">
-          <h2 className="st-name">{pr.name || active}</h2>
-          <div className="st-price">
-            {loadingQ ? '…' : q.price ? `$${q.price.toFixed(2)}` : '—'}
-          </div>
+          <span className="st-name">{pr.name || active}</span>
+          <div className="st-price">{loadingQ ? '…' : q.price ? `$${q.price.toFixed(2)}` : '—'}</div>
           <div className={`st-change ${priceUp ? 'st-up' : 'st-down'}`}>
-            {q.price ? `${priceUp ? '↗' : '↘'} ${priceUp ? '+' : ''}${q.change?.toFixed(2)} (${priceUp ? '+' : ''}${Number(q.pct || 0).toFixed(2)}%)` : ''}
+            {q.price ? `${priceUp ? '▲' : '▼'} ${priceUp ? '+' : ''}${q.change?.toFixed(2)} / ${priceUp ? '+' : ''}${Number(q.pct || 0).toFixed(2)}%` : ''}
           </div>
         </div>
         <div className="st-range-btns">
           {['1W','1M','3M'].map((r) => (
-            <button
-              key={r}
-              className={`st-pill${range === r ? ' st-pill--active' : ''}`}
-              onClick={() => setRange(r)}
-            >{r}</button>
+            <button key={r} className={`st-range-btn${range === r ? ' st-range-btn--active' : ''}`} onClick={() => setRange(r)}>{r}</button>
           ))}
         </div>
       </div>
 
-      {/* ── Chart ── */}
-      {loadingC
-        ? <div style={{ height:'180px', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--cds-text-secondary)' }}>Loading chart…</div>
-        : <StockLineChart key={sKey} ticker={active} seriesData={seriesArr} />
-      }
+      {/* ── Chart — bleeds edge-to-edge, no side padding ── */}
+      <div className="st-chart-bleed">
+        {loadingC
+          ? <div className="st-chart-loading">Loading chart…</div>
+          : <StockLineChart key={sKey} ticker={active} seriesData={seriesArr} />
+        }
+      </div>
 
       {/* ── Stat grid ── */}
       <div className="st-stats-grid">
         {[
-          { label: 'High',       value: q.high  ? `$${q.high.toFixed(2)}`  : '—' },
-          { label: 'Low',        value: q.low   ? `$${q.low.toFixed(2)}`   : '—' },
-          { label: 'Open',       value: q.open  ? `$${q.open.toFixed(2)}`  : '—' },
-          { label: 'Prev Close', value: q.prevClose ? `$${q.prevClose.toFixed(2)}` : '—' },
+          { label: 'Open',       value: q.open      ? `$${q.open.toFixed(2)}`      : '—' },
+          { label: 'Low',        value: q.low        ? `$${q.low.toFixed(2)}`       : '—' },
+          { label: 'High',       value: q.high       ? `$${q.high.toFixed(2)}`      : '—' },
           { label: 'Market Cap', value: mktCap },
-          { label: 'Exchange',   value: pr.exchange || '—' },
+          { label: 'Prev Close', value: q.prevClose  ? `$${q.prevClose.toFixed(2)}` : '—' },
+          { label: 'Exchange',   value: pr.exchange  || '—' },
         ].map(({ label, value }) => (
           <div key={label} className="st-stat-card">
             <span className="st-stat-label">{label}</span>
@@ -1001,22 +988,26 @@ function PanelLoadingOrError({ loading, error, children }) {
 
 // ── Donut chart (shared) ────────────────────────────────────────────────────────
 function DonutChart({ slices, totalLabel, totalValue }) {
-  const R = 110, CX = 140, CY = 140;
+  const R = 95, IR = 58, CX = 115, CY = 115;
   let cum = 0;
   const paths = slices.map((s) => {
     const a0 = (cum / 100) * 2 * Math.PI - Math.PI / 2;
     cum += s.pct;
     const a1 = (cum / 100) * 2 * Math.PI - Math.PI / 2;
+    if (s.pct >= 99.9) {
+      return { ...s, d: `M${CX},${CY - R} A${R},${R},0,1,1,${CX - 0.001},${CY - R} Z` };
+    }
     const x1 = CX + R * Math.cos(a0), y1 = CY + R * Math.sin(a0);
     const x2 = CX + R * Math.cos(a1), y2 = CY + R * Math.sin(a1);
     return { ...s, d: `M${CX},${CY} L${x1},${y1} A${R},${R},0,${s.pct > 50 ? 1 : 0},1,${x2},${y2} Z` };
   });
   return (
-    <svg viewBox="0 0 280 280" width="240" height="240" aria-hidden="true">
-      {paths.map((p) => <path key={p.label} d={p.d} fill={p.color} stroke="#fff" strokeWidth="2" />)}
-      <circle cx={CX} cy={CY} r={60} fill="var(--cds-layer-01, #fff8fa)" />
-      <text x={CX} y={CY - 6} textAnchor="middle" fontSize="11" fill="var(--cds-text-secondary)" fontFamily="inherit">{totalLabel}</text>
-      <text x={CX} y={CY + 12} textAnchor="middle" fontSize="14" fontWeight="700" fill="var(--cds-text-primary)" fontFamily="inherit">{totalValue}</text>
+    <svg viewBox="0 0 230 230" width="230" height="230" aria-hidden="true">
+      {paths.map((p) => <path key={p.label} d={p.d} fill={p.color} stroke="#1a0e18" strokeWidth="2.5" />)}
+      {/* Donut hole */}
+      <circle cx={CX} cy={CY} r={IR} fill="#0c0009" />
+      <text x={CX} y={CY - 8} textAnchor="middle" fontSize="10" fill="rgba(255,255,255,0.42)" fontFamily="inherit">{totalLabel}</text>
+      <text x={CX} y={CY + 10} textAnchor="middle" fontSize="13" fontWeight="700" fill="#ffffff" fontFamily="inherit">{totalValue}</text>
     </svg>
   );
 }
@@ -1295,50 +1286,55 @@ function PanelPortfolioAndWealth({ profile }) {
         <PanelLoadingOrError loading={loading} error={error}>
           {data && (
             <>
-              <div className="portfolio-net-worth-banner">
-                <div>
-                  <span className="portfolio-nw-label">Net Worth</span>
-                  <span className="portfolio-nw-value">{fmt$(data.netWorth)}</span>
-                </div>
-                <div>
-                  <span className="portfolio-nw-label">Total Assets</span>
-                  <span className="portfolio-nw-value">{fmt$(data.totalAssets)}</span>
-                </div>
-                <div>
-                  <span className="portfolio-nw-label">Total Debt</span>
-                  <span className="portfolio-nw-value db-down">{fmt$(data.totalDebt)}</span>
-                </div>
-              </div>
-              <div className="db-pie-wrap">
-                <DonutChart slices={data.allocation} totalLabel="Net Worth" totalValue={fmt$(data.netWorth)} />
-                <ul className="db-pie-legend">
-                  {data.allocation.map((a) => (
-                    <li key={a.label} className="db-pie-legend-item">
-                      <span className="db-pie-legend-dot" style={{ background: a.color }} />
-                      <span className="db-pie-legend-label">{a.label}</span>
-                      <span className="db-pie-legend-pct">{a.pct}%</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="portfolio-metrics-grid">
+              {/* Summary cards — 3-column, pink border */}
+              <div className="alloc-summary-row">
                 {[
-                  { label: 'Diversification Score', value: `${data.diversScore}/100`,      good: data.diversScore >= 65 },
-                  { label: 'Crypto Exposure',        value: `${data.cryptoPct}%`,           good: data.cryptoPct <= 15 },
-                  { label: 'Top Holding',            value: `${data.topConcentration}%`,    good: data.topConcentration <= 20 },
-                  { label: 'Health Score',           value: `${data.healthScore}/100`,      good: data.healthScore >= 65 },
-                ].map(({ label, value, good }) => (
-                  <div key={label} className="portfolio-metric-card">
-                    <span className="portfolio-metric-label">{label}</span>
-                    <span className={`portfolio-metric-value ${good ? 'db-up' : 'db-down'}`}>{value}</span>
+                  { label: 'NET WORTH',    value: fmt$(data.netWorth) },
+                  { label: 'TOTAL ASSETS', value: fmt$(data.totalAssets) },
+                  { label: 'TOTAL DEBT',   value: fmt$(data.totalDebt) },
+                ].map(({ label, value }) => (
+                  <div key={label} className="alloc-summary-card">
+                    <span className="alloc-summary-label">{label}</span>
+                    <span className="alloc-summary-value">{value}</span>
                   </div>
                 ))}
               </div>
+
+              {/* Donut centred + 2-col legend below */}
+              <div className="alloc-donut-section">
+                <DonutChart slices={data.allocation} totalLabel="Net Worth" totalValue={fmt$(data.netWorth)} />
+                <div className="alloc-legend-grid">
+                  {data.allocation.map((a) => (
+                    <div key={a.label} className="alloc-legend-item">
+                      <span className="alloc-legend-dot" style={{ background: a.color }} />
+                      <span className="alloc-legend-label">{a.label}</span>
+                      <span className="alloc-legend-pct">{a.pct}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Metrics — single bordered row of 4 cells */}
+              <div className="alloc-metrics-bar">
+                {[
+                  { label: 'Diversification Score', value: `${data.diversScore}/100` },
+                  { label: 'Crypto Exposure',        value: `${data.cryptoPct}%` },
+                  { label: 'Top Holding',            value: `${data.topConcentration}%` },
+                  { label: 'Health Score',           value: `${data.healthScore}/100` },
+                ].map(({ label, value }, i, arr) => (
+                  <div key={label} className={`alloc-metric-cell${i < arr.length - 1 ? ' alloc-metric-cell--border' : ''}`}>
+                    <span className="alloc-metric-label">{label}</span>
+                    <span className="alloc-metric-value">{value}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Sector bars */}
               {data.sectors?.length > 0 && (
                 <div className="spend-cats">
                   <h3 className="spend-section-title">Sector Exposure (Equities)</h3>
                   {data.sectors.map((s, i) => {
-                    const colors = ['#f472a0','#c0356a','#9d2256','#f9a8b8','#6b2040'];
+                    const colors = ['#e91e8c','#9c27b0','#673ab7','#f472a0','#c2185b'];
                     return (
                       <div key={s.label} className="spend-cat-row">
                         <div className="spend-cat-meta">
@@ -1348,7 +1344,7 @@ function PanelPortfolioAndWealth({ profile }) {
                           <span className="spend-cat-amt">{fmt$(s.value)}</span>
                         </div>
                         <div className="spend-cat-bar-track">
-                          <div className="spend-cat-bar" style={{ width: `${s.pct}%`, background: colors[i % colors.length] }} />
+                          <div className="spend-cat-bar" style={{ width: `${s.pct}%`, background: `linear-gradient(90deg,${colors[i % colors.length]},${colors[i % colors.length]}aa)` }} />
                         </div>
                       </div>
                     );
