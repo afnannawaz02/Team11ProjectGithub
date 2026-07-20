@@ -589,7 +589,7 @@ function smilAnimate(el, attr, from, to, durStr, id) {
   return anim;
 }
 
-function StockLineChart({ seriesData }) {
+function StockLineChart({ seriesData, loading }) {
   const [hoverIdx, setHoverIdx]   = useState(null);
   const [containerW, setContainerW] = useState(900); // measured pixel width
   const svgRef      = useRef(null);
@@ -652,6 +652,13 @@ function StockLineChart({ seriesData }) {
     });
     return { pts, smooth, area, yTicks, xTicks, minP, maxP, prices, POINTS, scX, scY };
   }, [seriesData, containerW]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Clear prevRef when loading ends so first paint after a load is instant ──
+  const prevLoadingRef = useRef(loading);
+  useEffect(() => {
+    if (prevLoadingRef.current && !loading) prevRef.current = null;
+    prevLoadingRef.current = loading;
+  }, [loading]);
 
   // ── SMIL morph whenever seriesData changes ───────────────────────────────
   useEffect(() => {
@@ -734,91 +741,97 @@ function StockLineChart({ seriesData }) {
     setHoverIdx(Math.max(0, Math.min(derived.POINTS - 1, Math.round(raw))));
   };
 
-  if (!validData || !derived) {
-    return <div className="st-chart-wrap" style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'180px', color:'rgba(255,255,255,0.42)' }}>No chart data</div>;
-  }
+  const showLoading = loading || !validData || !derived;
 
-  const { prices, POINTS, scX, scY, xTicks, yTicks, minP, maxP } = derived;
-  const hIdx  = hoverIdx ?? POINTS - 1;
-  const hPrice = prices[hIdx];
-  const hDate  = fmtDate(seriesData[hIdx].date);
-  const hPct   = ((hPrice - prices[0]) / prices[0]) * 100;
-  const hX     = scX(hIdx);
-  const hY     = scY(hPrice);
+  // Hover calculations — only valid when not loading
+  const { prices, POINTS, scX, scY, xTicks, yTicks } = derived ?? {};
+  const hIdx   = !showLoading ? (hoverIdx ?? POINTS - 1) : 0;
+  const hPrice = !showLoading ? prices[hIdx] : 0;
+  const hDate  = !showLoading ? fmtDate(seriesData[hIdx].date) : '';
+  const hPct   = !showLoading ? ((hPrice - prices[0]) / prices[0]) * 100 : 0;
+  const hX     = !showLoading ? scX(hIdx) : 0;
+  const hY     = !showLoading ? scY(hPrice) : 0;
   const tipW   = 110, tipH = 52, tipPad = 8;
   const tipX   = hX + tipPad + tipW > W - PAD.right ? hX - tipW - tipPad : hX + tipPad;
   const tipY   = Math.max(PAD.top, Math.min(hY - tipH / 2, PAD.top + cH - tipH));
 
+  // wrapRef always on the outermost div — ResizeObserver stays stable across loading state changes
   return (
     <div className="st-chart-wrap" ref={wrapRef}>
-      <svg
-        ref={svgRef}
-        viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="xMidYMid meet"
-        className="st-line-svg"
-        onMouseMove={handleMouseMove}
-        onMouseLeave={() => setHoverIdx(null)}
-      >
-        <defs>
-          <linearGradient id="st-grad-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%"   stopColor={lineColor} stopOpacity="0.32"/>
-            <stop offset="60%"  stopColor={lineColor} stopOpacity="0.08"/>
-            <stop offset="100%" stopColor={lineColor} stopOpacity="0"/>
-          </linearGradient>
-          <filter id="st-shadow" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.10"/>
-          </filter>
-        </defs>
+      {showLoading ? (
+        <div className="st-chart-loading">
+          {loading ? 'Loading chart…' : 'No chart data'}
+        </div>
+      ) : (
+        <svg
+          ref={svgRef}
+          viewBox={`0 0 ${W} ${H}`}
+          preserveAspectRatio="xMidYMid meet"
+          className="st-line-svg"
+          onMouseMove={handleMouseMove}
+          onMouseLeave={() => setHoverIdx(null)}
+        >
+          <defs>
+            <linearGradient id="st-grad-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stopColor={lineColor} stopOpacity="0.32"/>
+              <stop offset="60%"  stopColor={lineColor} stopOpacity="0.08"/>
+              <stop offset="100%" stopColor={lineColor} stopOpacity="0"/>
+            </linearGradient>
+            <filter id="st-shadow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.10"/>
+            </filter>
+          </defs>
 
-        {/* Y-axis labels — right-aligned in left margin */}
-        {yTicks.map(({ y, label }, i) => (
-          <text
-            key={i}
-            ref={(el) => { yTickRefs.current[i] = el; }}
-            x={PAD.left - 4}
-            y={y + 4}
-            textAnchor="end"
-            fontSize="9"
-            fill="rgba(255,255,255,0.28)"
-          >{label}</text>
-        ))}
+          {/* Y-axis labels — right-aligned in left margin */}
+          {yTicks.map(({ y, label }, i) => (
+            <text
+              key={i}
+              ref={(el) => { yTickRefs.current[i] = el; }}
+              x={PAD.left - 4}
+              y={y + 4}
+              textAnchor="end"
+              fontSize="9"
+              fill="rgba(255,255,255,0.28)"
+            >{label}</text>
+          ))}
 
-        {/* X-axis labels — evenly spaced, fade in on change */}
-        {xTicks.map(({ x, label }) => (
-          <text key={label} x={x} y={PAD.top + cH + 18} textAnchor="middle" fontSize="9" fill="rgba(255,255,255,0.28)"
-            className="st-axis-label">{label}</text>
-        ))}
+          {/* X-axis labels — evenly spaced, fade in on change */}
+          {xTicks.map(({ x, label }) => (
+            <text key={label} x={x} y={PAD.top + cH + 18} textAnchor="middle" fontSize="9" fill="rgba(255,255,255,0.28)"
+              className="st-axis-label">{label}</text>
+          ))}
 
-        {/* Area fill */}
-        <path ref={areaRef} d="" fill="url(#st-grad-fill)" />
+          {/* Area fill */}
+          <path ref={areaRef} d="" fill="url(#st-grad-fill)" />
 
-        {/* Line */}
-        <path ref={lineRef} d="" fill="none" stroke={lineColor} strokeWidth="2" strokeLinejoin="round" />
+          {/* Line */}
+          <path ref={lineRef} d="" fill="none" stroke={lineColor} strokeWidth="2" strokeLinejoin="round" />
 
-        {/* Crosshair */}
-        <line x1={hX} y1={PAD.top} x2={hX} y2={PAD.top + cH}
-          stroke={lineColor} strokeWidth="1" strokeDasharray="4 3"
-          opacity={hoverIdx !== null ? 0.7 : 0} />
+          {/* Crosshair */}
+          <line x1={hX} y1={PAD.top} x2={hX} y2={PAD.top + cH}
+            stroke={lineColor} strokeWidth="1" strokeDasharray="4 3"
+            opacity={hoverIdx !== null ? 0.7 : 0} />
 
-        {/* Dot */}
-        <circle cx={hX} cy={hY} r="4"
-          fill={lineColor} stroke="#ffffff" strokeWidth="2"
-          opacity={hoverIdx !== null ? 1 : 0} />
+          {/* Dot */}
+          <circle cx={hX} cy={hY} r="4"
+            fill={lineColor} stroke="#ffffff" strokeWidth="2"
+            opacity={hoverIdx !== null ? 1 : 0} />
 
-        {/* Tooltip */}
-        {hoverIdx !== null && (
-          <g>
-            <rect x={tipX} y={tipY} width={tipW} height={tipH} rx="5"
-              fill="#1a0e18" stroke={lineColor} strokeWidth="1.2" filter="url(#st-shadow)"/>
-            <text x={tipX+8} y={tipY+16} fontSize="8"  fill="rgba(255,255,255,0.42)">{hDate}</text>
-            <text x={tipX+8} y={tipY+31} fontSize="11" fontWeight="700" fill="#ffffff">${hPrice.toFixed(2)}</text>
-            <text x={tipX+8} y={tipY+46} fontSize="8"  fontWeight="600"
-              fill={hPct >= 0 ? '#4caf50' : '#ef5350'}>
-              {hPct >= 0 ? '+' : ''}{hPct.toFixed(2)}%
-            </text>
-          </g>
-        )}
-      </svg>
+          {/* Tooltip */}
+          {hoverIdx !== null && (
+            <g>
+              <rect x={tipX} y={tipY} width={tipW} height={tipH} rx="5"
+                fill="#1a0e18" stroke={lineColor} strokeWidth="1.2" filter="url(#st-shadow)"/>
+              <text x={tipX+8} y={tipY+16} fontSize="8"  fill="rgba(255,255,255,0.42)">{hDate}</text>
+              <text x={tipX+8} y={tipY+31} fontSize="11" fontWeight="700" fill="#ffffff">${hPrice.toFixed(2)}</text>
+              <text x={tipX+8} y={tipY+46} fontSize="8"  fontWeight="600"
+                fill={hPct >= 0 ? '#4caf50' : '#ef5350'}>
+                {hPct >= 0 ? '+' : ''}{hPct.toFixed(2)}%
+              </text>
+            </g>
+          )}
+        </svg>
+      )}
     </div>
   );
 }
@@ -1116,11 +1129,9 @@ function PanelAssets() {
       </div>
 
       {/* ── Chart — bleeds edge-to-edge, no side padding ── */}
+      {/* Always keep StockLineChart mounted so ResizeObserver keeps its measurement */}
       <div className="st-chart-bleed">
-        {loadingC && !seriesArr.length
-          ? <div className="st-chart-loading">Loading chart…</div>
-          : <StockLineChart seriesData={seriesArr} />
-        }
+        <StockLineChart seriesData={seriesArr} loading={loadingC && !seriesArr.length} />
       </div>
 
       {/* ── Stat grid ── */}
