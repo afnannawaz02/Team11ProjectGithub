@@ -937,11 +937,11 @@ body {
 
 // Panel fade-in animation when switching tabs
 @keyframes db-panel-fadein {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0);   }
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0);    }
 }
 .db-panel-fade {
-  animation: db-panel-fadein 220ms ease both;
+  animation: db-panel-fadein 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 // Bottom navigation bar
@@ -1186,10 +1186,13 @@ body {
 .st-chart-bleed {
   margin: 0 (-$spacing-05);
   width: calc(100% + #{$spacing-05} * 2);
+  min-height: 180px;
+  display: flex;
+  align-items: center;
 }
 
 .st-chart-loading {
-  height: 180px;
+  height: 120px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1456,7 +1459,7 @@ body {
 // Left-to-right reveal animation for the chart clip rect
 @keyframes st-clip-sweep {
   from { width: 0; }
-  to   { width: 536px; } // matches cW = 600 - 56 - 8
+  to   { width: 536px; } // matches cW = 600 - 56 - 8 (unchanged)
 }
 
 .st-chart-clip-rect {

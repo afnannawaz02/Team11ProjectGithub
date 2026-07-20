@@ -549,12 +549,12 @@ function StockLineChart({ ticker, seriesData }) {
 
   useEffect(() => { setAnimKey((k) => k + 1); }, [seriesData]);
 
-  const W = 600, H = 180, PAD = { top: 8, right: 8, bottom: 28, left: 56 };
+  const W = 600, H = 120, PAD = { top: 8, right: 8, bottom: 28, left: 56 };
   const cW = W - PAD.left - PAD.right;
   const cH = H - PAD.top  - PAD.bottom;
 
   if (!seriesData || seriesData.length < 2) {
-    return <div className="st-chart-wrap" style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'180px', color:'var(--cds-text-secondary)' }}>No chart data</div>;
+    return <div className="st-chart-wrap" style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'120px', color:'var(--cds-text-secondary)' }}>No chart data</div>;
   }
 
   const prices = seriesData.map((d) => d.close);
