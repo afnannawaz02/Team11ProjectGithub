@@ -935,6 +935,16 @@ body {
   &::-webkit-scrollbar-thumb { background: rgba(212,0,110,0.25); border-radius: 2px; }
 }
 
+// Panel fade-in animation when switching tabs
+@keyframes db-panel-fadein {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+.db-panel-fade {
+  animation: db-panel-fadein 220ms ease both;
+  display: contents; // transparent wrapper — doesn't affect layout
+}
+
 // Bottom navigation bar
 .db-bottom-nav {
   position: fixed;
@@ -1371,6 +1381,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: $spacing-02;
+  max-width: 680px;
+  width: 100%;
 }
 
 .st-line-svg,

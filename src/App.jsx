@@ -573,10 +573,21 @@ function StockLineChart({ ticker, seriesData }) {
     return { x: scX(idx), label: fmtDate(seriesData[idx].date) };
   });
 
-  const linePts  = prices.map((p, i) => `${scX(i)},${scY(p)}`).join(' ');
-  const areaPath = `M${scX(0)},${scY(prices[0])} `
-    + prices.map((p, i) => `L${scX(i)},${scY(p)}`).join(' ')
-    + ` L${scX(POINTS-1)},${PAD.top + cH} L${scX(0)},${PAD.top + cH} Z`;
+  // Build a smooth monotone cubic bezier path through the data points
+  const smoothPath = (() => {
+    const pts = prices.map((p, i) => [scX(i), scY(p)]);
+    if (pts.length < 2) return '';
+    let d = `M${pts[0][0]},${pts[0][1]}`;
+    for (let i = 1; i < pts.length; i++) {
+      const [x0, y0] = pts[i - 1];
+      const [x1, y1] = pts[i];
+      const cpX = (x0 + x1) / 2;
+      d += ` C${cpX},${y0} ${cpX},${y1} ${x1},${y1}`;
+    }
+    return d;
+  })();
+  const areaPath = smoothPath
+    + ` L${scX(POINTS - 1)},${PAD.top + cH} L${scX(0)},${PAD.top + cH} Z`;
 
   const priceUp = prices[POINTS - 1] >= prices[0];
   const lineColor = priceUp ? '#24a148' : '#da1e28';
@@ -657,7 +668,7 @@ function StockLineChart({ ticker, seriesData }) {
         {/* Area + line — clipped so they animate left → right */}
         <g clipPath={`url(#${clipId})`}>
           <path d={areaPath} fill={`url(#${gradId})`}/>
-          <polyline points={linePts} fill="none" stroke={lineColor} strokeWidth="2" strokeLinejoin="round"/>
+          <path d={smoothPath} fill="none" stroke={lineColor} strokeWidth="2" strokeLinejoin="round"/>
         </g>
 
         {/* Crosshair */}
@@ -1819,17 +1830,20 @@ function PanelSpendingAndHealth() {
                         </button>
                       </div>
                     </div>
-                    <div className="budget-note-body chat-bot-text"
-                      dangerouslySetInnerHTML={{ __html: `<p>${n.content
-                        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-                        .replace(/^[*\-•] (.+)$/gm, '<li>$1</li>')
-                        .replace(/(<li>[\s\S]*?<\/li>)(\n<li>)/g, '$1$2')
-                        .replace(/(<li>)/g, '<ul>$1').replace(/(<\/li>)(?!\n<li>)/g, '$1</ul>')
-                        .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
-                        .replace(/\n\n/g, '</p><p>')
-                        .replace(/\n/g, '<br/>')}</p>` }}
-                    />
-                    {notePieSlices && <BudgetPieChart slices={notePieSlices} />}
+                    {notePieSlices ? (
+                      <BudgetPieChart slices={notePieSlices} />
+                    ) : (
+                      <div className="budget-note-body chat-bot-text"
+                        dangerouslySetInnerHTML={{ __html: `<p>${n.content
+                          .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                          .replace(/^[*\-•] (.+)$/gm, '<li>$1</li>')
+                          .replace(/(<li>[\s\S]*?<\/li>)(\n<li>)/g, '$1$2')
+                          .replace(/(<li>)/g, '<ul>$1').replace(/(<\/li>)(?!\n<li>)/g, '$1</ul>')
+                          .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+                          .replace(/\n\n/g, '</p><p>')
+                          .replace(/\n/g, '<br/>')}</p>` }}
+                      />
+                    )}
                   </div>
                 );
               })}
@@ -1987,10 +2001,12 @@ function DashboardPage({ profile, username }) {
       {/* ── Main content ── */}
       <main className={`db-content${isChat ? ' db-content--chat' : ''}`}>
         {!isChat && <p className="db-sidebar-greeting">Welcome{username ? `, ${username}` : ''}.</p>}
-        {activePanel === 'markets'   && <PanelMarketsAndInsights />}
-        {activePanel === 'portfolio' && <PanelPortfolioAndWealth profile={profile} />}
-        {activePanel === 'spending'  && <PanelSpendingAndHealth />}
-        {activePanel === 'chat'      && <ChatView profile={profile} username={username} />}
+        <div key={activePanel} className="db-panel-fade">
+          {activePanel === 'markets'   && <PanelMarketsAndInsights />}
+          {activePanel === 'portfolio' && <PanelPortfolioAndWealth profile={profile} />}
+          {activePanel === 'spending'  && <PanelSpendingAndHealth />}
+          {activePanel === 'chat'      && <ChatView profile={profile} username={username} />}
+        </div>
       </main>
 
       {/* ── Bottom navigation bar ── */}
@@ -2247,10 +2263,8 @@ function parseBudgetPieData(text) {
   const sum = items.reduce((s, i) => s + (i.pct ?? 0), 0);
   if (sum === 0) return null;
 
-  const EXCLUDED_LABELS = new Set(['savings', 'income', 'total expenses']);
-
   return items
-    .filter((i) => (i.pct ?? 0) > 0 && !EXCLUDED_LABELS.has(i.label.toLowerCase()))
+    .filter((i) => (i.pct ?? 0) > 0)
     .map((i, idx) => ({
       label:  i.label,
       pct:    Math.round((i.pct / sum) * 1000) / 10,
@@ -2964,17 +2978,13 @@ function NavShell({ children, username, onGoProfile, onGoHome, heroHeader, authH
         {/* Left spacer to balance the avatar on the right */}
         <div style={{ flex: 1 }} />
 
-        {/* Centred brand lockup — SVG logo + × IBM */}
+        {/* Centred brand lockup — SVG logo only */}
         <button
-          style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '1rem', padding: '0 0.5rem' }}
+          style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0 0.5rem' }}
           onClick={() => onGoHome?.()}
           aria-label="Candyland Bank home"
         >
           <img src="/grouped-logo.svg" alt="Candyland Bank" className="header-brand-logo" />
-          <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 300, fontSize: '1.1rem' }}>✕</span>
-          <span style={{ fontFamily: "'Courier New', monospace", fontWeight: 900, fontSize: '1.1rem', letterSpacing: '0.28em', color: '#ffffff' }}>
-            IBM
-          </span>
         </button>
 
         {/* Right: avatar */}
