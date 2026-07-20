@@ -33,6 +33,11 @@
         "query_docs_filesystem_ibm_watsonx_orchestrate_adk",
         "submit_feedback"
       ]
+    },
+    "figma-mcp": {
+      "type": "streamable-http",
+      "url": "http://127.0.0.1:3845/mcp",
+      "disabled": true
     }
   }
 }

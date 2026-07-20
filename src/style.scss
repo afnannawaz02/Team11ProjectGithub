@@ -1377,6 +1377,16 @@ body {
 
 .st-line-svg { cursor: crosshair; }
 
+// Left-to-right reveal animation for the chart clip rect
+@keyframes st-clip-sweep {
+  from { width: 0; }
+  to   { width: 536px; } // matches cW = 600 - 56 - 8
+}
+
+.st-chart-clip-rect {
+  animation: st-clip-sweep 0.65s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
 // Bottom 6 stat cards
 .st-stats-grid {
   display: grid;

@@ -543,7 +543,11 @@ function fmtDate(iso) {
 
 function StockLineChart({ ticker, seriesData }) {
   const [hoverIdx, setHoverIdx] = useState(null);
+  // Increment every time the data key changes so the animation re-triggers
+  const [animKey, setAnimKey] = useState(0);
   const svgRef = useRef(null);
+
+  useEffect(() => { setAnimKey((k) => k + 1); }, [seriesData]);
 
   const W = 600, H = 180, PAD = { top: 8, right: 8, bottom: 28, left: 56 };
   const cW = W - PAD.left - PAD.right;
@@ -602,9 +606,16 @@ function StockLineChart({ ticker, seriesData }) {
   const tipX = hX + tipPad + tipW > W - PAD.right ? hX - tipW - tipPad : hX + tipPad;
   const tipY = Math.max(PAD.top, Math.min(hY - tipH / 2, PAD.top + cH - tipH));
 
+  const clipId   = `clip-${ticker}-${animKey}`;
+  const gradId   = `fill-${ticker}-${animKey}`;
+  const filterId = `shadow-${ticker}-${animKey}`;
+
   return (
     <div className="st-chart-wrap">
+      {/* key=animKey forces React to remount the SVG on every data change,
+          which restarts the CSS clip animation from scratch */}
       <svg
+        key={animKey}
         ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}
         className="st-line-svg"
@@ -613,13 +624,26 @@ function StockLineChart({ ticker, seriesData }) {
         onMouseLeave={() => setHoverIdx(null)}
       >
         <defs>
-          <linearGradient id={`fill-${ticker}`} x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%"   stopColor={lineColor} stopOpacity="0.18"/>
             <stop offset="100%" stopColor={lineColor} stopOpacity="0.02"/>
           </linearGradient>
+
+          {/* Clip rect that slides from left to right to reveal the chart */}
+          <clipPath id={clipId}>
+            <rect
+              x={PAD.left} y={PAD.top}
+              width={cW} height={cH + PAD.bottom}
+              className="st-chart-clip-rect"
+            />
+          </clipPath>
+
+          <filter id={filterId} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.10"/>
+          </filter>
         </defs>
 
-        {/* Grid + y-axis labels */}
+        {/* Grid + y-axis labels (not clipped — visible immediately) */}
         {yTicks.map(({ y, label }) => (
           <g key={label}>
             <line x1={PAD.left} y1={y} x2={PAD.left + cW} y2={y} stroke="#e8e8e8" strokeWidth="1"/>
@@ -630,12 +654,13 @@ function StockLineChart({ ticker, seriesData }) {
           <text key={label} x={x} y={PAD.top + cH + 18} textAnchor="middle" fontSize="10" fill="#9e5a72">{label}</text>
         ))}
 
-        {/* Area + line */}
-        <path d={areaPath} fill={`url(#fill-${ticker})`}/>
-        <polyline points={linePts} fill="none" stroke={lineColor} strokeWidth="2" strokeLinejoin="round"/>
+        {/* Area + line — clipped so they animate left → right */}
+        <g clipPath={`url(#${clipId})`}>
+          <path d={areaPath} fill={`url(#${gradId})`}/>
+          <polyline points={linePts} fill="none" stroke={lineColor} strokeWidth="2" strokeLinejoin="round"/>
+        </g>
 
-        {/* Crosshair + tooltip (always visible, snaps to nearest point) */}
-        {/* Vertical crosshair line */}
+        {/* Crosshair */}
         <line
           x1={hX} y1={PAD.top} x2={hX} y2={PAD.top + cH}
           stroke={lineColor} strokeWidth="1" strokeDasharray="4 3" opacity={hoverIdx !== null ? 0.7 : 0}
@@ -650,18 +675,13 @@ function StockLineChart({ ticker, seriesData }) {
         {hoverIdx !== null && (
           <g>
             <rect x={tipX} y={tipY} width={tipW} height={tipH} rx="5"
-              fill="var(--cds-layer-01, #ffffff)" stroke={lineColor} strokeWidth="1.2" filter="url(#tip-shadow)"/>
+              fill="var(--cds-layer-01, #ffffff)" stroke={lineColor} strokeWidth="1.2" filter={`url(#${filterId})`}/>
             <text x={tipX + 8} y={tipY + 16} fontSize="10" fill="#9e5a72">{hDate}</text>
             <text x={tipX + 8} y={tipY + 31} fontSize="13" fontWeight="700" fill="var(--cds-text-primary, #161616)">${hPrice.toFixed(2)}</text>
             <text x={tipX + 8} y={tipY + 46} fontSize="10" fontWeight="600"
               fill={hPct >= 0 ? '#24a148' : '#da1e28'}>
               {hPct >= 0 ? '+' : ''}{hPct.toFixed(2)}%
             </text>
-            <defs>
-              <filter id="tip-shadow" x="-20%" y="-20%" width="140%" height="140%">
-                <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.10"/>
-              </filter>
-            </defs>
           </g>
         )}
       </svg>
@@ -1837,56 +1857,62 @@ function PanelMarketsAndInsights() {
   const error   = (view === 'news' ? nErr : view === 'analyst' ? rErr : eErr) || null;
 
   return (
-    <div className="db-panel">
-      <div className="panel-header-row">
+    <div className="mkt-panel">
+      {/* ── Header ── */}
+      <div className="mkt-header">
         <div>
-          <h2 className="db-panel-heading">Markets & Insights</h2>
-          <p className="db-panel-sub">Live quotes · Analyst ratings · Earnings · News</p>
+          <h2 className="mkt-title">Markets &amp; Insights</h2>
+          <p className="mkt-sub">Live quotes · Analyst ratings · Earnings · News</p>
         </div>
-        <div className="panel-tab-row">
+        <div className="mkt-tabs">
           {[['news','News'],['analyst','Analyst'],['earnings','Earnings']].map(([id, label]) => (
-            <button key={id} className={`panel-tab${view === id ? ' panel-tab--active' : ''}`} onClick={() => setView(id)}>{label}</button>
+            <button key={id} className={`mkt-tab${view === id ? ' mkt-tab--active' : ''}`} onClick={() => setView(id)}>{label}</button>
           ))}
         </div>
       </div>
 
-      {/* Stock chart strip */}
+      {/* Stock chart + quote strip */}
       <PanelAssets />
 
-      {/* Watchlist ticker selector */}
-      <div className="market-watchlist" style={{ marginTop: '1rem' }}>
+      {/* ── Watchlist ticker selector for news/analyst/earnings ── */}
+      <div className="mkt-watchlist">
         {WATCH.map((t) => (
           <button
             key={t}
-            className={`market-watch-btn${activeTicker === t ? ' market-watch-btn--active' : ''}`}
+            className={`mkt-watch-btn${activeTicker === t ? ' mkt-watch-btn--active' : ''}`}
             onClick={() => setActiveTicker(t)}
           >{t}</button>
         ))}
       </div>
 
       <PanelLoadingOrError loading={loading} error={error}>
+        {/* ── News ── */}
         {view === 'news' && (newsData || []).length > 0 && (
-          <div className="market-news-list">
+          <div className="mkt-news-list">
             {(Array.isArray(newsData) ? newsData : []).slice(0, 6).map((a, i) => (
-              <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="market-news-item">
-                <div className="market-news-source">{a.source} · {a.datetime}</div>
-                <div className="market-news-headline">{a.headline}</div>
-                {a.summary && <div className="market-news-summary">{a.summary}</div>}
+              <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="mkt-news-item">
+                <div className="mkt-news-source">News · {a.datetime}</div>
+                <div className="mkt-news-headline">{a.headline}</div>
+                {a.summary && <div className="mkt-news-summary">{a.summary}</div>}
               </a>
             ))}
           </div>
         )}
+
+        {/* ── Analyst ── */}
         {view === 'analyst' && recData && (
-          <div className="analyst-panel">
-            <div className="analyst-consensus">
-              <div className={`analyst-verdict analyst-verdict--${(recData.consensus || 'Hold').toLowerCase()}`}>{recData.consensus || '—'}</div>
-              <div className="analyst-meta">
+          <div className="mkt-analyst-panel">
+            <div className="mkt-analyst-consensus">
+              <div className={`mkt-analyst-verdict mkt-analyst-verdict--${(recData.consensus || 'hold').toLowerCase().replace(' ', '-')}`}>
+                {recData.consensus || '—'}
+              </div>
+              <div className="mkt-analyst-meta">
                 <span>{recData.total || 0} analysts</span><span>·</span>
                 <span>{recData.buy_pct || 0}% bullish</span><span>·</span>
                 <span>{recData.period || ''}</span>
               </div>
             </div>
-            <div className="analyst-bars">
+            <div className="mkt-analyst-bars">
               {[
                 { label: 'Strong Buy',  count: recData.strong_buy  || 0, color: '#24a148' },
                 { label: 'Buy',         count: recData.buy         || 0, color: '#6fdc8c' },
@@ -1894,30 +1920,32 @@ function PanelMarketsAndInsights() {
                 { label: 'Sell',        count: recData.sell        || 0, color: '#ff8389' },
                 { label: 'Strong Sell', count: recData.strong_sell || 0, color: '#da1e28' },
               ].map(({ label, count, color }) => (
-                <div key={label} className="analyst-bar-row">
-                  <span className="analyst-bar-label">{label}</span>
-                  <div className="analyst-bar-track">
-                    <div className="analyst-bar-fill" style={{ width: `${(count / Math.max(recData.total || 1, 1)) * 100}%`, background: color }} />
+                <div key={label} className="mkt-analyst-bar-row">
+                  <span className="mkt-analyst-bar-label">{label}</span>
+                  <div className="mkt-analyst-bar-track">
+                    <div className="mkt-analyst-bar-fill" style={{ width: `${(count / Math.max(recData.total || 1, 1)) * 100}%`, background: color }} />
                   </div>
-                  <span className="analyst-bar-count">{count}</span>
+                  <span className="mkt-analyst-bar-count">{count}</span>
                 </div>
               ))}
             </div>
           </div>
         )}
+
+        {/* ── Earnings ── */}
         {view === 'earnings' && (earnData || []).length > 0 && (
-          <div className="db-table-wrap">
-            <table className="db-table">
-              <thead><tr><th>Period</th><th>Actual EPS</th><th>Estimated EPS</th><th>Surprise</th></tr></thead>
+          <div className="mkt-table-wrap">
+            <table className="mkt-table">
+              <thead><tr><th>Period</th><th>Actual EPS</th><th>Est. EPS</th><th>Surprise</th></tr></thead>
               <tbody>
                 {(Array.isArray(earnData) ? earnData : []).map((e, i) => {
                   const surprise = e.surprise_pct;
                   return (
                     <tr key={i}>
-                      <td style={{ fontFamily: 'IBM Plex Mono', fontSize: '0.8rem' }}>{e.period}</td>
-                      <td style={{ fontFamily: 'IBM Plex Mono' }}>{e.actual_eps != null ? `$${e.actual_eps.toFixed(2)}` : '—'}</td>
-                      <td style={{ fontFamily: 'IBM Plex Mono' }}>{e.estimated_eps != null ? `$${e.estimated_eps.toFixed(2)}` : '—'}</td>
-                      <td className={surprise > 0 ? 'db-up' : surprise < 0 ? 'db-down' : ''}>
+                      <td>{e.period}</td>
+                      <td>{e.actual_eps    != null ? `$${e.actual_eps.toFixed(2)}`    : '—'}</td>
+                      <td>{e.estimated_eps != null ? `$${e.estimated_eps.toFixed(2)}` : '—'}</td>
+                      <td className={surprise > 0 ? 'mkt-up' : surprise < 0 ? 'mkt-down' : ''}>
                         {surprise != null ? `${surprise > 0 ? '+' : ''}${surprise.toFixed(1)}%` : '—'}
                       </td>
                     </tr>
@@ -1927,9 +1955,10 @@ function PanelMarketsAndInsights() {
             </table>
           </div>
         )}
-        {!loading && !error && view === 'news'     && (!newsData || !Array.isArray(newsData) || newsData.length === 0)  && <p className="panel-hint">No recent news available. Ensure FINNHUB_API_KEY is configured.</p>}
-        {!loading && !error && view === 'analyst'  && !recData  && <p className="panel-hint">No analyst data available for {activeTicker}.</p>}
-        {!loading && !error && view === 'earnings' && (!earnData || !Array.isArray(earnData) || earnData.length === 0) && <p className="panel-hint">No earnings data available for {activeTicker}.</p>}
+
+        {!loading && !error && view === 'news'     && (!newsData  || !Array.isArray(newsData)  || newsData.length  === 0) && <p className="mkt-hint">No recent news available. Ensure FINNHUB_API_KEY is configured.</p>}
+        {!loading && !error && view === 'analyst'  && !recData   && <p className="mkt-hint">No analyst data available for {activeTicker}.</p>}
+        {!loading && !error && view === 'earnings' && (!earnData || !Array.isArray(earnData) || earnData.length === 0)    && <p className="mkt-hint">No earnings data available for {activeTicker}.</p>}
       </PanelLoadingOrError>
     </div>
   );
@@ -2105,9 +2134,6 @@ const CANONICAL_CATEGORIES = [
   { keys: ['health', 'medical', 'pharmacy', 'gym', 'fitness'],                        label: 'Health',           color: '#f87171' },
   { keys: ['subscriptions', 'subscription', 'streaming'],                              label: 'Subscriptions',    color: '#e879f9' },
   { keys: ['housing', 'rent', 'mortgage'],                                             label: 'Housing',          color: '#fb923c' },
-  { keys: ['savings', 'saving', 'emergency fund'],                                     label: 'Savings',          color: '#4ade80' },
-  { keys: ['income', 'salary', 'paycheck', 'earnings'],                               label: 'Income',           color: '#38bdf8' },
-  { keys: ['total expenses', 'total spending', 'expenses'],                            label: 'Total Expenses',   color: '#c084fc' },
   { keys: ['investments', 'investing', 'portfolio contribution'],                      label: 'Investments',      color: '#2dd4bf' },
   { keys: ['debt', 'loan', 'credit card payment'],                                     label: 'Debt Payments',    color: '#f97316' },
   { keys: ['travel', 'vacation'],                                                      label: 'Travel',           color: '#94a3b8' },
@@ -2214,8 +2240,10 @@ function parseBudgetPieData(text) {
   const sum = items.reduce((s, i) => s + (i.pct ?? 0), 0);
   if (sum === 0) return null;
 
+  const EXCLUDED_LABELS = new Set(['savings', 'income', 'total expenses']);
+
   return items
-    .filter((i) => (i.pct ?? 0) > 0)
+    .filter((i) => (i.pct ?? 0) > 0 && !EXCLUDED_LABELS.has(i.label.toLowerCase()))
     .map((i, idx) => ({
       label:  i.label,
       pct:    Math.round((i.pct / sum) * 1000) / 10,
@@ -2227,28 +2255,48 @@ function parseBudgetPieData(text) {
 // ── SVG pie chart rendered inside bot messages ────────────────────────────────
 function BudgetPieChart({ slices }) {
   const R = 100, CX = 120, CY = 120;
+  const LABEL_R = 68; // radius at which percentage labels are placed (≈68% of R)
   let cum = 0;
   const paths = slices.map((s) => {
     const startAngle = (cum / 100) * 2 * Math.PI - Math.PI / 2;
     cum += s.pct;
-    const endAngle = (cum / 100) * 2 * Math.PI - Math.PI / 2;
+    const endAngle   = (cum / 100) * 2 * Math.PI - Math.PI / 2;
+    const midAngle   = (startAngle + endAngle) / 2;
     if (s.pct >= 99.9) {
-      return { ...s, d: `M${CX},${CY - R} A${R},${R},0,1,1,${CX - 0.001},${CY - R} Z` };
+      return { ...s, d: `M${CX},${CY - R} A${R},${R},0,1,1,${CX - 0.001},${CY - R} Z`, midAngle };
     }
     const x1 = CX + R * Math.cos(startAngle), y1 = CY + R * Math.sin(startAngle);
     const x2 = CX + R * Math.cos(endAngle),   y2 = CY + R * Math.sin(endAngle);
     const large = s.pct > 50 ? 1 : 0;
-    return { ...s, d: `M${CX},${CY} L${x1},${y1} A${R},${R},0,${large},1,${x2},${y2} Z` };
+    return { ...s, d: `M${CX},${CY} L${x1},${y1} A${R},${R},0,${large},1,${x2},${y2} Z`, midAngle };
   });
 
   return (
     <div className="budget-pie-wrap">
       <div className="budget-pie-chart-col">
         <svg viewBox="0 0 240 240" width="210" height="210" aria-label="Budget allocation pie chart" role="img">
+          {/* Slices */}
           {paths.map((p) => (
             <path key={p.label} d={p.d} fill={p.color} stroke="#fff" strokeWidth="2.5">
               <title>{p.label}: {p.pct}%{p.amount ? ` ($${p.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` : ''}</title>
             </path>
+          ))}
+          {/* Percentage labels — only for slices ≥ 5% to avoid overlap */}
+          {paths.filter((p) => p.pct >= 5).map((p) => (
+            <text
+              key={`lbl-${p.label}`}
+              x={CX + LABEL_R * Math.cos(p.midAngle)}
+              y={CY + LABEL_R * Math.sin(p.midAngle)}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontSize="9.5"
+              fontWeight="700"
+              fontFamily="inherit"
+              fill="#fff"
+              style={{ pointerEvents: 'none', textShadow: '0 1px 2px rgba(0,0,0,0.35)' }}
+            >
+              {p.pct}%
+            </text>
           ))}
         </svg>
         <p className="budget-pie-title">Budget Breakdown</p>
