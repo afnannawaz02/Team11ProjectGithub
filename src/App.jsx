@@ -541,58 +541,164 @@ function fmtDate(iso) {
   return `${MONTHS[parseInt(m, 10) - 1]} ${parseInt(d, 10)}`;
 }
 
+// Normalise a path's point-count to `n` by linearly interpolating extra points.
+// Both from/to paths must have the same count for SVG <animate> d= morphing.
+function normalisePath(pts, n) {
+  if (pts.length === n) return pts;
+  return Array.from({ length: n }, (_, i) => {
+    const t   = i / (n - 1);
+    const raw = t * (pts.length - 1);
+    const lo  = Math.floor(raw);
+    const hi  = Math.min(lo + 1, pts.length - 1);
+    const f   = raw - lo;
+    return [pts[lo][0] + (pts[hi][0] - pts[lo][0]) * f,
+            pts[lo][1] + (pts[hi][1] - pts[lo][1]) * f];
+  });
+}
+
+function buildSmoothPath(pts) {
+  if (pts.length < 2) return '';
+  let d = `M${pts[0][0].toFixed(2)},${pts[0][1].toFixed(2)}`;
+  for (let i = 1; i < pts.length; i++) {
+    const [x0, y0] = pts[i - 1];
+    const [x1, y1] = pts[i];
+    const cpX = (x0 + x1) / 2;
+    d += ` C${cpX.toFixed(2)},${y0.toFixed(2)} ${cpX.toFixed(2)},${y1.toFixed(2)} ${x1.toFixed(2)},${y1.toFixed(2)}`;
+  }
+  return d;
+}
+
+const MORPH_DURATION = '600ms';
+const MORPH_EASE     = 'cubic-bezier(0.4, 0, 0.2, 1)';
+
 function StockLineChart({ ticker, seriesData }) {
   const [hoverIdx, setHoverIdx] = useState(null);
-  // Increment every time the data key changes so the animation re-triggers
-  const [animKey, setAnimKey] = useState(0);
-  const svgRef = useRef(null);
-
-  useEffect(() => { setAnimKey((k) => k + 1); }, [seriesData]);
+  const svgRef      = useRef(null);
+  const lineRef     = useRef(null);
+  const areaRef     = useRef(null);
+  const prevPathRef = useRef({ line: null, area: null, pts: null });
+  const morphKeyRef = useRef(0);
 
   const W = 600, H = 120, PAD = { top: 8, right: 8, bottom: 28, left: 56 };
   const cW = W - PAD.left - PAD.right;
   const cH = H - PAD.top  - PAD.bottom;
 
-  if (!seriesData || seriesData.length < 2) {
-    return <div className="st-chart-wrap" style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'120px', color:'var(--cds-text-secondary)' }}>No chart data</div>;
+  const lineColor = '#d4006e';
+  const gradId   = 'st-grad-fill';
+  const filterId = 'st-shadow';
+
+  // ── Compute current paths ────────────────────────────────────────────────
+  const validData = seriesData && seriesData.length >= 2;
+
+  let smoothPath = '', areaPath = '', currentPts = [];
+  let yTicks = [], xTicks = [];
+
+  if (validData) {
+    const prices = seriesData.map((d) => d.close);
+    const POINTS = prices.length;
+    const minP   = Math.min(...prices), maxP = Math.max(...prices);
+    const scX    = (i) => PAD.left + (i / (POINTS - 1)) * cW;
+    const scY    = (p) => PAD.top  + cH - ((p - minP) / (maxP - minP || 1)) * cH;
+
+    currentPts = prices.map((p, i) => [scX(i), scY(p)]);
+
+    yTicks = [0, 0.25, 0.5, 0.75, 1].map((t) => ({
+      y: PAD.top + cH - t * cH,
+      label: `$${Math.round(minP + t * (maxP - minP))}`,
+    }));
+    xTicks = [0, 1, 2, 3].map((k) => {
+      const idx = Math.round((k / 3) * (POINTS - 1));
+      return { x: scX(idx), label: fmtDate(seriesData[idx].date) };
+    });
+
+    smoothPath = buildSmoothPath(currentPts);
+    areaPath   = smoothPath
+      + ` L${currentPts[currentPts.length - 1][0].toFixed(2)},${(PAD.top + cH).toFixed(2)}`
+      + ` L${currentPts[0][0].toFixed(2)},${(PAD.top + cH).toFixed(2)} Z`;
   }
 
-  const prices = seriesData.map((d) => d.close);
-  const POINTS = prices.length;
-  const minP = Math.min(...prices), maxP = Math.max(...prices);
-  const scX  = (i) => PAD.left + (i / (POINTS - 1)) * cW;
-  const scY  = (p) => PAD.top  + cH - ((p - minP) / (maxP - minP || 1)) * cH;
+  // ── Trigger SVG SMIL morph whenever paths change ─────────────────────────
+  useEffect(() => {
+    if (!validData || !lineRef.current || !areaRef.current) return;
 
-  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((t) => ({
-    y: PAD.top + cH - t * cH,
-    label: `$${Math.round(minP + t * (maxP - minP))}`,
-  }));
+    const prev = prevPathRef.current;
 
-  const xTicks = [0, 1, 2, 3].map((k) => {
-    const idx = Math.round((k / 3) * (POINTS - 1));
-    return { x: scX(idx), label: fmtDate(seriesData[idx].date) };
-  });
-
-  // Build a smooth monotone cubic bezier path through the data points
-  const smoothPath = (() => {
-    const pts = prices.map((p, i) => [scX(i), scY(p)]);
-    if (pts.length < 2) return '';
-    let d = `M${pts[0][0]},${pts[0][1]}`;
-    for (let i = 1; i < pts.length; i++) {
-      const [x0, y0] = pts[i - 1];
-      const [x1, y1] = pts[i];
-      const cpX = (x0 + x1) / 2;
-      d += ` C${cpX},${y0} ${cpX},${y1} ${x1},${y1}`;
+    // First render — just set the path, no animation needed
+    if (!prev.line) {
+      lineRef.current.setAttribute('d', smoothPath);
+      areaRef.current.setAttribute('d', areaPath);
+      prevPathRef.current = { line: smoothPath, area: areaPath, pts: currentPts };
+      return;
     }
-    return d;
-  })();
-  const areaPath = smoothPath
-    + ` L${scX(POINTS - 1)},${PAD.top + cH} L${scX(0)},${PAD.top + cH} Z`;
 
-  const lineColor = '#d4006e';
+    // Same data — nothing to do
+    if (prev.line === smoothPath) return;
 
-  // Map a mouse x (in SVG coords) to the nearest data index
+    // Normalise point counts so SMIL can interpolate
+    const N      = Math.max(prev.pts.length, currentPts.length);
+    const fromPts = normalisePath(prev.pts, N);
+    const toPts   = normalisePath(currentPts, N);
+
+    const fromLine = buildSmoothPath(fromPts);
+    const toLine   = buildSmoothPath(toPts);
+    const fromArea = fromLine
+      + ` L${fromPts[fromPts.length - 1][0].toFixed(2)},${(PAD.top + cH).toFixed(2)}`
+      + ` L${fromPts[0][0].toFixed(2)},${(PAD.top + cH).toFixed(2)} Z`;
+    const toArea   = toLine
+      + ` L${toPts[toPts.length - 1][0].toFixed(2)},${(PAD.top + cH).toFixed(2)}`
+      + ` L${toPts[0][0].toFixed(2)},${(PAD.top + cH).toFixed(2)} Z`;
+
+    morphKeyRef.current += 1;
+    const id = `morph-${morphKeyRef.current}`;
+
+    // Set the live `d` to the from-path first so the animate begins correctly
+    lineRef.current.setAttribute('d', fromLine);
+    areaRef.current.setAttribute('d', fromArea);
+
+    // Inject SMIL <animate> elements
+    const inject = (el, from, to) => {
+      // Remove any previous morph animate on this element
+      el.querySelectorAll('animate[data-morph]').forEach((a) => a.remove());
+      const anim = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
+      anim.setAttribute('data-morph', id);
+      anim.setAttribute('attributeName', 'd');
+      anim.setAttribute('from', from);
+      anim.setAttribute('to', to);
+      anim.setAttribute('dur', MORPH_DURATION);
+      anim.setAttribute('calcMode', 'spline');
+      anim.setAttribute('keySplines', '0.4 0 0.2 1');
+      anim.setAttribute('keyTimes', '0;1');
+      anim.setAttribute('fill', 'freeze');
+      anim.setAttribute('begin', 'indefinite');
+      el.appendChild(anim);
+      return anim;
+    };
+
+    const lineAnim = inject(lineRef.current, fromLine, toLine);
+    const areaAnim = inject(areaRef.current, fromArea, toArea);
+
+    // Start both animations simultaneously
+    lineAnim.beginElement();
+    areaAnim.beginElement();
+
+    // After animation ends, hard-set final d and remove the <animate> nodes
+    const ms = parseFloat(MORPH_DURATION) * (MORPH_DURATION.endsWith('ms') ? 1 : 1000);
+    const tid = setTimeout(() => {
+      if (lineRef.current) lineRef.current.setAttribute('d', toLine);
+      if (areaRef.current) areaRef.current.setAttribute('d', toArea);
+      lineRef.current?.querySelectorAll('animate[data-morph]').forEach((a) => a.remove());
+      areaRef.current?.querySelectorAll('animate[data-morph]').forEach((a) => a.remove());
+    }, ms + 50);
+
+    prevPathRef.current = { line: smoothPath, area: areaPath, pts: currentPts };
+
+    return () => clearTimeout(tid);
+  }, [seriesData]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Mouse interaction ────────────────────────────────────────────────────
   const xToIdx = (svgX) => {
+    if (!validData) return 0;
+    const POINTS = seriesData.length;
     const raw = (svgX - PAD.left) / cW * (POINTS - 1);
     return Math.max(0, Math.min(POINTS - 1, Math.round(raw)));
   };
@@ -604,28 +710,28 @@ function StockLineChart({ ticker, seriesData }) {
     setHoverIdx(xToIdx(svgX));
   };
 
-  // Hover data
-  const hIdx   = hoverIdx ?? POINTS - 1;
-  const hPrice = prices[hIdx];
-  const hDate  = fmtDate(seriesData[hIdx].date);
-  const hPct   = ((hPrice - prices[0]) / prices[0]) * 100;
-  const hX     = scX(hIdx);
-  const hY     = scY(hPrice);
-  // Keep tooltip inside chart bounds
-  const tipW = 110, tipH = 52, tipPad = 8;
-  const tipX = hX + tipPad + tipW > W - PAD.right ? hX - tipW - tipPad : hX + tipPad;
-  const tipY = Math.max(PAD.top, Math.min(hY - tipH / 2, PAD.top + cH - tipH));
+  if (!validData) {
+    return <div className="st-chart-wrap" style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'120px', color:'var(--cds-text-secondary)' }}>No chart data</div>;
+  }
 
-  const clipId   = `clip-${ticker}-${animKey}`;
-  const gradId   = `fill-${ticker}-${animKey}`;
-  const filterId = `shadow-${ticker}-${animKey}`;
+  const prices  = seriesData.map((d) => d.close);
+  const POINTS  = prices.length;
+  const hIdx    = hoverIdx ?? POINTS - 1;
+  const hPrice  = prices[hIdx];
+  const hDate   = fmtDate(seriesData[hIdx].date);
+  const hPct    = ((hPrice - prices[0]) / prices[0]) * 100;
+  const minP    = Math.min(...prices), maxP = Math.max(...prices);
+  const scX     = (i) => PAD.left + (i / (POINTS - 1)) * cW;
+  const scY     = (p) => PAD.top  + cH - ((p - minP) / (maxP - minP || 1)) * cH;
+  const hX      = scX(hIdx);
+  const hY      = scY(hPrice);
+  const tipW    = 110, tipH = 52, tipPad = 8;
+  const tipX    = hX + tipPad + tipW > W - PAD.right ? hX - tipW - tipPad : hX + tipPad;
+  const tipY    = Math.max(PAD.top, Math.min(hY - tipH / 2, PAD.top + cH - tipH));
 
   return (
     <div className="st-chart-wrap">
-      {/* key=animKey forces React to remount the SVG on every data change,
-          which restarts the CSS clip animation from scratch */}
       <svg
-        key={animKey}
         ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}
         className="st-line-svg"
@@ -638,34 +744,26 @@ function StockLineChart({ ticker, seriesData }) {
             <stop offset="0%"   stopColor={lineColor} stopOpacity="0.18"/>
             <stop offset="100%" stopColor={lineColor} stopOpacity="0.02"/>
           </linearGradient>
-
-          {/* Clip rect that slides from left to right to reveal the chart */}
-          <clipPath id={clipId}>
-            <rect
-              x={PAD.left} y={PAD.top}
-              width={cW} height={cH + PAD.bottom}
-              className="st-chart-clip-rect"
-            />
-          </clipPath>
-
           <filter id={filterId} x="-20%" y="-20%" width="140%" height="140%">
             <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.10"/>
           </filter>
         </defs>
 
-        {/* Y-axis labels only — no horizontal grid lines */}
+        {/* Y-axis labels — cross-fade on change */}
         {yTicks.map(({ y, label }) => (
-          <text key={label} x={PAD.left - 6} y={y + 4} textAnchor="end" fontSize="10" fill="rgba(255,255,255,0.28)">{label}</text>
+          <text key={`${ticker}-y-${label}`} x={PAD.left - 6} y={y + 4} textAnchor="end" fontSize="8" fill="rgba(255,255,255,0.28)"
+            className="st-axis-label">{label}</text>
         ))}
         {xTicks.map(({ x, label }) => (
-          <text key={label} x={x} y={PAD.top + cH + 18} textAnchor="middle" fontSize="10" fill="rgba(255,255,255,0.28)">{label}</text>
+          <text key={`${ticker}-x-${label}`} x={x} y={PAD.top + cH + 18} textAnchor="middle" fontSize="8" fill="rgba(255,255,255,0.28)"
+            className="st-axis-label">{label}</text>
         ))}
 
-        {/* Area + line — clipped so they animate left → right */}
-        <g clipPath={`url(#${clipId})`}>
-          <path d={areaPath} fill={`url(#${gradId})`}/>
-          <path d={smoothPath} fill="none" stroke={lineColor} strokeWidth="2" strokeLinejoin="round"/>
-        </g>
+        {/* Area fill — morphs in place */}
+        <path ref={areaRef} d="" fill={`url(#${gradId})`} />
+
+        {/* Line — morphs in place */}
+        <path ref={lineRef} d="" fill="none" stroke={lineColor} strokeWidth="2" strokeLinejoin="round" />
 
         {/* Crosshair */}
         <line
@@ -678,14 +776,14 @@ function StockLineChart({ ticker, seriesData }) {
           fill={lineColor} stroke="#ffffff" strokeWidth="2"
           opacity={hoverIdx !== null ? 1 : 0}
         />
-        {/* Tooltip box */}
+        {/* Tooltip */}
         {hoverIdx !== null && (
           <g>
             <rect x={tipX} y={tipY} width={tipW} height={tipH} rx="5"
               fill="#1a0e18" stroke={lineColor} strokeWidth="1.2" filter={`url(#${filterId})`}/>
-            <text x={tipX + 8} y={tipY + 16} fontSize="10" fill="rgba(255,255,255,0.42)">{hDate}</text>
-            <text x={tipX + 8} y={tipY + 31} fontSize="13" fontWeight="700" fill="#ffffff">${hPrice.toFixed(2)}</text>
-            <text x={tipX + 8} y={tipY + 46} fontSize="10" fontWeight="600"
+            <text x={tipX + 8} y={tipY + 16} fontSize="8" fill="rgba(255,255,255,0.42)">{hDate}</text>
+            <text x={tipX + 8} y={tipY + 31} fontSize="11" fontWeight="700" fill="#ffffff">${hPrice.toFixed(2)}</text>
+            <text x={tipX + 8} y={tipY + 46} fontSize="8" fontWeight="600"
               fill={hPct >= 0 ? '#4caf50' : '#ef5350'}>
               {hPct >= 0 ? '+' : ''}{hPct.toFixed(2)}%
             </text>
