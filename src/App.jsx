@@ -2961,21 +2961,16 @@ function NavShell({ children, username, onGoProfile, onGoHome, heroHeader, authH
   return (
     <div className={authHeader ? 'app-shell app-shell--auth' : 'app-shell'}>
       <Header aria-label="Candyland Bank" className={headerClass}>
-        {/* Left spacer to keep brand centred */}
+        {/* Left spacer to balance the avatar on the right */}
         <div style={{ flex: 1 }} />
 
-        {/* Centred brand lockup — CANDYLAND BANK ✿ × IBM */}
+        {/* Centred brand lockup — SVG logo + × IBM */}
         <button
-          style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '1.25rem', padding: '0 0.5rem' }}
+          style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '1rem', padding: '0 0.5rem' }}
           onClick={() => onGoHome?.()}
           aria-label="Candyland Bank home"
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <span style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontWeight: 700, fontSize: '0.875rem', letterSpacing: '0.12em', color: '#ffffff', textTransform: 'uppercase' }}>
-              CANDYLAND BANK
-            </span>
-            <span style={{ color: '#e91e8c', fontSize: '1rem', lineHeight: 1 }}>✿</span>
-          </div>
+          <img src="/grouped-logo.svg" alt="Candyland Bank" className="header-brand-logo" />
           <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 300, fontSize: '1.1rem' }}>✕</span>
           <span style={{ fontFamily: "'Courier New', monospace", fontWeight: 900, fontSize: '1.1rem', letterSpacing: '0.28em', color: '#ffffff' }}>
             IBM
