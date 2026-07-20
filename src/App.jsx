@@ -598,7 +598,7 @@ function StockLineChart({ seriesData }) {
   const prevRef     = useRef(null);     // { pts, yTicks, smoothPath, areaPath }
   const morphKeyRef = useRef(0);
 
-  const W = 600, H = 120, PAD = { top: 8, right: 8, bottom: 28, left: 56 };
+  const W = 600, H = 120, PAD = { top: 8, right: 8, bottom: 28, left: 0 };
   const cW = W - PAD.left - PAD.right;
   const cH = H - PAD.top  - PAD.bottom;
   const lineColor = '#d4006e';
@@ -749,9 +749,9 @@ function StockLineChart({ seriesData }) {
           <text
             key={i}
             ref={(el) => { yTickRefs.current[i] = el; }}
-            x={PAD.left - 6}
+            x={4}
             y={y + 4}
-            textAnchor="end"
+            textAnchor="start"
             fontSize="8"
             fill="rgba(255,255,255,0.28)"
           >{label}</text>

@@ -923,9 +923,12 @@ body {
   &--chat {
     padding: 0;
     overflow: hidden;
-    > .chat-page {
-      height: 100%;
+    > .db-panel-fade {
+      flex: 1;
       min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
   }
 
@@ -1186,9 +1189,6 @@ body {
 .st-chart-bleed {
   margin: 0 (-$spacing-05);
   width: calc(100% + #{$spacing-05} * 2);
-  min-height: 180px;
-  display: flex;
-  align-items: center;
 }
 
 .st-chart-loading {
@@ -1485,7 +1485,7 @@ body {
 .st-line-svg,
 .st-vol-svg {
   width: 100%;
-  height: auto;
+  height: 120px;
   display: block;
   overflow: visible;
 }
@@ -1832,7 +1832,7 @@ body {
 // ── Chat page shell ──────────────────────────────────────────────────────────
 .chat-page {
   display: flex;
-  height: 100%;
+  flex: 1;
   width: 100%;
   min-height: 0;
   overflow: hidden;
