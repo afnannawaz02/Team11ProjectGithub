@@ -568,166 +568,162 @@ function buildSmoothPath(pts) {
   return d;
 }
 
-const MORPH_DURATION = '600ms';
-const MORPH_EASE     = 'cubic-bezier(0.4, 0, 0.2, 1)';
+const MORPH_DURATION_MS = 600;
+const MORPH_DUR_STR     = `${MORPH_DURATION_MS}ms`;
 
-function StockLineChart({ ticker, seriesData }) {
-  const [hoverIdx, setHoverIdx] = useState(null);
+// Inject a SMIL <animate> on an SVG element and return it
+function smilAnimate(el, attr, from, to, durStr, id) {
+  el.querySelectorAll(`animate[data-morph]`).forEach((a) => a.remove());
+  const anim = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
+  anim.setAttribute('data-morph', id);
+  anim.setAttribute('attributeName', attr);
+  anim.setAttribute('from', from);
+  anim.setAttribute('to', to);
+  anim.setAttribute('dur', durStr);
+  anim.setAttribute('calcMode', 'spline');
+  anim.setAttribute('keySplines', '0.4 0 0.2 1');
+  anim.setAttribute('keyTimes', '0;1');
+  anim.setAttribute('fill', 'freeze');
+  anim.setAttribute('begin', 'indefinite');
+  el.appendChild(anim);
+  return anim;
+}
+
+function StockLineChart({ seriesData }) {
+  const [hoverIdx, setHoverIdx]   = useState(null);
   const svgRef      = useRef(null);
   const lineRef     = useRef(null);
   const areaRef     = useRef(null);
-  const prevPathRef = useRef({ line: null, area: null, pts: null });
+  const yTickRefs   = useRef([]);       // refs for the 5 y-axis <text> nodes
+  const prevRef     = useRef(null);     // { pts, yTicks, smoothPath, areaPath }
   const morphKeyRef = useRef(0);
 
   const W = 600, H = 120, PAD = { top: 8, right: 8, bottom: 28, left: 56 };
   const cW = W - PAD.left - PAD.right;
   const cH = H - PAD.top  - PAD.bottom;
-
   const lineColor = '#d4006e';
-  const gradId   = 'st-grad-fill';
-  const filterId = 'st-shadow';
 
-  // ── Compute current paths ────────────────────────────────────────────────
+  // ── Compute everything from seriesData ───────────────────────────────────
   const validData = seriesData && seriesData.length >= 2;
 
-  let smoothPath = '', areaPath = '', currentPts = [];
-  let yTicks = [], xTicks = [];
-
-  if (validData) {
+  const derived = useMemo(() => {
+    if (!validData) return null;
     const prices = seriesData.map((d) => d.close);
     const POINTS = prices.length;
     const minP   = Math.min(...prices), maxP = Math.max(...prices);
     const scX    = (i) => PAD.left + (i / (POINTS - 1)) * cW;
     const scY    = (p) => PAD.top  + cH - ((p - minP) / (maxP - minP || 1)) * cH;
-
-    currentPts = prices.map((p, i) => [scX(i), scY(p)]);
-
-    yTicks = [0, 0.25, 0.5, 0.75, 1].map((t) => ({
-      y: PAD.top + cH - t * cH,
+    const pts    = prices.map((p, i) => [scX(i), scY(p)]);
+    const smooth = buildSmoothPath(pts);
+    const area   = smooth
+      + ` L${pts[pts.length - 1][0].toFixed(2)},${(PAD.top + cH).toFixed(2)}`
+      + ` L${pts[0][0].toFixed(2)},${(PAD.top + cH).toFixed(2)} Z`;
+    const yTicks = [0, 0.25, 0.5, 0.75, 1].map((t) => ({
+      y:     PAD.top + cH - t * cH,
       label: `$${Math.round(minP + t * (maxP - minP))}`,
     }));
-    xTicks = [0, 1, 2, 3].map((k) => {
+    const xTicks = [0, 1, 2, 3].map((k) => {
       const idx = Math.round((k / 3) * (POINTS - 1));
       return { x: scX(idx), label: fmtDate(seriesData[idx].date) };
     });
+    return { pts, smooth, area, yTicks, xTicks, minP, maxP, prices, POINTS, scX, scY };
+  }, [seriesData]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    smoothPath = buildSmoothPath(currentPts);
-    areaPath   = smoothPath
-      + ` L${currentPts[currentPts.length - 1][0].toFixed(2)},${(PAD.top + cH).toFixed(2)}`
-      + ` L${currentPts[0][0].toFixed(2)},${(PAD.top + cH).toFixed(2)} Z`;
-  }
-
-  // ── Trigger SVG SMIL morph whenever paths change ─────────────────────────
+  // ── SMIL morph whenever seriesData changes ───────────────────────────────
   useEffect(() => {
-    if (!validData || !lineRef.current || !areaRef.current) return;
+    if (!derived || !lineRef.current || !areaRef.current) return;
 
-    const prev = prevPathRef.current;
+    const prev = prevRef.current;
 
-    // First render — just set the path, no animation needed
-    if (!prev.line) {
-      lineRef.current.setAttribute('d', smoothPath);
-      areaRef.current.setAttribute('d', areaPath);
-      prevPathRef.current = { line: smoothPath, area: areaPath, pts: currentPts };
+    // First paint — no transition
+    if (!prev) {
+      lineRef.current.setAttribute('d', derived.smooth);
+      areaRef.current.setAttribute('d', derived.area);
+      yTickRefs.current.forEach((el, i) => {
+        if (!el) return;
+        el.setAttribute('y', derived.yTicks[i].y + 4);
+        el.textContent = derived.yTicks[i].label;
+      });
+      prevRef.current = derived;
       return;
     }
 
-    // Same data — nothing to do
-    if (prev.line === smoothPath) return;
+    if (prev.smooth === derived.smooth) return;
 
-    // Normalise point counts so SMIL can interpolate
-    const N      = Math.max(prev.pts.length, currentPts.length);
+    morphKeyRef.current += 1;
+    const id = `m${morphKeyRef.current}`;
+
+    // ── Path morph ──
+    const N       = Math.max(prev.pts.length, derived.pts.length);
     const fromPts = normalisePath(prev.pts, N);
-    const toPts   = normalisePath(currentPts, N);
-
+    const toPts   = normalisePath(derived.pts, N);
     const fromLine = buildSmoothPath(fromPts);
     const toLine   = buildSmoothPath(toPts);
     const fromArea = fromLine
-      + ` L${fromPts[fromPts.length - 1][0].toFixed(2)},${(PAD.top + cH).toFixed(2)}`
-      + ` L${fromPts[0][0].toFixed(2)},${(PAD.top + cH).toFixed(2)} Z`;
+      + ` L${fromPts[fromPts.length-1][0].toFixed(2)},${(PAD.top+cH).toFixed(2)}`
+      + ` L${fromPts[0][0].toFixed(2)},${(PAD.top+cH).toFixed(2)} Z`;
     const toArea   = toLine
-      + ` L${toPts[toPts.length - 1][0].toFixed(2)},${(PAD.top + cH).toFixed(2)}`
-      + ` L${toPts[0][0].toFixed(2)},${(PAD.top + cH).toFixed(2)} Z`;
+      + ` L${toPts[toPts.length-1][0].toFixed(2)},${(PAD.top+cH).toFixed(2)}`
+      + ` L${toPts[0][0].toFixed(2)},${(PAD.top+cH).toFixed(2)} Z`;
 
-    morphKeyRef.current += 1;
-    const id = `morph-${morphKeyRef.current}`;
-
-    // Set the live `d` to the from-path first so the animate begins correctly
     lineRef.current.setAttribute('d', fromLine);
     areaRef.current.setAttribute('d', fromArea);
+    const la = smilAnimate(lineRef.current, 'd', fromLine, toLine, MORPH_DUR_STR, id);
+    const aa = smilAnimate(areaRef.current, 'd', fromArea, toArea, MORPH_DUR_STR, id);
+    la.beginElement();
+    aa.beginElement();
 
-    // Inject SMIL <animate> elements
-    const inject = (el, from, to) => {
-      // Remove any previous morph animate on this element
-      el.querySelectorAll('animate[data-morph]').forEach((a) => a.remove());
-      const anim = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
-      anim.setAttribute('data-morph', id);
-      anim.setAttribute('attributeName', 'd');
-      anim.setAttribute('from', from);
-      anim.setAttribute('to', to);
-      anim.setAttribute('dur', MORPH_DURATION);
-      anim.setAttribute('calcMode', 'spline');
-      anim.setAttribute('keySplines', '0.4 0 0.2 1');
-      anim.setAttribute('keyTimes', '0;1');
-      anim.setAttribute('fill', 'freeze');
-      anim.setAttribute('begin', 'indefinite');
-      el.appendChild(anim);
-      return anim;
-    };
+    // ── Y-axis label morph (y position) ──
+    const yAnims = yTickRefs.current.map((el, i) => {
+      if (!el || !prev.yTicks[i]) return null;
+      const fromY = prev.yTicks[i].y + 4;
+      const toY   = derived.yTicks[i].y + 4;
+      el.setAttribute('y', fromY);
+      const ya = smilAnimate(el, 'y', String(fromY), String(toY), MORPH_DUR_STR, id);
+      ya.beginElement();
+      return ya;
+    });
 
-    const lineAnim = inject(lineRef.current, fromLine, toLine);
-    const areaAnim = inject(areaRef.current, fromArea, toArea);
-
-    // Start both animations simultaneously
-    lineAnim.beginElement();
-    areaAnim.beginElement();
-
-    // After animation ends, hard-set final d and remove the <animate> nodes
-    const ms = parseFloat(MORPH_DURATION) * (MORPH_DURATION.endsWith('ms') ? 1 : 1000);
+    // ── Settle: hard-set final values, remove <animate> nodes ──
     const tid = setTimeout(() => {
-      if (lineRef.current) lineRef.current.setAttribute('d', toLine);
-      if (areaRef.current) areaRef.current.setAttribute('d', toArea);
-      lineRef.current?.querySelectorAll('animate[data-morph]').forEach((a) => a.remove());
-      areaRef.current?.querySelectorAll('animate[data-morph]').forEach((a) => a.remove());
-    }, ms + 50);
+      if (lineRef.current) { lineRef.current.setAttribute('d', toLine); lineRef.current.querySelectorAll('animate[data-morph]').forEach((a) => a.remove()); }
+      if (areaRef.current) { areaRef.current.setAttribute('d', toArea); areaRef.current.querySelectorAll('animate[data-morph]').forEach((a) => a.remove()); }
+      yTickRefs.current.forEach((el, i) => {
+        if (!el) return;
+        el.setAttribute('y', derived.yTicks[i].y + 4);
+        el.textContent = derived.yTicks[i].label;
+        el.querySelectorAll('animate[data-morph]').forEach((a) => a.remove());
+      });
+      yAnims.forEach((a) => a?.remove());
+    }, MORPH_DURATION_MS + 50);
 
-    prevPathRef.current = { line: smoothPath, area: areaPath, pts: currentPts };
-
+    prevRef.current = derived;
     return () => clearTimeout(tid);
-  }, [seriesData]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [derived]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Mouse interaction ────────────────────────────────────────────────────
-  const xToIdx = (svgX) => {
-    if (!validData) return 0;
-    const POINTS = seriesData.length;
-    const raw = (svgX - PAD.left) / cW * (POINTS - 1);
-    return Math.max(0, Math.min(POINTS - 1, Math.round(raw)));
-  };
-
   const handleMouseMove = (e) => {
-    if (!svgRef.current) return;
+    if (!svgRef.current || !derived) return;
     const rect = svgRef.current.getBoundingClientRect();
     const svgX = ((e.clientX - rect.left) / rect.width) * W;
-    setHoverIdx(xToIdx(svgX));
+    const raw  = (svgX - PAD.left) / cW * (derived.POINTS - 1);
+    setHoverIdx(Math.max(0, Math.min(derived.POINTS - 1, Math.round(raw))));
   };
 
-  if (!validData) {
-    return <div className="st-chart-wrap" style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'120px', color:'var(--cds-text-secondary)' }}>No chart data</div>;
+  if (!validData || !derived) {
+    return <div className="st-chart-wrap" style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'120px', color:'rgba(255,255,255,0.42)' }}>No chart data</div>;
   }
 
-  const prices  = seriesData.map((d) => d.close);
-  const POINTS  = prices.length;
-  const hIdx    = hoverIdx ?? POINTS - 1;
-  const hPrice  = prices[hIdx];
-  const hDate   = fmtDate(seriesData[hIdx].date);
-  const hPct    = ((hPrice - prices[0]) / prices[0]) * 100;
-  const minP    = Math.min(...prices), maxP = Math.max(...prices);
-  const scX     = (i) => PAD.left + (i / (POINTS - 1)) * cW;
-  const scY     = (p) => PAD.top  + cH - ((p - minP) / (maxP - minP || 1)) * cH;
-  const hX      = scX(hIdx);
-  const hY      = scY(hPrice);
-  const tipW    = 110, tipH = 52, tipPad = 8;
-  const tipX    = hX + tipPad + tipW > W - PAD.right ? hX - tipW - tipPad : hX + tipPad;
-  const tipY    = Math.max(PAD.top, Math.min(hY - tipH / 2, PAD.top + cH - tipH));
+  const { prices, POINTS, scX, scY, xTicks, yTicks, minP, maxP } = derived;
+  const hIdx  = hoverIdx ?? POINTS - 1;
+  const hPrice = prices[hIdx];
+  const hDate  = fmtDate(seriesData[hIdx].date);
+  const hPct   = ((hPrice - prices[0]) / prices[0]) * 100;
+  const hX     = scX(hIdx);
+  const hY     = scY(hPrice);
+  const tipW   = 110, tipH = 52, tipPad = 8;
+  const tipX   = hX + tipPad + tipW > W - PAD.right ? hX - tipW - tipPad : hX + tipPad;
+  const tipY   = Math.max(PAD.top, Math.min(hY - tipH / 2, PAD.top + cH - tipH));
 
   return (
     <div className="st-chart-wrap">
@@ -735,55 +731,62 @@ function StockLineChart({ ticker, seriesData }) {
         ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}
         className="st-line-svg"
-        aria-label={`${ticker} price chart`}
         onMouseMove={handleMouseMove}
         onMouseLeave={() => setHoverIdx(null)}
       >
         <defs>
-          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id="st-grad-fill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%"   stopColor={lineColor} stopOpacity="0.18"/>
             <stop offset="100%" stopColor={lineColor} stopOpacity="0.02"/>
           </linearGradient>
-          <filter id={filterId} x="-20%" y="-20%" width="140%" height="140%">
+          <filter id="st-shadow" x="-20%" y="-20%" width="140%" height="140%">
             <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.10"/>
           </filter>
         </defs>
 
-        {/* Y-axis labels — cross-fade on change */}
-        {yTicks.map(({ y, label }) => (
-          <text key={`${ticker}-y-${label}`} x={PAD.left - 6} y={y + 4} textAnchor="end" fontSize="8" fill="rgba(255,255,255,0.28)"
-            className="st-axis-label">{label}</text>
+        {/* Y-axis labels — positions animated via SMIL, text swapped after morph */}
+        {yTicks.map(({ y, label }, i) => (
+          <text
+            key={i}
+            ref={(el) => { yTickRefs.current[i] = el; }}
+            x={PAD.left - 6}
+            y={y + 4}
+            textAnchor="end"
+            fontSize="8"
+            fill="rgba(255,255,255,0.28)"
+          >{label}</text>
         ))}
+
+        {/* X-axis labels — fade in on change */}
         {xTicks.map(({ x, label }) => (
-          <text key={`${ticker}-x-${label}`} x={x} y={PAD.top + cH + 18} textAnchor="middle" fontSize="8" fill="rgba(255,255,255,0.28)"
+          <text key={label} x={x} y={PAD.top + cH + 18} textAnchor="middle" fontSize="8" fill="rgba(255,255,255,0.28)"
             className="st-axis-label">{label}</text>
         ))}
 
-        {/* Area fill — morphs in place */}
-        <path ref={areaRef} d="" fill={`url(#${gradId})`} />
+        {/* Area fill */}
+        <path ref={areaRef} d="" fill="url(#st-grad-fill)" />
 
-        {/* Line — morphs in place */}
+        {/* Line */}
         <path ref={lineRef} d="" fill="none" stroke={lineColor} strokeWidth="2" strokeLinejoin="round" />
 
         {/* Crosshair */}
-        <line
-          x1={hX} y1={PAD.top} x2={hX} y2={PAD.top + cH}
-          stroke={lineColor} strokeWidth="1" strokeDasharray="4 3" opacity={hoverIdx !== null ? 0.7 : 0}
-        />
-        {/* Dot on line */}
-        <circle
-          cx={hX} cy={hY} r="4"
+        <line x1={hX} y1={PAD.top} x2={hX} y2={PAD.top + cH}
+          stroke={lineColor} strokeWidth="1" strokeDasharray="4 3"
+          opacity={hoverIdx !== null ? 0.7 : 0} />
+
+        {/* Dot */}
+        <circle cx={hX} cy={hY} r="4"
           fill={lineColor} stroke="#ffffff" strokeWidth="2"
-          opacity={hoverIdx !== null ? 1 : 0}
-        />
+          opacity={hoverIdx !== null ? 1 : 0} />
+
         {/* Tooltip */}
         {hoverIdx !== null && (
           <g>
             <rect x={tipX} y={tipY} width={tipW} height={tipH} rx="5"
-              fill="#1a0e18" stroke={lineColor} strokeWidth="1.2" filter={`url(#${filterId})`}/>
-            <text x={tipX + 8} y={tipY + 16} fontSize="8" fill="rgba(255,255,255,0.42)">{hDate}</text>
-            <text x={tipX + 8} y={tipY + 31} fontSize="11" fontWeight="700" fill="#ffffff">${hPrice.toFixed(2)}</text>
-            <text x={tipX + 8} y={tipY + 46} fontSize="8" fontWeight="600"
+              fill="#1a0e18" stroke={lineColor} strokeWidth="1.2" filter="url(#st-shadow)"/>
+            <text x={tipX+8} y={tipY+16} fontSize="8"  fill="rgba(255,255,255,0.42)">{hDate}</text>
+            <text x={tipX+8} y={tipY+31} fontSize="11" fontWeight="700" fill="#ffffff">${hPrice.toFixed(2)}</text>
+            <text x={tipX+8} y={tipY+46} fontSize="8"  fontWeight="600"
               fill={hPct >= 0 ? '#4caf50' : '#ef5350'}>
               {hPct >= 0 ? '+' : ''}{hPct.toFixed(2)}%
             </text>
@@ -794,7 +797,8 @@ function StockLineChart({ ticker, seriesData }) {
   );
 }
 
-const DEFAULT_TICKERS = ['AAPL', 'MSFT', 'GOOGL', 'TSLA'];
+const DEFAULT_TICKERS  = ['AAPL', 'MSFT', 'GOOGL', 'TSLA'];
+const DROPDOWN_TICKERS = ['AAPL','MSFT','GOOGL','TSLA','NVDA','AMZN','META','NFLX','AMD','INTC'];
 
 function PanelAssets() {
   const [tickers,   setTickers]   = useState(DEFAULT_TICKERS);
@@ -922,6 +926,15 @@ function PanelAssets() {
     fetchProfile(active);
   }, [active, range]);
 
+  // Pre-fetch all dropdown tickers so switching is instant
+  useEffect(() => {
+    DROPDOWN_TICKERS.forEach((t) => {
+      fetchQuote(t);
+      fetchSeries(t, range);
+      fetchProfile(t);
+    });
+  }, [range]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Finnhub symbol search → { count, result: [{ description, displaySymbol, symbol, type }] }
   const handleSearch = async () => {
     if (!search.trim()) return;
@@ -997,19 +1010,41 @@ function PanelAssets() {
         </div>
       )}
 
-      {/* ── Ticker pills ── */}
-      <div className="st-tickers">
-        {tickers.map((t) => (
-          <span key={t} className={`st-pill${active === t ? ' st-pill--active' : ''}`}>
-            <button className="st-pill-label" onClick={() => setActive(t)}>{t}</button>
-            {tickers.length > 1 && (
-              <button className="st-pill-remove" aria-label={`Remove ${t}`}
-                onClick={() => { const next = tickers.filter((x) => x !== t); setTickers(next); if (active === t) setActive(next[0]); }}>
-                ✕
-              </button>
-            )}
-          </span>
-        ))}
+      {/* ── Ticker selector row: dropdown + watchlist pills ── */}
+      <div className="st-ticker-row">
+        <div className="st-ticker-select-wrap">
+          <select
+            className="st-ticker-select"
+            value={active}
+            onChange={(e) => {
+              const sym = e.target.value;
+              if (!tickers.includes(sym)) setTickers((t) => [...t, sym]);
+              setActive(sym);
+            }}
+          >
+            {DROPDOWN_TICKERS.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+            {tickers.filter((t) => !DROPDOWN_TICKERS.includes(t)).map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Watchlist pills for quick switching */}
+        <div className="st-tickers">
+          {tickers.map((t) => (
+            <span key={t} className={`st-pill${active === t ? ' st-pill--active' : ''}`}>
+              <button className="st-pill-label" onClick={() => setActive(t)}>{t}</button>
+              {tickers.length > 1 && (
+                <button className="st-pill-remove" aria-label={`Remove ${t}`}
+                  onClick={() => { const next = tickers.filter((x) => x !== t); setTickers(next); if (active === t) setActive(next[0]); }}>
+                  ✕
+                </button>
+              )}
+            </span>
+          ))}
+        </div>
       </div>
 
       {/* ── Stock detail: name/price left, range buttons right ── */}
@@ -1030,9 +1065,9 @@ function PanelAssets() {
 
       {/* ── Chart — bleeds edge-to-edge, no side padding ── */}
       <div className="st-chart-bleed">
-        {loadingC
+        {loadingC && !seriesArr.length
           ? <div className="st-chart-loading">Loading chart…</div>
-          : <StockLineChart key={sKey} ticker={active} seriesData={seriesArr} />
+          : <StockLineChart seriesData={seriesArr} />
         }
       </div>
 
