@@ -589,8 +589,7 @@ function StockLineChart({ ticker, seriesData }) {
   const areaPath = smoothPath
     + ` L${scX(POINTS - 1)},${PAD.top + cH} L${scX(0)},${PAD.top + cH} Z`;
 
-  const priceUp = prices[POINTS - 1] >= prices[0];
-  const lineColor = priceUp ? '#24a148' : '#da1e28';
+  const lineColor = '#d4006e';
 
   // Map a mouse x (in SVG coords) to the nearest data index
   const xToIdx = (svgX) => {
@@ -656,10 +655,10 @@ function StockLineChart({ ticker, seriesData }) {
 
         {/* Y-axis labels only — no horizontal grid lines */}
         {yTicks.map(({ y, label }) => (
-          <text key={label} x={PAD.left - 6} y={y + 4} textAnchor="end" fontSize="10" fill="#9e5a72">{label}</text>
+          <text key={label} x={PAD.left - 6} y={y + 4} textAnchor="end" fontSize="10" fill="rgba(255,255,255,0.28)">{label}</text>
         ))}
         {xTicks.map(({ x, label }) => (
-          <text key={label} x={x} y={PAD.top + cH + 18} textAnchor="middle" fontSize="10" fill="#9e5a72">{label}</text>
+          <text key={label} x={x} y={PAD.top + cH + 18} textAnchor="middle" fontSize="10" fill="rgba(255,255,255,0.28)">{label}</text>
         ))}
 
         {/* Area + line — clipped so they animate left → right */}
@@ -683,11 +682,11 @@ function StockLineChart({ ticker, seriesData }) {
         {hoverIdx !== null && (
           <g>
             <rect x={tipX} y={tipY} width={tipW} height={tipH} rx="5"
-              fill="var(--cds-layer-01, #ffffff)" stroke={lineColor} strokeWidth="1.2" filter={`url(#${filterId})`}/>
-            <text x={tipX + 8} y={tipY + 16} fontSize="10" fill="#9e5a72">{hDate}</text>
-            <text x={tipX + 8} y={tipY + 31} fontSize="13" fontWeight="700" fill="var(--cds-text-primary, #161616)">${hPrice.toFixed(2)}</text>
+              fill="#1a0e18" stroke={lineColor} strokeWidth="1.2" filter={`url(#${filterId})`}/>
+            <text x={tipX + 8} y={tipY + 16} fontSize="10" fill="rgba(255,255,255,0.42)">{hDate}</text>
+            <text x={tipX + 8} y={tipY + 31} fontSize="13" fontWeight="700" fill="#ffffff">${hPrice.toFixed(2)}</text>
             <text x={tipX + 8} y={tipY + 46} fontSize="10" fontWeight="600"
-              fill={hPct >= 0 ? '#24a148' : '#da1e28'}>
+              fill={hPct >= 0 ? '#4caf50' : '#ef5350'}>
               {hPct >= 0 ? '+' : ''}{hPct.toFixed(2)}%
             </text>
           </g>
@@ -705,7 +704,7 @@ function PanelAssets() {
   const [profiles,  setProfiles]  = useState({});
   const [series,    setSeries]    = useState({});
   const [active,    setActive]    = useState(DEFAULT_TICKERS[0]);
-  const [range,     setRange]     = useState('1M');
+  const [range,     setRange]     = useState('1D');
   const [search,    setSearch]    = useState('');
   const [searching, setSearching] = useState(false);
   const [results,   setResults]   = useState([]);
@@ -770,7 +769,7 @@ function PanelAssets() {
   };
 
   const makeFallbackSeries = (ticker, r) => {
-    const days  = r === '1W' ? 7 : r === '1M' ? 30 : 90;
+    const days  = r === '1D' ? 1 : r === '1W' ? 7 : r === '1M' ? 30 : 90;
     const rand  = seededRand(ticker.split('').reduce((a, c) => a + c.charCodeAt(0), 0));
     const base  = { AAPL: 185, MSFT: 415, GOOGL: 175, TSLA: 245 }[ticker] ?? 100;
     let price   = base;
@@ -925,7 +924,7 @@ function PanelAssets() {
           </div>
         </div>
         <div className="st-range-btns">
-          {['1W','1M','3M'].map((r) => (
+          {['1D','1W','1M'].map((r) => (
             <button key={r} className={`st-range-btn${range === r ? ' st-range-btn--active' : ''}`} onClick={() => setRange(r)}>{r}</button>
           ))}
         </div>

@@ -1247,19 +1247,16 @@ body {
 .st-pill {
   @include type-style('label-01');
   border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 999px;
+  border-radius: 0.25rem;
   padding: 0.3rem 0.75rem;
-  background: transparent;
+  background: #1a0e18;
   cursor: pointer;
   font-weight: 600;
-  color: rgba(255,255,255,0.42);
+  color: rgba(255,255,255,0.65);
   display: flex;
   gap: 0.25rem;
   align-items: center;
   transition: border-color 120ms, color 120ms;
-
-  &--up   span { color: #4caf50; }
-  &--down span { color: #ef5350; }
 
   &--active {
     background: #d4006e;
@@ -1338,7 +1335,7 @@ body {
 
 .st-range-btn {
   border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 0.5rem;
+  border-radius: 0.25rem;
   padding: 0.25rem 0.75rem;
   background: transparent;
   @include type-style('label-01');
@@ -1469,10 +1466,8 @@ body {
 // Bottom 6 stat cards
 .st-stats-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: $spacing-04;
-
-  @include breakpoint-down(sm) { grid-template-columns: repeat(2, 1fr); }
 }
 
 .st-stat-card {
