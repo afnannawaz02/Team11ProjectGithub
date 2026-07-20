@@ -2961,23 +2961,44 @@ function NavShell({ children, username, onGoProfile, onGoHome, heroHeader, authH
   return (
     <div className={authHeader ? 'app-shell app-shell--auth' : 'app-shell'}>
       <Header aria-label="Candyland Bank" className={headerClass}>
-        <HeaderName href="#" prefix=""
-          onClick={(e) => { e.preventDefault(); onGoHome?.(); }}
+        {/* Left spacer to keep brand centred */}
+        <div style={{ flex: 1 }} />
+
+        {/* Centred brand lockup — CANDYLAND BANK ✿ × IBM */}
+        <button
+          style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '1.25rem', padding: '0 0.5rem' }}
+          onClick={() => onGoHome?.()}
+          aria-label="Candyland Bank home"
         >
-          <img src="/grouped-logo.svg" alt="Candyland Bank" className="header-brand-logo" />
-        </HeaderName>
-        {username && (
-          <HeaderGlobalBar>
-            <button className="avatar-btn" aria-label={`Profile (${username})`} onClick={onGoProfile}>
-              <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" width="32" height="32">
-                <circle cx="16" cy="16" r="14" stroke="currentColor" strokeWidth="2"/>
-                <text x="16" y="21" textAnchor="middle" fontSize="14" fill="currentColor" fontWeight="700">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <span style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontWeight: 700, fontSize: '0.875rem', letterSpacing: '0.12em', color: '#ffffff', textTransform: 'uppercase' }}>
+              CANDYLAND BANK
+            </span>
+            <span style={{ color: '#e91e8c', fontSize: '1rem', lineHeight: 1 }}>✿</span>
+          </div>
+          <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 300, fontSize: '1.1rem' }}>✕</span>
+          <span style={{ fontFamily: "'Courier New', monospace", fontWeight: 900, fontSize: '1.1rem', letterSpacing: '0.28em', color: '#ffffff' }}>
+            IBM
+          </span>
+        </button>
+
+        {/* Right: avatar */}
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
+          {username && (
+            <HeaderGlobalBar>
+              <button
+                className="avatar-btn"
+                aria-label={`Profile (${username})`}
+                onClick={onGoProfile}
+                style={{ marginRight: '0.5rem' }}
+              >
+                <div style={{ width: '2rem', height: '2rem', borderRadius: '50%', background: 'rgba(212,0,110,0.35)', border: '1px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', fontSize: '0.875rem', fontWeight: 700 }}>
                   {username[0].toUpperCase()}
-                </text>
-              </svg>
-            </button>
-          </HeaderGlobalBar>
-        )}
+                </div>
+              </button>
+            </HeaderGlobalBar>
+          )}
+        </div>
       </Header>
       <Content style={{ padding: 0, marginTop: 0 }}>
         {children}
