@@ -1344,7 +1344,12 @@ function BarSparkline({ data, colorFn }) {
         <div key={i} className="bar-sparkline-col">
           <div
             className="bar-sparkline-bar"
-            style={{ height: `${(d.value / max) * 100}%`, background: colorFn ? colorFn(d) : '#f472a0' }}
+            style={{
+              '--bar-h': `${(d.value / max) * 100}%`,
+              height: `${(d.value / max) * 100}%`,
+              background: colorFn ? colorFn(d) : '#f472a0',
+              animationDelay: `${i * 60}ms`,
+            }}
             title={`${d.label}: ${fmt$(d.value)}`}
           />
           <span className="bar-sparkline-label">{d.label}</span>
@@ -1381,12 +1386,22 @@ function NetWorthChart({ history }) {
   const min = Math.min(...vals), max = Math.max(...vals);
   const sX = (i) => PAD.l + (i / (history.length - 1)) * (W - PAD.l - PAD.r);
   const sY = (v) => PAD.t + (H - PAD.t - PAD.b) * (1 - (v - min) / (max - min || 1));
-  const pts = vals.map((v, i) => `${sX(i)},${sY(v)}`).join(' ');
   const area = `M${sX(0)},${sY(vals[0])} ` + vals.map((v, i) => `L${sX(i)},${sY(v)}`).join(' ')
     + ` L${sX(history.length - 1)},${H - PAD.b} L${sX(0)},${H - PAD.b} Z`;
   const up = vals[vals.length - 1] >= vals[0];
   const col = up ? '#24a148' : '#da1e28';
   const ticks = [0, Math.floor(history.length / 2), history.length - 1];
+
+  // Compute polyline total length for stroke-dashoffset draw-on animation
+  const lineId = `nw-line-${col.replace('#','')}`;
+  const linePoints = vals.map((v, i) => [sX(i), sY(v)]);
+  const lineLength = linePoints.reduce((acc, pt, i) => {
+    if (i === 0) return 0;
+    const [x0, y0] = linePoints[i - 1];
+    const [x1, y1] = pt;
+    return acc + Math.hypot(x1 - x0, y1 - y0);
+  }, 0);
+
   return (
     <div className="nw-chart-wrap">
       <svg viewBox={`0 0 ${W} ${H}`} className="nw-chart-svg" aria-label="Net worth history">
@@ -1408,9 +1423,19 @@ function NetWorthChart({ history }) {
         {ticks.map((i) => (
           <text key={i} x={sX(i)} y={H - PAD.b + 14} textAnchor="middle" fontSize="9" fill="#9e5a72">{history[i].label}</text>
         ))}
-        <path d={area} fill="url(#nw-fill)" />
-        <polyline points={pts} fill="none" stroke={col} strokeWidth="2.5" strokeLinejoin="round"/>
-        <circle cx={sX(history.length - 1)} cy={sY(vals[vals.length - 1])} r="4" fill={col} stroke="#fff" strokeWidth="2"/>
+        <path d={area} fill="url(#nw-fill)" className="nw-area-fill" />
+        <polyline
+          id={lineId}
+          points={linePoints.map(([x, y]) => `${x},${y}`).join(' ')}
+          fill="none"
+          stroke={col}
+          strokeWidth="2.5"
+          strokeLinejoin="round"
+          strokeDasharray={lineLength}
+          strokeDashoffset={lineLength}
+          className="nw-line-draw"
+        />
+        <circle cx={sX(history.length - 1)} cy={sY(vals[vals.length - 1])} r="4" fill={col} stroke="#fff" strokeWidth="2" className="nw-dot-pop"/>
       </svg>
     </div>
   );
@@ -1604,7 +1629,7 @@ function PanelPortfolioAndWealth({ profile }) {
           <p className="db-panel-sub">Plaid · Coinbase · Finnhub — unified view.</p>
         </div>
         <div className="panel-tab-row">
-          {[['allocation','Allocation'],['networth','Net Worth'],['stocks','Stocks'],['crypto','Crypto'],['profile','Profile']].map(([id, label]) => (
+          {[['allocation','Allocation'],['stocks','Stocks'],['crypto','Crypto'],['profile','Profile']].map(([id, label]) => (
             <button key={id} className={`panel-tab${view === id ? ' panel-tab--active' : ''}`} onClick={() => switchView(id)}>{label}</button>
           ))}
         </div>
@@ -1687,49 +1712,6 @@ function PanelPortfolioAndWealth({ profile }) {
                   })}
                 </div>
               )}
-            </>
-          )}
-        </PanelLoadingOrError>
-      )}
-
-      {/* ── Net Worth tab ── */}
-      {view === 'networth' && (
-        <PanelLoadingOrError loading={loading || hLoad} error={error || hErr}>
-          {data && nwHistory && (
-            <>
-              <div className="nw-snapshot-grid">
-                {[
-                  { label: 'Net Worth',    value: fmt$(data.netWorth),   note: 'Assets minus debt',     color: '#24a148' },
-                  { label: 'Total Assets', value: fmt$(data.totalAssets), note: 'All holdings combined', color: '#f472a0' },
-                  { label: 'Total Debt',   value: fmt$(data.totalDebt),   note: 'Credit cards & loans',  color: '#da1e28' },
-                  { label: 'Liquid Cash',  value: fmt$(data.plaidAccounts?.filter((a) => a.type === 'checking' || a.type === 'savings').reduce((s, a) => s + a.balance, 0) || 0), note: 'Checking + savings', color: '#3b82d4' },
-                ].map(({ label, value, note, color }) => (
-                  <div key={label} className="nw-snapshot-card">
-                    <div className="nw-snapshot-indicator" style={{ background: color }} />
-                    <div>
-                      <span className="nw-snapshot-label">{label}</span>
-                      <AnimatedValue value={value} className="nw-snapshot-value" style={{ color }} />
-                      <span className="nw-snapshot-note">{note}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <NetWorthChart history={nwHistory.history} />
-              <h3 className="spend-section-title">Account Breakdown</h3>
-              <div className="db-table-wrap">
-                <table className="db-table">
-                  <thead><tr><th>Account</th><th>Type</th><th>Balance</th></tr></thead>
-                  <tbody>
-                    {(data.plaidAccounts || []).map((a) => (
-                      <tr key={a.id}>
-                        <td>{a.name}</td>
-                        <td><span className={`db-badge db-badge--${a.type === 'credit' ? 'sell' : a.type === 'investment' ? 'buy' : 'debit'}`}>{a.type}</span></td>
-                        <td className={a.balance < 0 ? 'db-down' : 'db-up'}>{fmt$(Math.abs(a.balance))}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
             </>
           )}
         </PanelLoadingOrError>
