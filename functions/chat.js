@@ -90,9 +90,23 @@ export async function onRequestPost({ request, env }) {
   // Build message list — no system prompt injection; prepend profile context
   // to the first user turn of this request so the agent can personalise.
   const profileCtx = buildProfileContext(profile);
+
+  // If the user is asking for a budget plan, append a format reminder so
+  // Gumdrop produces "Category: $amount" lines the chart parser can pick up.
+  const BUDGET_PLAN_PHRASES = [
+    'budget plan', 'spending plan', 'monthly budget', 'monthly plan',
+    'budget breakdown', 'budget allocation', 'create a budget', 'make a budget',
+    'build a budget', 'give me a budget', 'suggest a budget',
+  ];
+  const lowerMsg = userMessage.toLowerCase();
+  const isBudgetRequest = BUDGET_PLAN_PHRASES.some((p) => lowerMsg.includes(p));
+  const budgetFormatHint = isBudgetRequest
+    ? '\n\n[Chart rendering hint: please include a clearly labelled breakdown section with one "Category: $amount" line per spending category so the pie chart can be generated automatically.]'
+    : '';
+
   const userContent = profileCtx
-    ? `${profileCtx}\n\n${userMessage}`
-    : userMessage;
+    ? `${profileCtx}\n\n${userMessage}${budgetFormatHint}`
+    : `${userMessage}${budgetFormatHint}`;
 
   const fullMessages = [
     // Include recent history (skip pending/system, last 10 turns)

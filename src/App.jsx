@@ -1512,7 +1512,13 @@ function useBudget() {
 // ── Detect whether a Gumdrop reply contains budget/financial plan content ──────
 function isBudgetReply(text) {
   const lower = text.toLowerCase();
-  const triggers = ['budget', 'spending plan', 'monthly plan', 'savings plan', 'financial plan', 'allocation plan', 'expense breakdown', '50/30/20', 'zero-based', 'emergency fund plan', 'debt payoff plan', 'cut back on', 'reduce spending', 'save more'];
+  const triggers = [
+    'budget plan', 'budget', 'spending plan', 'monthly plan', 'savings plan',
+    'financial plan', 'allocation plan', 'expense breakdown', '50/30/20',
+    'zero-based', 'emergency fund plan', 'debt payoff plan', 'cut back on',
+    'reduce spending', 'save more', 'monthly budget', 'weekly budget',
+    'annual budget', 'budget breakdown', 'budget allocation',
+  ];
   return triggers.some((t) => lower.includes(t)) && text.length > 120;
 }
 function deriveBudgetTitle(userText) {
@@ -2190,8 +2196,9 @@ function parseBudgetPieData(text) {
   }
 
   // ── Pass 2: generic regex for remaining label–value pairs ────────────────────
-  // Only runs for additional labels not already captured
-  const genericRe = /([A-Za-z][A-Za-z &\/\-']+?)\s*[:\-–—]\s*\$?([\d,]+(?:\.\d+)?)\s*(%)?/g;
+  // Handles plain "Category: $500", markdown bold "**Category**: $500",
+  // and bullet "- Category: $500" patterns emitted by Gumdrop.
+  const genericRe = /\*{0,2}([A-Za-z][A-Za-z &\/\-']+?)\*{0,2}\s*[:\-–—]\s*\$?([\d,]+(?:\.\d+)?)\s*(%)?/g;
   let m;
   while ((m = genericRe.exec(text)) !== null) {
     const rawLabel = m[1].trim().replace(/^[*\-•\d.]+\s*/, '');
