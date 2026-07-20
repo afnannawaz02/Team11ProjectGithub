@@ -2168,6 +2168,60 @@ body {
 }
 
 
+// ── Budget pie chart (rendered inside Gumdrop chat replies) ────────────────────
+.budget-pie-wrap {
+  display: flex;
+  align-items: center;
+  gap: $spacing-05;
+  margin-top: $spacing-04;
+  padding: $spacing-04 $spacing-05;
+  background: var(--cds-layer-02);
+  border: 1px solid var(--cds-border-subtle-01);
+  border-radius: 0.75rem;
+  flex-wrap: wrap;
+
+  svg { flex-shrink: 0; }
+}
+
+.budget-pie-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-02;
+  flex: 1;
+  min-width: 140px;
+}
+
+.budget-pie-legend-item {
+  display: flex;
+  align-items: center;
+  gap: $spacing-02;
+  @include type-style('label-01');
+  color: var(--cds-text-primary);
+}
+
+.budget-pie-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.budget-pie-legend-label {
+  flex: 1;
+  color: var(--cds-text-primary);
+}
+
+.budget-pie-legend-pct {
+  font-weight: 600;
+  color: var(--cds-text-secondary);
+  min-width: 36px;
+  text-align: right;
+}
+
 // ── Panel shared ────────────────────────────────────────────────────────────────
 .panel-header-row {
   display: flex;

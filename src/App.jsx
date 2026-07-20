@@ -2084,6 +2084,107 @@ function TypingDots() {
   );
 }
 
+// ── Budget pie chart helpers ──────────────────────────────────────────────────
+
+// Colour palette for pie slices (candy-bank palette then fall back to neutrals)
+const PIE_COLOURS = [
+  '#f472a0', '#f9a8b8', '#a78bfa', '#34d399', '#fbbf24',
+  '#60a5fa', '#f87171', '#4ade80', '#fb923c', '#e879f9',
+];
+
+/**
+ * parseBudgetPieData(text)
+ * Scans a Gumdrop reply for lines/phrases of the form:
+ *   "Housing: 30%"  "Food - $400"  "Savings (20%)"  "• Rent: $1,200 (25%)"
+ * Returns an array of { label, pct } objects (percentages normalised to 100)
+ * or null if fewer than 2 items were found.
+ */
+function parseBudgetPieData(text) {
+  const results = [];
+
+  // Pattern A – explicit percentage: "Label: 30%" or "Label — 30 %" or "Label (30%)"
+  const pctRe = /([A-Za-z][A-Za-z &\/\-']+?)\s*[:\-–—(]\s*(\d+(?:\.\d+)?)\s*%/g;
+  let m;
+  while ((m = pctRe.exec(text)) !== null) {
+    const label = m[1].trim().replace(/^[*\-•\d.]+\s*/, '');
+    const pct   = parseFloat(m[2]);
+    if (label && pct > 0 && pct <= 100) results.push({ label, pct });
+  }
+
+  // Pattern B – dollar amounts without explicit % (derive proportionally)
+  if (results.length < 2) {
+    const dollarRe = /([A-Za-z][A-Za-z &\/\-']+?)\s*[:\-–—(]\s*\$?([\d,]+(?:\.\d+)?)/g;
+    const dollarItems = [];
+    while ((m = dollarRe.exec(text)) !== null) {
+      const label = m[1].trim().replace(/^[*\-•\d.]+\s*/, '');
+      const val   = parseFloat(m[2].replace(/,/g, ''));
+      if (label && val > 0 && val < 1_000_000) dollarItems.push({ label, val });
+    }
+    if (dollarItems.length >= 2) {
+      const total = dollarItems.reduce((s, d) => s + d.val, 0);
+      dollarItems.forEach((d) => results.push({ label: d.label, pct: (d.val / total) * 100 }));
+    }
+  }
+
+  if (results.length < 2) return null;
+
+  // Deduplicate by label (keep first occurrence)
+  const seen = new Set();
+  const deduped = results.filter(({ label }) => {
+    if (seen.has(label.toLowerCase())) return false;
+    seen.add(label.toLowerCase());
+    return true;
+  });
+
+  // Normalise so slices sum to exactly 100
+  const sum = deduped.reduce((s, d) => s + d.pct, 0);
+  return deduped.map((d, i) => ({
+    label: d.label,
+    pct:   Math.round((d.pct / sum) * 1000) / 10, // 1 decimal place
+    color: PIE_COLOURS[i % PIE_COLOURS.length],
+  }));
+}
+
+// ── SVG pie chart rendered inside bot messages ────────────────────────────────
+function BudgetPieChart({ slices }) {
+  const R = 90, CX = 110, CY = 110;
+  let cum = 0;
+  const paths = slices.map((s) => {
+    const startAngle = (cum / 100) * 2 * Math.PI - Math.PI / 2;
+    cum += s.pct;
+    const endAngle = (cum / 100) * 2 * Math.PI - Math.PI / 2;
+    // For a slice that is exactly 100%, draw as full circle approximation
+    if (s.pct >= 99.9) {
+      return { ...s, d: `M${CX},${CY - R} A${R},${R},0,1,1,${CX - 0.001},${CY - R} Z` };
+    }
+    const x1 = CX + R * Math.cos(startAngle), y1 = CY + R * Math.sin(startAngle);
+    const x2 = CX + R * Math.cos(endAngle),   y2 = CY + R * Math.sin(endAngle);
+    const large = s.pct > 50 ? 1 : 0;
+    return { ...s, d: `M${CX},${CY} L${x1},${y1} A${R},${R},0,${large},1,${x2},${y2} Z` };
+  });
+
+  return (
+    <div className="budget-pie-wrap">
+      <svg viewBox="0 0 220 220" width="180" height="180" aria-label="Budget allocation pie chart" role="img">
+        {paths.map((p) => (
+          <path key={p.label} d={p.d} fill={p.color} stroke="#fff" strokeWidth="2">
+            <title>{p.label}: {p.pct}%</title>
+          </path>
+        ))}
+      </svg>
+      <ul className="budget-pie-legend" aria-label="Chart legend">
+        {slices.map((s) => (
+          <li key={s.label} className="budget-pie-legend-item">
+            <span className="budget-pie-swatch" style={{ background: s.color }} aria-hidden="true" />
+            <span className="budget-pie-legend-label">{s.label}</span>
+            <span className="budget-pie-legend-pct">{s.pct}%</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 // Lightweight markdown → HTML for bot replies (bold, bullets, code)
 function BotMessage({ text }) {
   const html = text
@@ -2102,11 +2203,17 @@ function BotMessage({ text }) {
     // Line breaks
     .replace(/\n\n/g, '</p><p>')
     .replace(/\n/g, '<br/>');
+
+  const pieSlices = isBudgetReply(text) ? parseBudgetPieData(text) : null;
+
   return (
-    <div
-      className="chat-bot-text"
-      dangerouslySetInnerHTML={{ __html: `<p>${html}</p>` }}
-    />
+    <>
+      <div
+        className="chat-bot-text"
+        dangerouslySetInnerHTML={{ __html: `<p>${html}</p>` }}
+      />
+      {pieSlices && <BudgetPieChart slices={pieSlices} />}
+    </>
   );
 }
 
