@@ -1775,34 +1775,38 @@ function PanelSpendingAndHealth() {
             </div>
           ) : (
             <div className="budget-notes-list">
-              {notes.map((n) => (
-                <div key={n.id} className="budget-note-card">
-                  <div className="budget-note-header">
-                    <span className="budget-note-title">{n.title}</span>
-                    <div className="budget-note-meta">
-                      <span className="budget-note-date">{n.createdAt}</span>
-                      <button
-                        className="budget-note-del"
-                        onClick={() => removeBudgetNote(n.id)}
-                        aria-label="Delete note"
-                        title="Delete"
-                      >
-                        <TrashCan size={14} />
-                      </button>
+              {notes.map((n) => {
+                const notePieSlices = isBudgetReply(n.content) ? parseBudgetPieData(n.content) : null;
+                return (
+                  <div key={n.id} className="budget-note-card">
+                    <div className="budget-note-header">
+                      <span className="budget-note-title">{n.title}</span>
+                      <div className="budget-note-meta">
+                        <span className="budget-note-date">{n.createdAt}</span>
+                        <button
+                          className="budget-note-del"
+                          onClick={() => removeBudgetNote(n.id)}
+                          aria-label="Delete note"
+                          title="Delete"
+                        >
+                          <TrashCan size={14} />
+                        </button>
+                      </div>
                     </div>
+                    <div className="budget-note-body chat-bot-text"
+                      dangerouslySetInnerHTML={{ __html: `<p>${n.content
+                        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                        .replace(/^[*\-•] (.+)$/gm, '<li>$1</li>')
+                        .replace(/(<li>[\s\S]*?<\/li>)(\n<li>)/g, '$1$2')
+                        .replace(/(<li>)/g, '<ul>$1').replace(/(<\/li>)(?!\n<li>)/g, '$1</ul>')
+                        .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+                        .replace(/\n\n/g, '</p><p>')
+                        .replace(/\n/g, '<br/>')}</p>` }}
+                    />
+                    {notePieSlices && <BudgetPieChart slices={notePieSlices} />}
                   </div>
-                  <div className="budget-note-body chat-bot-text"
-                    dangerouslySetInnerHTML={{ __html: `<p>${n.content
-                      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-                      .replace(/^[*\-•] (.+)$/gm, '<li>$1</li>')
-                      .replace(/(<li>[\s\S]*?<\/li>)(\n<li>)/g, '$1$2')
-                      .replace(/(<li>)/g, '<ul>$1').replace(/(<\/li>)(?!\n<li>)/g, '$1</ul>')
-                      .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
-                      .replace(/\n\n/g, '</p><p>')
-                      .replace(/\n/g, '<br/>')}</p>` }}
-                  />
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
