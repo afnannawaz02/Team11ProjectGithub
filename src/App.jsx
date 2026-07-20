@@ -654,12 +654,9 @@ function StockLineChart({ ticker, seriesData }) {
           </filter>
         </defs>
 
-        {/* Grid + y-axis labels (not clipped — visible immediately) */}
+        {/* Y-axis labels only — no horizontal grid lines */}
         {yTicks.map(({ y, label }) => (
-          <g key={label}>
-            <line x1={PAD.left} y1={y} x2={PAD.left + cW} y2={y} stroke="#e8e8e8" strokeWidth="1"/>
-            <text x={PAD.left - 6} y={y + 4} textAnchor="end" fontSize="10" fill="#9e5a72">{label}</text>
-          </g>
+          <text key={label} x={PAD.left - 6} y={y + 4} textAnchor="end" fontSize="10" fill="#9e5a72">{label}</text>
         ))}
         {xTicks.map(({ x, label }) => (
           <text key={label} x={x} y={PAD.top + cH + 18} textAnchor="middle" fontSize="10" fill="#9e5a72">{label}</text>
