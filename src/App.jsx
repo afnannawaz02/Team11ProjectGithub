@@ -2552,13 +2552,45 @@ function parseBudgetPieData(text) {
 // ── SVG pie chart rendered inside bot messages ────────────────────────────────
 function BudgetPieChart({ slices }) {
   const R = 100, CX = 120, CY = 120;
-  const LABEL_R = 68; // radius at which percentage labels are placed (≈68% of R)
+  const LABEL_R = 68;
+  const DURATION = 1200;
+
+  // Identical sweep animation to DonutChart
+  const [clipAngle, setClipAngle] = useState(0);
+  const rafRef   = useRef(null);
+  const startRef = useRef(null);
+
+  useEffect(() => {
+    setClipAngle(0);
+    startRef.current = null;
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+
+    const step = (ts) => {
+      if (!startRef.current) startRef.current = ts;
+      const t     = Math.min((ts - startRef.current) / DURATION, 1);
+      const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+      setClipAngle(eased * 360);
+      if (t < 1) rafRef.current = requestAnimationFrame(step);
+    };
+
+    rafRef.current = requestAnimationFrame(step);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [slices]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Same clipPath logic as DonutChart
+  const startRad    = -Math.PI / 2;
+  const endRad      = startRad + (clipAngle / 360) * 2 * Math.PI;
+  const clipId      = 'budget-pie-reveal-clip';
+  const clipPathStr = clipAngle >= 359.9
+    ? `M${CX},${CY} m-${R + 4},0 a${R + 4},${R + 4},0,1,1,0,0.001 Z`
+    : sweepArcPath(CX, CY, R + 4, startRad, endRad);
+
   let cum = 0;
   const paths = slices.map((s) => {
     const startAngle = (cum / 100) * 2 * Math.PI - Math.PI / 2;
     cum += s.pct;
-    const endAngle   = (cum / 100) * 2 * Math.PI - Math.PI / 2;
-    const midAngle   = (startAngle + endAngle) / 2;
+    const endAngle = (cum / 100) * 2 * Math.PI - Math.PI / 2;
+    const midAngle = (startAngle + endAngle) / 2;
     if (s.pct >= 99.9) {
       return { ...s, d: `M${CX},${CY - R} A${R},${R},0,1,1,${CX - 0.001},${CY - R} Z`, midAngle };
     }
@@ -2572,29 +2604,38 @@ function BudgetPieChart({ slices }) {
     <div className="budget-pie-wrap">
       <div className="budget-pie-chart-col">
         <svg viewBox="0 0 240 240" width="210" height="210" aria-label="Budget allocation pie chart" role="img">
-          {/* Slices */}
-          {paths.map((p) => (
-            <path key={p.label} d={p.d} fill={p.color} stroke="#fff" strokeWidth="2.5">
-              <title>{p.label}: {p.pct}%{p.amount ? ` ($${p.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` : ''}</title>
-            </path>
-          ))}
-          {/* Percentage labels — only for slices ≥ 5% to avoid overlap */}
-          {paths.filter((p) => p.pct >= 5).map((p) => (
-            <text
-              key={`lbl-${p.label}`}
-              x={CX + LABEL_R * Math.cos(p.midAngle)}
-              y={CY + LABEL_R * Math.sin(p.midAngle)}
-              textAnchor="middle"
-              dominantBaseline="central"
-              fontSize="9.5"
-              fontWeight="700"
-              fontFamily="inherit"
-              fill="#fff"
-              style={{ pointerEvents: 'none', textShadow: '0 1px 2px rgba(0,0,0,0.35)' }}
-            >
-              {p.pct}%
-            </text>
-          ))}
+          <defs>
+            <clipPath id={clipId}>
+              <path d={clipPathStr} />
+            </clipPath>
+          </defs>
+          {/* Slices — revealed by the same clockwise sweep clipPath as DonutChart */}
+          <g clipPath={`url(#${clipId})`}>
+            {paths.map((p) => (
+              <path key={p.label} d={p.d} fill={p.color} stroke="#fff" strokeWidth="2.5">
+                <title>{p.label}: {p.pct}%{p.amount ? ` ($${p.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` : ''}</title>
+              </path>
+            ))}
+          </g>
+          {/* Percentage labels fade in once sweep is mostly done */}
+          <g style={{ opacity: clipAngle >= 359.9 ? 1 : 0, transition: 'opacity 200ms ease' }}>
+            {paths.filter((p) => p.pct >= 5).map((p) => (
+              <text
+                key={`lbl-${p.label}`}
+                x={CX + LABEL_R * Math.cos(p.midAngle)}
+                y={CY + LABEL_R * Math.sin(p.midAngle)}
+                textAnchor="middle"
+                dominantBaseline="central"
+                fontSize="9.5"
+                fontWeight="700"
+                fontFamily="inherit"
+                fill="#fff"
+                style={{ pointerEvents: 'none', textShadow: '0 1px 2px rgba(0,0,0,0.35)' }}
+              >
+                {p.pct}%
+              </text>
+            ))}
+          </g>
         </svg>
         <p className="budget-pie-title">Budget Breakdown</p>
       </div>
