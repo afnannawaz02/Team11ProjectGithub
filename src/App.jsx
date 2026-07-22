@@ -653,30 +653,59 @@ function StockLineChart({ seriesData, loading }) {
     return { pts, smooth, area, yTicks, xTicks, minP, maxP, prices, POINTS, scX, scY };
   }, [seriesData, containerW]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Clear prevRef when loading ends so first paint after a load is instant ──
-  const prevLoadingRef = useRef(loading);
-  useEffect(() => {
-    if (prevLoadingRef.current && !loading) prevRef.current = null;
-    prevLoadingRef.current = loading;
-  }, [loading]);
-
-  // ── SMIL morph whenever seriesData changes ───────────────────────────────
+  // ── SMIL morph / draw-on whenever derived changes ───────────────────────────
   useEffect(() => {
     if (!derived || !lineRef.current || !areaRef.current) return;
 
     const prev = prevRef.current;
 
-    // First paint — no transition
+    // ── First paint: draw line left-to-right via strokeDashoffset ──────────
     if (!prev) {
+      // Compute approximate polyline length from control points
+      const pathLen = derived.pts.reduce((acc, pt, i) => {
+        if (i === 0) return 0;
+        const [x0, y0] = derived.pts[i - 1];
+        const [x1, y1] = pt;
+        return acc + Math.hypot(x1 - x0, y1 - y0);
+      }, 0) * 1.05; // ×1.05 accounts for curve overshoot
+
       lineRef.current.setAttribute('d', derived.smooth);
+      lineRef.current.setAttribute('stroke-dasharray', String(pathLen));
+      lineRef.current.setAttribute('stroke-dashoffset', String(pathLen));
+
       areaRef.current.setAttribute('d', derived.area);
+      areaRef.current.setAttribute('opacity', '0');
+
       yTickRefs.current.forEach((el, i) => {
         if (!el) return;
         el.setAttribute('y', derived.yTicks[i].y + 4);
         el.textContent = derived.yTicks[i].label;
       });
+
+      // Animate dashoffset 0→pathLen (draws left to right)
+      const drawId = `draw${morphKeyRef.current}`;
+      const da = smilAnimate(lineRef.current, 'stroke-dashoffset', String(pathLen), '0', MORPH_DUR_STR, drawId);
+      da.beginElement();
+
+      // Fade area in halfway through
+      const aa = smilAnimate(areaRef.current, 'opacity', '0', '1', MORPH_DUR_STR, drawId);
+      aa.beginElement();
+
+      // Settle: clear dash attrs so crosshair/dot render normally
+      const tid = setTimeout(() => {
+        if (lineRef.current) {
+          lineRef.current.setAttribute('stroke-dasharray', 'none');
+          lineRef.current.setAttribute('stroke-dashoffset', '0');
+          lineRef.current.querySelectorAll('animate[data-morph]').forEach((a) => a.remove());
+        }
+        if (areaRef.current) {
+          areaRef.current.setAttribute('opacity', '1');
+          areaRef.current.querySelectorAll('animate[data-morph]').forEach((a) => a.remove());
+        }
+      }, MORPH_DURATION_MS + 50);
+
       prevRef.current = derived;
-      return;
+      return () => clearTimeout(tid);
     }
 
     if (prev.smooth === derived.smooth) return;
@@ -1392,25 +1421,6 @@ function BarSparkline({ data, colorFn }) {
   );
 }
 
-// ── Health score ring ──────────────────────────────────────────────────────────
-function HealthScoreRing({ score }) {
-  const r = 52, circ = 2 * Math.PI * r;
-  const filled = (score / 100) * circ;
-  const color = score >= 80 ? '#24a148' : score >= 60 ? '#f472a0' : '#da1e28';
-  const grade = score >= 85 ? 'A' : score >= 70 ? 'B' : score >= 55 ? 'C' : 'D';
-  return (
-    <svg viewBox="0 0 140 140" className="health-ring-svg" aria-label={`Health score ${score}`}>
-      <circle cx="70" cy="70" r={r} fill="none" stroke="#f0e0e8" strokeWidth="12" />
-      <circle cx="70" cy="70" r={r} fill="none" stroke={color} strokeWidth="12"
-        strokeDasharray={`${filled} ${circ - filled}`} strokeLinecap="round"
-        transform="rotate(-90 70 70)" />
-      <text x="70" y="64" textAnchor="middle" fontSize="24" fontWeight="700" fill={color} fontFamily="inherit">{score}</text>
-      <text x="70" y="82" textAnchor="middle" fontSize="14" fontWeight="600" fill={color} fontFamily="inherit">{grade}</text>
-      <text x="70" y="98" textAnchor="middle" fontSize="9" fill="var(--cds-text-secondary)" fontFamily="inherit">HEALTH SCORE</text>
-    </svg>
-  );
-}
-
 // ── Net Worth line chart ────────────────────────────────────────────────────────
 function NetWorthChart({ history }) {
   if (!history?.length) return null;
@@ -1707,7 +1717,6 @@ function PanelPortfolioAndWealth({ profile }) {
                   { label: 'Diversification Score', value: `${data.diversScore}/100` },
                   { label: 'Crypto Exposure',        value: `${data.cryptoPct}%` },
                   { label: 'Top Holding',            value: `${data.topConcentration}%` },
-                  { label: 'Health Score',           value: `${data.healthScore}/100` },
                 ].map(({ label, value }, i, arr) => (
                   <div key={label} className={`alloc-metric-cell${i < arr.length - 1 ? ' alloc-metric-cell--border' : ''}`}>
                     <span className="alloc-metric-label">{label}</span>
@@ -1882,7 +1891,7 @@ function deriveBudgetTitle(userText) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ── Panel: Spending + Financial Health (combined) ─────────────────────────────
+// ── Panel: Spending ───────────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
 function PanelSpendingAndHealth() {
   const [view, setView] = useState('overview');
@@ -1892,37 +1901,16 @@ function PanelSpendingAndHealth() {
   const { data: analysis, loading: aLoad, error: aErr } = useApi('/api/spending?type=analysis');
   const { data: txnData,  loading: tLoad, error: tErr  } = useApi('/api/spending?type=transactions');
   const { data: subData,  loading: sLoad, error: sErr  } = useApi('/api/spending?type=subscriptions');
-  const { data: portfolio } = useApi('/api/finance?type=portfolio');
-
-  const healthScore = portfolio?.healthScore ?? null;
-  const savingsRate = analysis?.savingsRate ?? null;
-  const diversScore = portfolio?.diversScore ?? null;
-  const cryptoPct   = portfolio?.cryptoPct ?? null;
-
-  const components = healthScore !== null ? [
-    { label: 'Diversification', score: diversScore ?? 70, detail: cryptoPct > 20 ? `Crypto at ${cryptoPct}% — consider reducing.` : 'Well balanced across asset classes.' },
-    { label: 'Savings Rate',    score: savingsRate !== null ? Math.min(100, Math.round(savingsRate * 4)) : 70, detail: savingsRate !== null ? `${savingsRate}% savings rate${savingsRate >= 20 ? ' — on target!' : ' — aim for 20%+.'}` : 'Loading…' },
-    { label: 'Debt Ratio',      score: Math.round(Math.max(0, 100 - (portfolio?.totalDebt / Math.max(portfolio?.totalAssets, 1)) * 200)), detail: `Debt is ${portfolio ? ((portfolio.totalDebt / portfolio.totalAssets) * 100).toFixed(1) : '—'}% of assets.` },
-    { label: 'Net Worth Growth',score: 72, detail: 'Net worth growing year-over-year.' },
-  ] : [];
-
-  const topActions = [
-    savingsRate !== null && savingsRate < 20 && `Increase savings rate to 20%+ (currently ${savingsRate}%)`,
-    diversScore !== null && diversScore < 65 && 'Reduce top holding concentration to improve diversification',
-    cryptoPct !== null && cryptoPct > 15 && `Trim crypto exposure from ${cryptoPct}% toward 10–15%`,
-    'Review and cancel unused subscriptions to free up $100–200/month',
-    'Build emergency fund to 6 months of expenses',
-  ].filter(Boolean).slice(0, 4);
 
   return (
     <div className="db-panel">
       <div className="panel-header-row">
         <div>
-          <h2 className="db-panel-heading">Spending & Health</h2>
-          <p className="db-panel-sub">Plaid-powered analysis · AI financial wellness score.</p>
+          <h2 className="db-panel-heading">Spending</h2>
+          <p className="db-panel-sub">Plaid-powered analysis of your banking activity.</p>
         </div>
         <div className="panel-tab-row">
-          {[['overview','Overview'],['health','Health'],['budgeting','Budgeting'],['transactions','Transactions'],['subscriptions','Subscriptions']].map(([id, label]) => (
+          {[['overview','Overview'],['budgeting','Budgeting'],['transactions','Transactions'],['subscriptions','Subscriptions']].map(([id, label]) => (
             <button key={id} className={`panel-tab${view === id ? ' panel-tab--active' : ''}`} onClick={() => setView(id)}>{label}</button>
           ))}
         </div>
@@ -1999,62 +1987,6 @@ function PanelSpendingAndHealth() {
             </>
           )}
         </PanelLoadingOrError>
-      )}
-
-      {/* ── Health tab ── */}
-      {view === 'health' && (
-        <>
-          <div className="health-top">
-            <div className="health-score-wrap">
-              {healthScore !== null ? (
-                <HealthScoreRing score={healthScore} />
-              ) : (
-                <div className="panel-loading"><span className="panel-loading-spinner" /></div>
-              )}
-              <div className="health-label-block">
-                <p className="health-label">Overall Score</p>
-                <p className="health-desc">
-                  {healthScore !== null
-                    ? healthScore >= 80 ? 'Excellent financial health. Keep it up!'
-                      : healthScore >= 65 ? 'Good — a few tweaks will push you to excellent.'
-                      : healthScore >= 50 ? 'Fair — focus on savings rate and diversification.'
-                      : 'Needs attention — prioritise debt and savings.'
-                    : 'Computing your score…'}
-                </p>
-              </div>
-            </div>
-            {components.length > 0 && (
-              <div className="health-components">
-                {components.map(({ label, score, detail }) => {
-                  const color = score >= 75 ? '#24a148' : score >= 55 ? '#f472a0' : '#da1e28';
-                  return (
-                    <div key={label} className="health-component-row">
-                      <div className="health-component-header">
-                        <span className="health-component-label">{label}</span>
-                        <span className="health-component-score" style={{ color }}>{score}/100</span>
-                      </div>
-                      <div className="health-component-track">
-                        <div className="health-component-fill" style={{ width: `${score}%`, background: color }} />
-                      </div>
-                      <span className="health-component-detail">{detail}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-          {topActions.length > 0 && (
-            <div className="health-actions">
-              <h3 className="spend-section-title">✦ AI Recommendations</h3>
-              {topActions.map((action, i) => (
-                <div key={i} className="health-action-row">
-                  <span className="health-action-num">{i + 1}</span>
-                  <span className="health-action-text">{action}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </>
       )}
 
       {/* ── Transactions tab ── */}
