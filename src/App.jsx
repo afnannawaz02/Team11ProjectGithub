@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import BrandLogo from './grouped-logo.svg?react';
+import BrandLogo from '/white.svg';
 import {
   Button,
   Header,
@@ -386,7 +386,7 @@ function HomePage({ onGetStarted, isLoggedIn, onGoToChat, onSignIn, username }) 
         <Grid>
           <Column sm={4} md={8} lg={16} className="home-hero-inner">
             <h1 className="home-hero-heading">
-              <BrandLogo className="hero-brand-logo" aria-label="Candyland Bank × IBM" />
+              <img src="/white.svg" alt="Candyland Bank × IBM" className="hero-brand-logo" />
             </h1>
             <div className="home-hero-actions">
               <Button kind="primary" size="lg" onClick={ctaAction} style={{ justifyContent: 'center', textAlign: 'center', minWidth: '16rem', paddingRight: '1rem', paddingLeft: '1rem' }}>
@@ -3301,7 +3301,7 @@ function NavShell({ children, username, onGoProfile, onGoHome, heroHeader, authH
           onClick={() => onGoHome?.()}
           aria-label="Candyland Bank home"
         >
-          <img src="/grouped-logo.svg" alt="Candyland Bank" className="header-brand-logo" />
+          <img src="/white.svg" alt="Candyland Bank" className="header-brand-logo" />
         </button>
 
         {/* Right: avatar */}

@@ -334,8 +334,8 @@
 }
 
 // ── Brand logo ────────────────────────────────────────────────────────────────
-// grouped-logo.svg viewBox is now cropped to the artwork: "17 70 351 49".
-// It renders with no extra whitespace — just set width/height directly.
+// white.svg is a pure-white artwork — no filter needed on dark backgrounds.
+// On light backgrounds (light mode) we invert to make it black/visible.
 
 // Centre the logo absolutely in the header bar
 .cds--header__name {
@@ -350,22 +350,21 @@
   pointer-events: auto !important;
 }
 
-// Shared base for inline SVG instances (hero, pin, footer)
+// Shared base for img logo instances
 .hero-brand-logo,
 .pin-brand-logo,
-.footer-brand-logo {
+.footer-brand-logo,
+.header-brand-logo {
   display: block;
-  overflow: visible;
   flex-shrink: 0;
+  // white.svg is already white — no filter in dark mode
+  filter: none;
 }
 
-// Header logo — cropped SVG, scales by height
+// Header logo — scales by height
 .header-brand-logo {
   height: 2.25rem;
   width: auto;
-  flex-shrink: 0;
-  display: block;
-  filter: brightness(0) invert(1);
 }
 
 // Hero header: larger logo (dashboard/profile)
@@ -378,25 +377,32 @@
   height: 4rem;
 }
 
-// Hero: large white lockup on red background
+// Hero: large white lockup on dark background
 .hero-brand-logo {
   width: clamp(16rem, 50vw, 28rem);
   height: auto;
-  filter: brightness(0) invert(1);
 }
 
-// Pin gate: white on card background
+// Pin gate
 .pin-brand-logo {
   width: 12rem;
   height: auto;
-  filter: brightness(0);
 }
 
-// Footer: smaller, white
+// Footer
 .footer-brand-logo {
   width: 9rem;
   height: auto;
-  filter: brightness(0) invert(1);
+}
+
+// Light mode — invert the white logo so it reads on pale backgrounds
+@media (prefers-color-scheme: light) {
+  .hero-brand-logo,
+  .pin-brand-logo,
+  .footer-brand-logo,
+  .header-brand-logo {
+    filter: invert(1);
+  }
 }
 
 // ── Page transitions ──────────────────────────────────────────────────────────
@@ -1839,7 +1845,7 @@ body {
   width: 100%;
   min-height: 0;
   overflow: hidden;
-  background: #111111;
+  background: #0c0009;
 }
 
 // ── Sidebar ──────────────────────────────────────────────────────────────────
@@ -1849,7 +1855,7 @@ body {
   gap: $spacing-04;
   padding: $spacing-05 $spacing-05 $spacing-04;
   background: transparent;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid rgba(212,0,110,0.18);
   flex-shrink: 0;
 }
 
@@ -1877,15 +1883,15 @@ body {
 .chat-advisor-sub {
   @include type-style('label-01');
   margin: 0;
-  color: #888888;
+  color: rgba(255,255,255,0.42);
   line-height: 1.3;
 }
 
 .chat-history-sidebar {
   width: 13rem;
   flex-shrink: 0;
-  background: #0d0d0d;
-  border-right: 1px solid #2a2a2a;
+  background: #120a10;
+  border-right: 1px solid rgba(212,0,110,0.18);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1897,7 +1903,7 @@ body {
   width: 100%;
   justify-content: flex-start !important;
   border-radius: 0 !important;
-  border-bottom: 1px solid #2a2a2a !important;
+  border-bottom: 1px solid rgba(212,0,110,0.18) !important;
   color: #e91e8c !important;
   background: transparent !important;
 
@@ -1917,7 +1923,7 @@ body {
 .chat-history-group-label {
   display: block;
   @include type-style('label-01');
-  color: #666;
+  color: rgba(255,255,255,0.28);
   padding: $spacing-03 $spacing-05 $spacing-02;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -1929,7 +1935,7 @@ body {
   gap: $spacing-03;
   padding: $spacing-03 $spacing-05;
   cursor: pointer;
-  color: #aaaaaa;
+  color: rgba(255,255,255,0.42);
   @include type-style('body-01');
   outline-offset: -2px;
   position: relative;
@@ -1996,7 +2002,7 @@ body {
   overflow: hidden;
   min-width: 0;
   width: 0;
-  background: #111111;
+  background: #0c0009;
 }
 
 .chat-messages {
@@ -2044,9 +2050,9 @@ body {
 }
 
 .chat-avatar--user {
-  background: #2a2a2a;
+  background: rgba(212,0,110,0.15);
   color: #ffffff;
-  border: 1px solid #444;
+  border: 1px solid rgba(212,0,110,0.35);
 }
 
 .chat-row-content {
@@ -2068,8 +2074,8 @@ body {
 
 // Bot bubble
 .chat-bubble-new {
-  background: #1e1e1e;
-  border: 1px solid #2e2e2e;
+  background: #1a0e18;
+  border: 1px solid rgba(212,0,110,0.18);
   border-radius: 0 1rem 1rem 1rem;
   padding: $spacing-04 $spacing-05;
   @include type-style('body-01');
@@ -2090,7 +2096,7 @@ body {
 }
 
 .chat-bubble-new--pending {
-  background: #1e1e1e;
+  background: #1a0e18;
 }
 
 .chat-edit-btn {
@@ -2148,12 +2154,12 @@ body {
 
 // ── Input area ────────────────────────────────────────────────────────────────
 .chat-input-area {
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid rgba(212,0,110,0.18);
   padding: $spacing-04 $spacing-06 calc(4rem + #{$spacing-04}) $spacing-06;
   display: flex;
   flex-direction: column;
   gap: $spacing-04;
-  background: #111111;
+  background: #0c0009;
   width: 100%;
   box-sizing: border-box;
   flex-shrink: 0;
@@ -2173,7 +2179,7 @@ body {
 
 .chat-quick-actions-label {
   @include type-style('label-01');
-  color: #666;
+  color: rgba(255,255,255,0.28);
   margin: 0;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -2191,10 +2197,10 @@ body {
   align-items: center;
   gap: $spacing-02;
   padding: 0.35rem $spacing-04;
-  border: 1px solid #333;
+  border: 1px solid rgba(212,0,110,0.18);
   border-radius: 2rem;
-  background: #1a1a1a;
-  color: #cccccc;
+  background: #1a0e18;
+  color: rgba(255,255,255,0.65);
   @include type-style('label-01');
   font-weight: 500;
   cursor: pointer;
@@ -2217,8 +2223,8 @@ body {
   display: flex;
   align-items: center;
   gap: $spacing-03;
-  background: #1e1e1e;
-  border: 1px solid #333;
+  background: #1a0e18;
+  border: 1px solid rgba(212,0,110,0.18);
   border-radius: 2rem;
   padding: $spacing-02 $spacing-02 $spacing-02 $spacing-05;
   transition: border-color 150ms ease, box-shadow 150ms ease;
@@ -2246,7 +2252,7 @@ body {
   overflow-y: auto;
   line-height: 1.5;
 
-  &::placeholder { color: #555; }
+  &::placeholder { color: rgba(255,255,255,0.25); }
 }
 
 // Override Carbon TextArea wrapper inside chat-input-wrap
@@ -2269,9 +2275,9 @@ body {
   resize: none;
   width: 100%;
   min-width: 0;
-  color: #e8e8e8 !important;
+  color: #ffffff !important;
 
-  &::placeholder { color: #555 !important; }
+  &::placeholder { color: rgba(255,255,255,0.25) !important; }
 }
 
 // Send button override — circular pink pill
@@ -2294,7 +2300,7 @@ body {
 
 .chat-input-hint {
   @include type-style('label-01');
-  color: #444;
+  color: rgba(255,255,255,0.25);
   margin: 0;
   text-align: center;
   font-size: 0.68rem;
