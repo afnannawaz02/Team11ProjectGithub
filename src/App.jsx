@@ -375,6 +375,32 @@ function LoginForm({ onLogin, onCreateNew, onGuest, onGoHome }) {
 }
 
 // ── Home Page ──────────────────────────────────────────────────────────────────
+const FAQ_ITEMS = [
+  { q: 'Is my financial data stored anywhere?',          a: 'No. Your data exists only within your active session. Nothing is persisted to external servers or shared with third parties.' },
+  { q: 'Do I need an account to use Candyland Bank?',    a: 'You can build a full investor profile and chat with the AI advisor without creating an account. Sign up only if you want to save your profile across sessions.' },
+  { q: 'How is my investment strategy determined?',      a: 'Our AI analyses your stated goals, risk tolerance, time horizon, and income to generate a personalised strategy aligned with established portfolio theory.' },
+  { q: 'Can I update my profile after completing it?',   a: 'Yes — you can retake the profile wizard at any time. Your AI advisor will automatically adjust recommendations to reflect your updated answers.' },
+  { q: 'What markets and asset classes are supported?',  a: 'We cover equities, bonds, ETFs, and alternative assets across major global markets. Crypto assets are supported as an optional allocation class.' },
+];
+
+function FaqAccordion() {
+  const [openIdx, setOpenIdx] = React.useState(null);
+  const toggle = (i) => setOpenIdx(prev => (prev === i ? null : i));
+  return (
+    <div className="home-faq-list">
+      {FAQ_ITEMS.map(({ q, a }, i) => (
+        <div key={i} className={`home-faq-item${openIdx === i ? ' home-faq-item--open' : ''}`}>
+          <button className="home-faq-trigger" onClick={() => toggle(i)} aria-expanded={openIdx === i}>
+            <span className="home-faq-question">{q}</span>
+            <span className="home-faq-icon" aria-hidden="true">{openIdx === i ? '−' : '+'}</span>
+          </button>
+          {openIdx === i && <p className="home-faq-answer">{a}</p>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function HomePage({ onGetStarted, isLoggedIn, onGoToChat, onSignIn, username }) {
   const ctaLabel  = isLoggedIn ? 'Go to Dashboard' : 'Build my profile';
   const ctaAction = isLoggedIn ? onGoToChat : onGetStarted;
@@ -462,7 +488,7 @@ function HomePage({ onGetStarted, isLoggedIn, onGoToChat, onSignIn, username }) 
           <Column sm={4} md={8} lg={16}>
             <h2 className="home-section-heading">Need help? We're here.</h2>
             <p className="home-section-sub">
-              Our support team is available Monday – Friday, 9am – 6pm. Reach out and we'll get back to you within one business day.
+              Our support team is available Monday – Friday, 9am – 8pm. Reach out and we'll get back to you within one business day.
             </p>
           </Column>
           <Column sm={4} md={8} lg={16}>
@@ -477,9 +503,22 @@ function HomePage({ onGetStarted, isLoggedIn, onGoToChat, onSignIn, username }) 
                 <Phone size={32} className="contact-card-icon" aria-hidden="true" />
                 <h3 className="contact-card-title">Phone</h3>
                 <p className="contact-card-desc">Speak to a real person for urgent matters.</p>
-                <a className="contact-link" href="tel:+18005550100">+1 800 555 0100</a>
+                <a className="contact-link" href="tel:+18005433100">+1 800 543 3100</a>
               </div>
             </div>
+          </Column>
+        </Grid>
+      </section>
+
+      {/* ── FAQ ── */}
+      <section className="home-section home-section--tinted" id="faq">
+        <Grid>
+          <Column sm={4} md={8} lg={16}>
+            <h2 className="home-section-heading">Frequently asked questions</h2>
+            <p className="home-section-sub">Everything you need to know before getting started.</p>
+          </Column>
+          <Column sm={4} md={8} lg={16}>
+            <FaqAccordion />
           </Column>
         </Grid>
       </section>

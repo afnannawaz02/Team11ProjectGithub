@@ -555,17 +555,17 @@ code, pre,
 }
 
 // ── Home page ─────────────────────────────────────────────────────────────────
+
 .home-main {
-  background: linear-gradient(180deg, #fff0f4 0%, #fce7f3 40%, #f5eeff 100%);
+  background: #f0f0f2;
 }
 
-// Hero
+// Hero — keep existing pink gradient, just remove the hard bottom border
 .home-hero {
   background: linear-gradient(135deg, #f472a0 0%, #c0356a 60%, #9d2256 100%);
   padding: $spacing-07 0;
   border-bottom: none;
 
-  // Force the Carbon Grid inside to centre its content
   .cds--grid {
     display: flex !important;
     justify-content: center !important;
@@ -594,7 +594,7 @@ code, pre,
   margin: 0;
   position: relative;
   width: 100%;
-  height: 10rem;           // reserved slot — button/subtitle are unaffected
+  height: 10rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -631,35 +631,34 @@ code, pre,
   width: 100%;
 }
 
-// Sections
+// Sections — clean light background, generous vertical rhythm, no bottom rule
 .home-section {
-  padding: $spacing-09 0;
-  border-bottom: 1px solid var(--cds-border-subtle-01);
+  padding: $spacing-10 0;
+  border-bottom: none;
 }
 
 .home-section--tinted {
-  background: linear-gradient(135deg, #fce7f3 0%, #ede9fe 100%);
+  background: #e8e8eb;
 }
 
 .home-section-heading {
   @include type-style('heading-04');
-  color: var(--cds-text-primary);
+  color: #111111;
   margin: 0 0 $spacing-04;
 }
 
 .home-section-sub {
   @include type-style('body-01');
-  color: var(--cds-text-secondary);
+  color: #555555;
   margin: 0 0 $spacing-07;
-  max-width: 40rem;
+  max-width: 44rem;
 }
 
-// Feature cards
+// ── Feature cards — dark tiles ─────────────────────────────────────────────────
 .home-features-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: $spacing-05;
-  background: transparent;
 
   @include breakpoint-down(lg) {
     grid-template-columns: repeat(2, 1fr);
@@ -671,39 +670,41 @@ code, pre,
 }
 
 .home-feature-card {
-  background: linear-gradient(145deg, #fff8fa 0%, #fce7f3 100%);
+  background: #1c1c1e;
   padding: $spacing-07;
-  border-radius: 0;
-  transition: background 120ms ease, box-shadow 120ms ease;
+  border-radius: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+  transition: transform 120ms ease, box-shadow 120ms ease;
 
   &:hover {
-    background: linear-gradient(145deg, #fce7f3 0%, #ede9fe 100%);
-    box-shadow: 0 4px 20px rgba(244, 114, 160, 0.18);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
   }
 }
 
 .home-feature-icon {
   display: block;
-  margin-bottom: $spacing-04;
-  color: #c0356a;
-
-  // Carbon SVG icons render as <svg> — ensure they display as block
+  color: #d4006e;
+  margin-bottom: $spacing-02;
   svg { display: block; }
 }
 
 .home-feature-title {
   @include type-style('heading-02');
-  color: var(--cds-text-primary);
-  margin: 0 0 $spacing-03;
+  color: #ffffff;
+  margin: 0;
 }
 
 .home-feature-desc {
   @include type-style('body-01');
-  color: var(--cds-text-secondary);
+  color: #a0a0a8;
   margin: 0;
+  flex: 1;
 }
 
-// Steps
+// ── Steps — horizontal numbered badges ────────────────────────────────────────
 .home-steps {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -721,56 +722,37 @@ code, pre,
 }
 
 .home-step-number {
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2.5rem;
+  height: 2.5rem;
   border-radius: 50%;
-  background: linear-gradient(135deg, #f9a8b8, #f472a0);
+  background: #d4006e;
   color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
   @include type-style('heading-02');
   flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(244, 114, 160, 0.30);
+  font-weight: 700;
 }
 
 .home-step-title {
   @include type-style('heading-02');
-  color: var(--cds-text-primary);
+  color: #111111;
   margin: 0;
+  font-weight: 700;
 }
 
 .home-step-desc {
   @include type-style('body-01');
-  color: var(--cds-text-secondary);
+  color: #555555;
   margin: 0;
 }
 
-// CTA band
-.home-cta {
-  padding: $spacing-10 0;
-  background: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%);
-  text-align: center;
-}
-
-.home-cta-heading {
-  @include type-style('heading-05');
-  color: #c0356a;
-  margin: 0 0 $spacing-04;
-}
-
-.home-cta-sub {
-  @include type-style('body-02');
-  color: #9d2256;
-  margin: 0 0 $spacing-07;
-}
-
-// Contact cards
+// ── Contact cards — 2-column dark tiles ───────────────────────────────────────
 .contact-cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: $spacing-05;
-  background: transparent;
 
   @include breakpoint-down(md) {
     grid-template-columns: 1fr;
@@ -778,8 +760,8 @@ code, pre,
 }
 
 .contact-card {
-  background: linear-gradient(145deg, #fff8fa 0%, #fce7f3 100%);
-  border: 1px solid #fbc4d9;
+  background: #1c1c1e;
+  border: 1px solid rgba(212, 0, 110, 0.15);
   padding: $spacing-07;
   border-radius: 1rem;
   display: flex;
@@ -789,47 +771,105 @@ code, pre,
 
 .contact-card-icon {
   display: block;
-  color: #c0356a;
+  color: #d4006e;
   svg { display: block; }
 }
 
 .contact-card-title {
   @include type-style('heading-02');
-  color: var(--cds-text-primary);
+  color: #ffffff;
   margin: 0;
 }
 
 .contact-card-desc {
   @include type-style('body-01');
-  color: var(--cds-text-secondary);
+  color: #a0a0a8;
   margin: 0;
   flex: 1;
 }
 
 .contact-link {
   @include type-style('body-01');
-  color: var(--cds-link-primary);
+  color: #d4006e;
   text-decoration: none;
+  font-weight: 500;
 
   &:hover {
-    color: var(--cds-link-primary-hover);
+    color: #ff3399;
     text-decoration: underline;
   }
 }
 
-// Home footer
-.home-footer {
-  padding: $spacing-07 0;
-  background: linear-gradient(90deg, #fce7f3 0%, #ede9fe 100%);
-  border-top: 1px solid #fbc4d9;
+// ── FAQ accordion ─────────────────────────────────────────────────────────────
+.home-faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
+.home-faq-item {
+  background: #1c1c1e;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+
+  &.home-faq-item--open {
+    border-color: rgba(212, 0, 110, 0.30);
+  }
+}
+
+.home-faq-trigger {
+  width: 100%;
+  background: none;
+  border: none;
+  padding: $spacing-05 $spacing-06;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: $spacing-05;
+  cursor: pointer;
+  text-align: left;
+
+  &:focus-visible {
+    outline: 2px solid #d4006e;
+    outline-offset: -2px;
+  }
+}
+
+.home-faq-question {
+  @include type-style('body-02');
+  color: #ffffff;
+  font-weight: 500;
+  flex: 1;
+}
+
+.home-faq-icon {
+  @include type-style('heading-03');
+  color: #d4006e;
+  flex-shrink: 0;
+  line-height: 1;
+  user-select: none;
+}
+
+.home-faq-answer {
+  @include type-style('body-01');
+  color: #a0a0a8;
+  margin: 0;
+  padding: 0 $spacing-06 $spacing-05;
+  line-height: 1.65;
+}
+
+// ── Home footer ───────────────────────────────────────────────────────────────
+.home-footer {
+  padding: $spacing-07 0;
+  background: #f0f0f2;
+  border-top: 1px solid #d8d8db;
 
   p {
     @include type-style('body-01');
-    color: var(--cds-text-secondary);
+    color: #888888;
     margin: 0;
+    text-align: center;
   }
 }
 
