@@ -3292,17 +3292,10 @@ function NavShell({ children, username, onGoProfile, onGoHome, heroHeader, authH
   return (
     <div className={authHeader ? 'app-shell app-shell--auth' : 'app-shell'}>
       <Header aria-label="Candyland Bank" className={headerClass}>
-        {/* Left spacer to balance the avatar on the right */}
-        <div style={{ flex: 1 }} />
-
-        {/* Centred brand lockup — SVG logo only */}
-        <button
-          style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0 0.5rem' }}
-          onClick={() => onGoHome?.()}
-          aria-label="Candyland Bank home"
-        >
+        {/* Logo inside HeaderName — picks up the absolute-centre CSS rule */}
+        <HeaderName prefix="" onClick={() => onGoHome?.()} style={{ cursor: 'pointer' }}>
           <img src="/white.svg" alt="Candyland Bank" className="header-brand-logo" />
-        </button>
+        </HeaderName>
 
         {/* Right: avatar */}
         <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>

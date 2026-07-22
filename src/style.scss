@@ -478,11 +478,32 @@
   box-sizing: border-box;
 }
 
+body,
+*,
+*::before,
+*::after {
+  font-family: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
 body {
   margin: 0;
   background: #fff0f4;
-  font-family: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+// IBM Plex Mono stays on elements that explicitly need it
+.st-ticker-select,
+.st-pill,
+[class*="plex-mono"],
+code, pre,
+.db-ticker,
+.alloc-bar-inline,
+.nw-snapshot-value,
+.st-stat-value,
+.st-price,
+.db-table td:first-child,
+.budget-pie-legend-amt {
+  font-family: 'IBM Plex Mono', monospace !important;
 }
 
 // ── App shell ─────────────────────────────────────────────────────────────────
