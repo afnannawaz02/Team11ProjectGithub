@@ -384,7 +384,7 @@ const FAQ_ITEMS = [
 ];
 
 function FaqAccordion() {
-  const [openIdx, setOpenIdx] = React.useState(null);
+  const [openIdx, setOpenIdx] = useState(null);
   const toggle = (i) => setOpenIdx(prev => (prev === i ? null : i));
   return (
     <div className="home-faq-list">
