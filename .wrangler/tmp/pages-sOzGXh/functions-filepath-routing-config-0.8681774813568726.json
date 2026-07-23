@@ -1,0 +1,133 @@
+{
+  "routes": [
+    {
+      "routePath": "/api/finance",
+      "mountPath": "/api",
+      "method": "GET",
+      "module": [
+        "api/finance.js:onRequestGet"
+      ]
+    },
+    {
+      "routePath": "/api/spending",
+      "mountPath": "/api",
+      "method": "GET",
+      "module": [
+        "api/spending.js:onRequestGet"
+      ]
+    },
+    {
+      "routePath": "/api/stock",
+      "mountPath": "/api",
+      "method": "GET",
+      "module": [
+        "api/stock.js:onRequestGet"
+      ]
+    },
+    {
+      "routePath": "/api/alerts",
+      "mountPath": "/api",
+      "method": "",
+      "module": [
+        "api/alerts.js:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/auth",
+      "mountPath": "/api",
+      "method": "",
+      "module": [
+        "api/auth.js:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/budget",
+      "mountPath": "/api",
+      "method": "",
+      "module": [
+        "api/budget.js:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/chats",
+      "mountPath": "/api",
+      "method": "",
+      "module": [
+        "api/chats.js:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/coinbase",
+      "mountPath": "/api",
+      "method": "",
+      "module": [
+        "api/coinbase.js:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/goals",
+      "mountPath": "/api",
+      "method": "",
+      "module": [
+        "api/goals.js:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/notifications",
+      "mountPath": "/api",
+      "method": "",
+      "module": [
+        "api/notifications.js:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/plaid",
+      "mountPath": "/api",
+      "method": "",
+      "module": [
+        "api/plaid.js:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/txncategory",
+      "mountPath": "/api",
+      "method": "",
+      "module": [
+        "api/txncategory.js:onRequest"
+      ]
+    },
+    {
+      "routePath": "/chat",
+      "mountPath": "/",
+      "method": "POST",
+      "module": [
+        "chat.js:onRequestPost"
+      ]
+    },
+    {
+      "routePath": "/debug",
+      "mountPath": "/",
+      "method": "GET",
+      "module": [
+        "debug.js:onRequestGet"
+      ]
+    },
+    {
+      "routePath": "/send-otp",
+      "mountPath": "/",
+      "method": "POST",
+      "module": [
+        "send-otp.js:onRequestPost"
+      ]
+    },
+    {
+      "routePath": "/verify-otp",
+      "mountPath": "/",
+      "method": "POST",
+      "module": [
+        "verify-otp.js:onRequestPost"
+      ]
+    }
+  ],
+  "baseURL": "/"
+}

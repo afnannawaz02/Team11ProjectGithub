@@ -6,6 +6,10 @@
 name = "team11projectgithub"
 pages_build_output_dir = "dist"
 
+# ── Project name alias (used in pnpm scripts) ─────────────────────────────────
+# Correct project name: team11projectgithub
+# Legacy scripts referenced "gumdrop" — use team11projectgithub everywhere.
+
 # ── Non-secret environment variables ─────────────────────────────────────────
 [vars]
 ALLOWED_EMAIL_DOMAIN = "ibm.com"

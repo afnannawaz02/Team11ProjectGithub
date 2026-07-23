@@ -12,11 +12,11 @@
     "cf:whoami": "wrangler whoami",
     "cf:kv:create": "wrangler kv namespace create OTP_STORE",
     "cf:kv:list": "wrangler kv namespace list",
-    "cf:secret:resend": "wrangler pages secret put RESEND_API_KEY --project-name gumdrop",
-    "cf:secret:domain": "wrangler pages secret put ALLOWED_EMAIL_DOMAIN --project-name gumdrop",
-    "cf:secret:from": "wrangler pages secret put RESEND_FROM --project-name gumdrop",
-    "cf:secrets:list": "wrangler pages secret list --project-name gumdrop",
-    "cf:deploy": "pnpm build && wrangler pages deploy dist --project-name gumdrop",
+    "cf:secret:resend": "wrangler pages secret put RESEND_API_KEY --project-name team11projectgithub",
+    "cf:secret:domain": "wrangler pages secret put ALLOWED_EMAIL_DOMAIN --project-name team11projectgithub",
+    "cf:secret:from": "wrangler pages secret put RESEND_FROM --project-name team11projectgithub",
+    "cf:secrets:list": "wrangler pages secret list --project-name team11projectgithub",
+    "cf:deploy": "pnpm build && wrangler pages deploy dist --project-name team11projectgithub",
     "cf:dev": "wrangler pages dev dist --live-reload"
   },
   "dependencies": {
