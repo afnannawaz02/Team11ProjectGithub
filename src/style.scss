@@ -556,11 +556,23 @@ code, pre,
 
 // ── Home page ─────────────────────────────────────────────────────────────────
 
+// ── Home page — fully isolated from Carbon dark-theme token cascade ───────────
+// All colours are hardcoded so the page always renders as a light-mode layout
+// regardless of the Carbon <Theme> wrapping the app shell.
+
 .home-main {
-  background: #f0f0f2;
+  background: #ffffff !important;
+  color: #111111 !important;
+
+  // Prevent Carbon dark-theme colour tokens bleeding in from any ancestor
+  --cds-background:          #ffffff;
+  --cds-text-primary:        #111111;
+  --cds-text-secondary:      #555555;
+  --cds-border-subtle-01:    #e0e0e0;
+  --cds-layer-01:            #f4f4f4;
 }
 
-// Hero — keep existing pink gradient, just remove the hard bottom border
+// ── Hero ──────────────────────────────────────────────────────────────────────
 .home-hero {
   background: linear-gradient(135deg, #f472a0 0%, #c0356a 60%, #9d2256 100%);
   padding: $spacing-07 0;
@@ -631,30 +643,34 @@ code, pre,
   width: 100%;
 }
 
-// Sections — clean light background, generous vertical rhythm, no bottom rule
+// ── Sections ──────────────────────────────────────────────────────────────────
 .home-section {
   padding: $spacing-10 0;
   border-bottom: none;
+  background: #ffffff;
 }
 
 .home-section--tinted {
-  background: #e8e8eb;
+  background: #f2f2f4 !important;
 }
 
 .home-section-heading {
-  @include type-style('heading-04');
-  color: #111111;
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: #111111 !important;
   margin: 0 0 $spacing-04;
+  line-height: 1.25;
 }
 
 .home-section-sub {
-  @include type-style('body-01');
-  color: #555555;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: #555555 !important;
   margin: 0 0 $spacing-07;
   max-width: 44rem;
 }
 
-// ── Feature cards — dark tiles ─────────────────────────────────────────────────
+// ── Feature cards — dark tiles ────────────────────────────────────────────────
 .home-features-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -670,7 +686,7 @@ code, pre,
 }
 
 .home-feature-card {
-  background: #1c1c1e;
+  background: #1c1c1e !important;
   padding: $spacing-07;
   border-radius: 1rem;
   display: flex;
@@ -680,31 +696,33 @@ code, pre,
 
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
   }
 }
 
 .home-feature-icon {
   display: block;
-  color: #d4006e;
+  color: #d4006e !important;
   margin-bottom: $spacing-02;
-  svg { display: block; }
+  svg { display: block; fill: currentColor; }
 }
 
 .home-feature-title {
-  @include type-style('heading-02');
-  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #ffffff !important;
   margin: 0;
 }
 
 .home-feature-desc {
-  @include type-style('body-01');
-  color: #a0a0a8;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: #a0a0a8 !important;
   margin: 0;
   flex: 1;
 }
 
-// ── Steps — horizontal numbered badges ────────────────────────────────────────
+// ── Steps ─────────────────────────────────────────────────────────────────────
 .home-steps {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -725,26 +743,27 @@ code, pre,
   width: 2.5rem;
   height: 2.5rem;
   border-radius: 50%;
-  background: #d4006e;
-  color: #ffffff;
+  background: #d4006e !important;
+  color: #ffffff !important;
   display: flex;
   align-items: center;
   justify-content: center;
-  @include type-style('heading-02');
-  flex-shrink: 0;
+  font-size: 1rem;
   font-weight: 700;
+  flex-shrink: 0;
 }
 
 .home-step-title {
-  @include type-style('heading-02');
-  color: #111111;
-  margin: 0;
+  font-size: 1rem;
   font-weight: 700;
+  color: #111111 !important;
+  margin: 0;
 }
 
 .home-step-desc {
-  @include type-style('body-01');
-  color: #555555;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: #555555 !important;
   margin: 0;
 }
 
@@ -760,43 +779,60 @@ code, pre,
 }
 
 .contact-card {
-  background: #1c1c1e;
-  border: 1px solid rgba(212, 0, 110, 0.15);
+  background: #1c1c1e !important;
+  border: 1px solid rgba(212, 0, 110, 0.22) !important;
   padding: $spacing-07;
   border-radius: 1rem;
   display: flex;
   flex-direction: column;
-  gap: $spacing-03;
+  gap: $spacing-04;
 }
 
 .contact-card-icon {
   display: block;
-  color: #d4006e;
-  svg { display: block; }
+  color: #d4006e !important;
+  svg { display: block; fill: currentColor; }
 }
 
 .contact-card-title {
-  @include type-style('heading-02');
-  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #ffffff !important;
   margin: 0;
 }
 
 .contact-card-desc {
-  @include type-style('body-01');
-  color: #a0a0a8;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: #a0a0a8 !important;
   margin: 0;
   flex: 1;
 }
 
-.contact-link {
-  @include type-style('body-01');
-  color: #d4006e;
+// Contact action button — same pill style used in both contact cards
+.contact-btn {
+  display: inline-block;
+  align-self: flex-start;
+  padding: 0.5rem 1.25rem;
+  border-radius: 2rem;
+  background: transparent;
+  border: 1.5px solid #d4006e;
+  color: #d4006e !important;
+  font-size: 0.875rem;
+  font-weight: 600;
   text-decoration: none;
-  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
 
   &:hover {
-    color: #ff3399;
-    text-decoration: underline;
+    background: #d4006e;
+    color: #ffffff !important;
+    text-decoration: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #d4006e;
+    outline-offset: 2px;
   }
 }
 
@@ -808,13 +844,13 @@ code, pre,
 }
 
 .home-faq-item {
-  background: #1c1c1e;
+  background: #1c1c1e !important;
   border-radius: 0.75rem;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
 
   &.home-faq-item--open {
-    border-color: rgba(212, 0, 110, 0.30);
+    border-color: rgba(212, 0, 110, 0.35) !important;
   }
 }
 
@@ -837,37 +873,39 @@ code, pre,
 }
 
 .home-faq-question {
-  @include type-style('body-02');
-  color: #ffffff;
+  font-size: 0.9375rem;
   font-weight: 500;
+  color: #ffffff !important;
   flex: 1;
+  line-height: 1.4;
 }
 
 .home-faq-icon {
-  @include type-style('heading-03');
-  color: #d4006e;
+  font-size: 1.25rem;
+  font-weight: 400;
+  color: #d4006e !important;
   flex-shrink: 0;
   line-height: 1;
   user-select: none;
 }
 
 .home-faq-answer {
-  @include type-style('body-01');
-  color: #a0a0a8;
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: #a0a0a8 !important;
   margin: 0;
   padding: 0 $spacing-06 $spacing-05;
-  line-height: 1.65;
 }
 
 // ── Home footer ───────────────────────────────────────────────────────────────
 .home-footer {
   padding: $spacing-07 0;
-  background: #f0f0f2;
-  border-top: 1px solid #d8d8db;
+  background: #f2f2f4 !important;
+  border-top: 1px solid #d8d8db !important;
 
   p {
-    @include type-style('body-01');
-    color: #888888;
+    font-size: 0.875rem;
+    color: #888888 !important;
     margin: 0;
     text-align: center;
   }

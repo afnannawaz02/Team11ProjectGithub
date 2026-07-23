@@ -497,13 +497,13 @@ function HomePage({ onGetStarted, isLoggedIn, onGoToChat, onSignIn, username }) 
                 <Email size={32} className="contact-card-icon" aria-hidden="true" />
                 <h3 className="contact-card-title">Email support</h3>
                 <p className="contact-card-desc">For general enquiries and account questions.</p>
-                <a className="contact-link" href="mailto:support@candylandbank.com">support@candylandbank.com</a>
+                <a className="contact-btn" href="mailto:support@candylandbank.com">support@candylandbank.com</a>
               </div>
               <div className="contact-card">
                 <Phone size={32} className="contact-card-icon" aria-hidden="true" />
                 <h3 className="contact-card-title">Phone</h3>
                 <p className="contact-card-desc">Speak to a real person for urgent matters.</p>
-                <a className="contact-link" href="tel:+18005433100">+1 800 543 3100</a>
+                <a className="contact-btn" href="tel:+18005433100">+1 800 543 3100</a>
               </div>
             </div>
           </Column>
