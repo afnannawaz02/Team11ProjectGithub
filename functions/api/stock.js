@@ -20,8 +20,14 @@ const BASE = 'https://finnhub.io/api/v1';
 function rangeParams(range) {
   const day  = 86400;
   const to   = Math.floor(Date.now() / 1000);
-  const days = range === '1W' ? 14 : range === '1M' ? 45 : 120;
-  return { resolution: 'D', from: to - days * day, to };
+  // 3M uses 90-day window at daily resolution; others unchanged
+  const days = range === '1D' ? 2
+             : range === '1W' ? 14
+             : range === '1M' ? 45
+             : range === '3M' ? 92
+             : 120;
+  const resolution = range === '1D' ? '60' : 'D'; // intraday for 1D
+  return { resolution, from: to - days * day, to };
 }
 
 export async function onRequestGet({ request, env }) {

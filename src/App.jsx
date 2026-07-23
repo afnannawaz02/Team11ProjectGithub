@@ -1,13 +1,10 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import BrandLogo from '/white.svg';
 import {
   Button,
   Header,
   HeaderName,
-  HeaderNavigation,
-  HeaderMenuItem,
   HeaderGlobalBar,
-  HeaderGlobalAction,
   Content,
   Grid,
   Column,
@@ -16,9 +13,10 @@ import {
   PasswordInput,
   TextArea,
   InlineNotification,
-  Tag,
-  Loading,
-  ClickableTile,
+  Select,
+  SelectItem,
+  NumberInput,
+  Tooltip,
 } from '@carbon/react';
 import {
   Analytics,
@@ -30,7 +28,6 @@ import {
   Portfolio,
   Finance,
   Notebook,
-  Logout,
   Checkmark,
   Email,
   Phone,
@@ -42,6 +39,17 @@ import {
   Close,
   Search,
   Add,
+  Notification,
+  Copy,
+  CheckmarkFilled,
+  Warning,
+  Target,
+  Download,
+  Edit,
+  ChevronDown,
+  ChevronUp,
+  ArrowRight,
+  Renew,
 } from '@carbon/icons-react';
 import SignupWizard from './SignupWizard';
 import {
@@ -59,6 +67,75 @@ import {
   saveChatMessage,
   deleteChatSession,
 } from './auth.js';
+
+// ── Feature flags (env-driven via import.meta.env or safe defaults) ────────────
+const FF = {
+  plaid:         (import.meta.env?.VITE_FEATURE_PLAID         ?? 'true')  !== 'false',
+  coinbase:      (import.meta.env?.VITE_FEATURE_COINBASE       ?? 'true')  !== 'false',
+  notifications: (import.meta.env?.VITE_FEATURE_NOTIFICATIONS ?? 'true')  !== 'false',
+  alerts:        (import.meta.env?.VITE_FEATURE_ALERTS         ?? 'true')  !== 'false',
+};
+
+// ── Analytics stub (swap for real analytics SDK) ──────────────────────────────
+function track(event, props = {}) {
+  if (typeof window !== 'undefined' && window.__analytics_queue) {
+    window.__analytics_queue.push({ event, props, ts: Date.now() });
+  }
+}
+
+// ── Currency formatter ─────────────────────────────────────────────────────────
+function fmt$(n, opts = {}) {
+  if (n == null || isNaN(n)) return '—';
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0, ...opts }).format(n);
+}
+
+function fmtPct(n) {
+  if (n == null || isNaN(n)) return '—';
+  const s = n > 0 ? '+' : '';
+  return `${s}${n.toFixed(1)}%`;
+}
+
+// ── API hook (memoised, dedupes concurrent identical requests) ─────────────────
+const _apiCache = new Map();
+function useApi(url, deps = []) {
+  const [data,    setData]    = useState(null);
+  const [loading, setLoading] = useState(!!url);
+  const [error,   setError]   = useState(null);
+
+  useEffect(() => {
+    if (!url) { setData(null); setLoading(false); setError(null); return; }
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    const cached = _apiCache.get(url);
+    if (cached) { setData(cached); setLoading(false); return; }
+
+    fetch(url, { credentials: 'same-origin' })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) {
+          _apiCache.set(url, d);
+          // Bust cache after 60s
+          setTimeout(() => _apiCache.delete(url), 60000);
+          setData(d);
+          setLoading(false);
+        }
+      })
+      .catch((e) => { if (!cancelled) { setError(e.message); setLoading(false); } });
+
+    return () => { cancelled = true; };
+  }, [url, ...deps]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return { data, loading, error };
+}
+
+// ── PanelLoadingOrError ────────────────────────────────────────────────────────
+function PanelLoadingOrError({ loading, error, children }) {
+  if (loading) return <div className="panel-loading"><span className="panel-spinner" aria-label="Loading" /><span>Loading…</span></div>;
+  if (error)   return <div className="panel-error">⚠ {error}</div>;
+  return children;
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function buildGreeting(profile) {
@@ -913,7 +990,7 @@ function PanelAssets() {
   const [profiles,  setProfiles]  = useState({});
   const [series,    setSeries]    = useState({});
   const [active,    setActive]    = useState(DEFAULT_TICKERS[0]);
-  const [range,     setRange]     = useState('1D');
+  const [range,     setRange]     = useState('1M');
   const [search,    setSearch]    = useState('');
   const [searching, setSearching] = useState(false);
   const [results,   setResults]   = useState([]);
@@ -1190,7 +1267,7 @@ function PanelAssets() {
           </div>
         </div>
         <div className="st-range-btns">
-          {['1D','1W','1M'].map((r) => (
+          {['1D','1W','1M','3M'].map((r) => (
             <button key={r} className={`st-range-btn${range === r ? ' st-range-btn--active' : ''}`} onClick={() => setRange(r)}>{r}</button>
           ))}
         </div>
@@ -1222,10 +1299,6 @@ function PanelAssets() {
     </div>
   );
 }
-
-// ── Shared helpers ─────────────────────────────────────────────────────────────
-function fmt$(n) { return typeof n === 'number' ? `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'; }
-function fmtPct(n) { return typeof n === 'number' ? `${n > 0 ? '+' : ''}${n.toFixed(1)}%` : '—'; }
 
 // ── Count-up animation ─────────────────────────────────────────────────────────
 // easeOutExpo — fast start, silky deceleration into final value
@@ -1310,29 +1383,6 @@ function AnimatedValue({ value, decimals, className, style }) {
       {parsed.prefix}{formatted}{parsed.suffix}
     </span>
   );
-}
-
-function useApi(url) {
-  const [data, setData]     = useState(null);
-  const [loading, setLoad]  = useState(false);
-  const [error, setError]   = useState(null);
-  useEffect(() => {
-    if (!url) return;
-    setLoad(true); setError(null);
-    fetch(url).then((r) => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const ct = r.headers.get('content-type') || '';
-      if (!ct.includes('application/json')) throw new Error('Non-JSON response — check API is deployed');
-      return r.json();
-    }).then(setData).catch((e) => setError(e.message)).finally(() => setLoad(false));
-  }, [url]);
-  return { data, loading, error };
-}
-
-function PanelLoadingOrError({ loading, error, children }) {
-  if (loading) return <div className="panel-loading"><span className="panel-loading-spinner" /><span>Loading…</span></div>;
-  if (error)   return <div className="panel-error">⚠ {error}</div>;
-  return children;
 }
 
 // ── Donut chart (shared) ────────────────────────────────────────────────────────
@@ -1524,9 +1574,9 @@ function NetWorthChart({ history }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ── Panel: Spending Intelligence ──────────────────────────────────────────────
+// ── Panel: Spending Intelligence (legacy — superseded by PanelSpendingAndHealth)
 // ═══════════════════════════════════════════════════════════════════════════════
-function PanelSpending() {
+function _PanelSpending_REMOVED() {
   const [view, setView] = useState('overview'); // 'overview' | 'transactions' | 'subscriptions'
   const { data: analysis, loading: aLoad, error: aErr } = useApi('/api/spending?type=analysis');
   const { data: txnData,  loading: tLoad, error: tErr  } = useApi('/api/spending?type=transactions');
@@ -1711,7 +1761,7 @@ function PanelPortfolioAndWealth({ profile }) {
           <p className="db-panel-sub">Plaid · Coinbase · Finnhub — unified view.</p>
         </div>
         <div className="panel-tab-row">
-          {[['allocation','Allocation'],['stocks','Stocks'],['crypto','Crypto'],['profile','Profile']].map(([id, label]) => (
+          {[['allocation','Allocation'],['stocks','Stocks'],['crypto','Crypto'],['rebalance','Rebalance'],['profile','Profile']].map(([id, label]) => (
             <button key={id} className={`panel-tab${view === id ? ' panel-tab--active' : ''}`} onClick={() => switchView(id)}>{label}</button>
           ))}
         </div>
@@ -1868,6 +1918,9 @@ function PanelPortfolioAndWealth({ profile }) {
         </PanelLoadingOrError>
       )}
 
+      {/* ── Rebalance tab ── */}
+      {view === 'rebalance' && <RebalanceCard />}
+
       {/* ── Profile tab ── */}
       {view === 'profile' && (
         <div className="db-kv-grid">
@@ -1941,6 +1994,18 @@ function PanelSpendingAndHealth() {
   const { data: txnData,  loading: tLoad, error: tErr  } = useApi('/api/spending?type=transactions');
   const { data: subData,  loading: sLoad, error: sErr  } = useApi('/api/spending?type=subscriptions');
 
+  // Category overrides for transaction editor
+  const [overrides, setOverrides] = useState({});
+  useEffect(() => {
+    fetch('/api/txncategory', { credentials: 'same-origin' })
+      .then((r) => r.json())
+      .then((d) => { if (d.ok) setOverrides(d.overrides || {}); })
+      .catch(() => {});
+  }, []);
+  const handleOverrideSave = (txnId, newData) => {
+    setOverrides((prev) => ({ ...prev, [txnId]: newData }));
+  };
+
   return (
     <div className="db-panel">
       <div className="panel-header-row">
@@ -1949,7 +2014,7 @@ function PanelSpendingAndHealth() {
           <p className="db-panel-sub">Plaid-powered analysis of your banking activity.</p>
         </div>
         <div className="panel-tab-row">
-          {[['overview','Overview'],['budgeting','Budgeting'],['transactions','Transactions'],['subscriptions','Subscriptions']].map(([id, label]) => (
+          {[['overview','Overview'],['budget','Budget vs Actual'],['budgeting','Notes'],['transactions','Transactions'],['subscriptions','Subscriptions']].map(([id, label]) => (
             <button key={id} className={`panel-tab${view === id ? ' panel-tab--active' : ''}`} onClick={() => setView(id)}>{label}</button>
           ))}
         </div>
@@ -2028,7 +2093,14 @@ function PanelSpendingAndHealth() {
         </PanelLoadingOrError>
       )}
 
-      {/* ── Transactions tab ── */}
+      {/* ── Budget vs Actual tab ── */}
+      {view === 'budget' && (
+        <PanelLoadingOrError loading={aLoad} error={aErr}>
+          <BudgetVsActual spendingCategories={analysis?.categories} />
+        </PanelLoadingOrError>
+      )}
+
+      {/* ── Transactions tab (with category editor) ── */}
       {view === 'transactions' && (
         <PanelLoadingOrError loading={tLoad} error={tErr}>
           {txnData && (
@@ -2036,13 +2108,13 @@ function PanelSpendingAndHealth() {
               <table className="db-table">
                 <thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th></tr></thead>
                 <tbody>
-                  {(txnData.transactions || []).map((t, i) => (
-                    <tr key={i}>
-                      <td style={{ fontFamily: 'IBM Plex Mono', fontSize: '0.8rem' }}>{t.date}</td>
-                      <td>{t.desc}</td>
-                      <td><span className="spend-cat-chip" style={{ background: t.category === 'Income' ? '#d1fae5' : '#fce7f3', color: t.category === 'Income' ? '#065f46' : '#9d2256' }}>{t.category}</span></td>
-                      <td className={t.amount > 0 ? 'db-up' : 'db-down'}>{t.amount > 0 ? '+' : ''}{fmt$(Math.abs(t.amount))}</td>
-                    </tr>
+                  {(txnData.transactions || []).map((t) => (
+                    <TxnCategoryEditor
+                      key={t.id ?? t.date + t.desc}
+                      transaction={{ ...t, id: t.id ?? `${t.date}-${t.desc}` }}
+                      overrides={overrides}
+                      onSave={handleOverrideSave}
+                    />
                   ))}
                 </tbody>
               </table>
@@ -2295,24 +2367,82 @@ function PanelMarketsAndInsights() {
         {!loading && !error && view === 'analyst'  && !recData   && <p className="mkt-hint">No analyst data available for {activeTicker}.</p>}
         {!loading && !error && view === 'earnings' && (!earnData || !Array.isArray(earnData) || earnData.length === 0)    && <p className="mkt-hint">No earnings data available for {activeTicker}.</p>}
       </PanelLoadingOrError>
+
+      {/* Stock Price Alerts */}
+      <StockAlertsPanel />
     </div>
   );
 }
 
 // ── Dashboard Page ─────────────────────────────────────────────────────────────
-function DashboardPage({ profile, username }) {
+function DashboardPage({ profile, username, onStartQuestionnaire, onGoAccount }) {
   const [activePanel, setActivePanel] = useState('markets');
+
+  // ── Notification state ─────────────────────────────────────────────────────
+  const [notifications, setNotifications] = useState([]);
+  const [unread,        setUnread]        = useState(0);
+
+  useEffect(() => {
+    if (!FF.notifications) return;
+    fetch('/api/notifications', { credentials: 'same-origin' })
+      .then((r) => r.json())
+      .then((d) => { if (d.ok) { setNotifications(d.notifications); setUnread(d.unread); } })
+      .catch(() => {});
+  }, []);
+
+  const markRead = async (ids) => {
+    await fetch('/api/notifications?action=read', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+    setNotifications((prev) => prev.map((n) => ids.includes(n.id) ? { ...n, read: 1 } : n));
+    setUnread((prev) => Math.max(0, prev - ids.length));
+  };
+
+  const markAllRead = async () => {
+    await fetch('/api/notifications?action=read', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: [] }),
+    });
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: 1 })));
+    setUnread(0);
+  };
+
+  const dismissNotification = async (id) => {
+    await fetch(`/api/notifications?id=${id}`, { method: 'DELETE', credentials: 'same-origin' });
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    setUnread((prev) => Math.max(0, prev - 1));
+  };
 
   const NAV = [
     { id: 'markets',   label: 'Markets',   Icon: ChartLine },
     { id: 'portfolio', label: 'Portfolio', Icon: Growth    },
     { id: 'spending',  label: 'Spending',  Icon: Finance   },
+    { id: 'goals',     label: 'Goals',     Icon: Target    },
+    { id: 'simulator', label: 'Simulate',  Icon: Analytics },
   ];
 
   const isChat = activePanel === 'chat';
 
   return (
     <div className="db-layout">
+      {/* Notification center — floats top-right within layout */}
+      {FF.notifications && (
+        <div className="db-notif-wrap">
+          <NotificationCenter
+            notifications={notifications}
+            unread={unread}
+            onMarkRead={markRead}
+            onMarkAllRead={markAllRead}
+            onDismiss={dismissNotification}
+          />
+        </div>
+      )}
+
       {/* ── Main content ── */}
       <main className={`db-content${isChat ? ' db-content--chat' : ''}`}>
         {!isChat && <p className="db-sidebar-greeting">Welcome{username ? `, ${username}` : ''}.</p>}
@@ -2320,7 +2450,11 @@ function DashboardPage({ profile, username }) {
           {activePanel === 'markets'   && <PanelMarketsAndInsights />}
           {activePanel === 'portfolio' && <PanelPortfolioAndWealth profile={profile} />}
           {activePanel === 'spending'  && <PanelSpendingAndHealth />}
-          {activePanel === 'chat'      && <ChatView profile={profile} username={username} />}
+          {activePanel === 'goals'     && <PanelGoals profile={profile} />}
+          {activePanel === 'simulator' && (
+            <div className="db-panel"><SavingsSimulator /></div>
+          )}
+          {activePanel === 'chat'      && <ChatView profile={profile} username={username} onGoAccount={onGoAccount} />}
         </div>
       </main>
 
@@ -2355,8 +2489,8 @@ function DashboardPage({ profile, username }) {
   );
 }
 
-// ── Floating Gumdrop chat widget ───────────────────────────────────────────────
-function FloatingChat({ profile }) {
+// FloatingChat removed (P3 dead component cleanup)
+function _FloatingChat_REMOVED({ profile }) {
   const [open, setOpen]     = useState(false);
   const [messages, setMsgs] = useState([{ sender: 'bot', text: 'Hi! Ask me anything about your investments.' }]);
   const [draft, setDraft]   = useState('');
@@ -2437,14 +2571,7 @@ function FloatingChat({ profile }) {
 // Uses watsonx Orchestrate ADK via /chat Cloudflare Function (MCSP auth).
 // No custom LLM calls, no system-prompt injection, no Watson-branded UI.
 
-const QUICK_ACTIONS = [
-  { label: 'Review my portfolio', icon: <Growth size={14} aria-hidden="true" /> },
-  { label: 'Build emergency fund', icon: <Finance size={14} aria-hidden="true" /> },
-  { label: 'Explain ETFs', icon: <Analytics size={14} aria-hidden="true" /> },
-  { label: 'Debt payoff strategy', icon: <Flash size={14} aria-hidden="true" /> },
-  { label: 'Retirement planning', icon: <Sprout size={14} aria-hidden="true" /> },
-  { label: 'Reduce monthly spending', icon: <Notebook size={14} aria-hidden="true" /> },
-];
+// QUICK_ACTIONS replaced by buildDynamicPrompts(profile) — see component usage
 
 function TypingDots() {
   return (
@@ -2732,9 +2859,12 @@ function makeSession() {
   return { id: Date.now(), title: 'New chat', messages: [], pinned: false };
 }
 
-function ChatView({ profile, username }) {
+function ChatView({ profile, username, onGoAccount }) {
   const greeting = { sender: 'system', text: buildGreeting(profile) };
   const { add: addBudgetNote } = useBudget();
+
+  // Dynamic prompts — memoised so they only recompute when profile changes
+  const quickActions = useMemo(() => buildDynamicPrompts(profile), [profile]);
 
   // ── Session list (D1 is the source of truth; localStorage is a fast cold-start cache) ──
   const [sessions, setSessions] = useState(() => loadSessions(username) ?? [{ ...makeSession(), messages: [greeting] }]);
@@ -2946,6 +3076,8 @@ function ChatView({ profile, username }) {
   };
 
   const isNew = messages.length <= 1;
+  // Count only non-system messages for guest conversion trigger
+  const userBotCount = messages.filter((m) => m.sender !== 'system').length;
 
   // Title of the session pending deletion (for the confirmation dialog)
   const confirmTarget = sessions.find((s) => s.id === confirmDeleteId);
@@ -2973,9 +3105,17 @@ function ChatView({ profile, username }) {
         </div>
       )}
 
+      {/* Guest conversion banner */}
+      {!username && (
+        <GuestConversionBanner
+          messageCount={userBotCount}
+          onConvert={onGoAccount}
+        />
+      )}
+
       {/* ── History sidebar ───────────────────────────────────────────────── */}
       <aside className="chat-history-sidebar">
-        {/* Financial Advisor panel header */}
+        {/* Financial Advisor panel header + export button */}
         <div className="chat-advisor-panel">
           <div className="chat-advisor-icon" aria-hidden="true">
             <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" width="22" height="22">
@@ -2992,14 +3132,15 @@ function ChatView({ profile, username }) {
           </div>
         </div>
 
-        <Button
-          kind="tertiary"
-          size="sm"
-          className="chat-history-new-btn"
-          onClick={newChat}
-        >
-          + New chat
-        </Button>
+        <div className="chat-history-top-actions">
+          <Button kind="tertiary" size="sm" className="chat-history-new-btn" onClick={newChat}>
+            + New chat
+          </Button>
+          <ChatExportMenu
+            messages={messages.filter((m) => !m.pending)}
+            sessionTitle={activeSession?.title ?? 'Gumdrop Chat'}
+          />
+        </div>
 
         <div className="chat-history-list">
           {dbLoading && (
@@ -3087,21 +3228,24 @@ function ChatView({ profile, username }) {
                     </div>
                   </div>
                 ) : (
-                  <div className={`chat-bubble-new${msg.pending ? ' chat-bubble-new--pending' : ''}${msg.sender === 'user' ? ' chat-bubble-new--user' : ''}`}>
-                    {msg.pending
-                      ? <TypingDots />
-                      : msg.sender !== 'user'
-                        ? <BotMessage text={msg.text} />
-                        : msg.text
-                    }
-                    {msg.sender === 'user' && !msg.pending && (
-                      <button
-                        className="chat-edit-btn"
-                        onClick={() => { setEditingIdx(i); setEditDraft(msg.text); }}
-                        aria-label="Edit message" title="Edit"
-                      >✏️</button>
-                    )}
-                  </div>
+                   <div className={`chat-bubble-new${msg.pending ? ' chat-bubble-new--pending' : ''}${msg.sender === 'user' ? ' chat-bubble-new--user' : ''}`}>
+                     {msg.pending
+                       ? <TypingDots />
+                       : msg.sender !== 'user'
+                         ? <BotMessage text={msg.text} />
+                         : msg.text
+                     }
+                     {msg.sender === 'user' && !msg.pending && (
+                       <button
+                         className="chat-edit-btn"
+                         onClick={() => { setEditingIdx(i); setEditDraft(msg.text); }}
+                         aria-label="Edit message" title="Edit"
+                       >✏️</button>
+                     )}
+                     {msg.sender !== 'user' && !msg.pending && (
+                       <CopyButton text={msg.text} />
+                     )}
+                   </div>
                 )}
               </div>
               {msg.sender === 'user' && (
@@ -3117,12 +3261,12 @@ function ChatView({ profile, username }) {
         {/* Input */}
         <div className="chat-input-area">
 
-          {/* Quick actions — visible only on a fresh / empty conversation */}
+          {/* Dynamic AI suggested prompts — visible only on a fresh conversation */}
           {isNew && (
             <div className="chat-quick-actions">
-              <p className="chat-quick-actions-label">Quick actions</p>
+              <p className="chat-quick-actions-label">Suggested prompts</p>
               <div className="chat-quick-actions-grid">
-                {QUICK_ACTIONS.map(({ label, icon }) => (
+                {quickActions.map(({ label, icon }) => (
                   <button
                     key={label}
                     className="chat-quick-action-btn"
@@ -3168,11 +3312,190 @@ function ChatView({ profile, username }) {
   );
 }
 
-// ── Profile Page ───────────────────────────────────────────────────────────────
+// ── Profile Completeness Score ─────────────────────────────────────────────────
+function profileCompletenessScore(profile, plaidConnected, coinbaseConnected) {
+  const checks = [
+    !!profile?.goals?.length,
+    !!profile?.risk,
+    !!profile?.horizon,
+    !!profile?.annualIncome,
+    !!profile?.monthlySavings,
+    !!profile?.emergencyFund,
+    !!profile?.employmentStatus,
+    !!profile?.maritalStatus,
+    !!profile?.creditScore,
+    !!profile?.usState,
+    profile?.veteranStatus != null,
+    !!profile?.preferences?.length,
+    !!plaidConnected,
+    !!coinbaseConnected,
+  ];
+  const filled = checks.filter(Boolean).length;
+  return { score: Math.round((filled / checks.length) * 100), filled, total: checks.length };
+}
+
+// ── LinkedAccountCard — real Plaid Link + Coinbase OAuth ──────────────────────
+function LinkedAccountCard({ provider, connected, institution, connectedAt, onConnect, onDisconnect, connecting, error }) {
+  const isPlatid   = provider === 'plaid';
+  const bgColor    = isPlatid ? '#000' : '#0052FF';
+  const icon       = isPlatid
+    ? <svg width="18" height="18" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="4" fill="#000"/><path d="M7 8h4v4H7zm5 0h4v4h-4zm5 0h4v4h-4zm-10 5h4v4H7zm5 0h4v4h-4zm5 0h4v4h-4zm-10 5h4v4H7zm5 0h4v4h-4zm5 0h4v4h-4z" fill="#fff"/></svg>
+    : <svg width="18" height="18" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="16" fill="#0052FF"/><path d="M16 6C10.477 6 6 10.477 6 16s4.477 10 10 10 10-4.477 10-10S21.523 6 16 6zm0 16.5a6.5 6.5 0 110-13 6.5 6.5 0 010 13z" fill="#fff"/></svg>;
+  const title      = isPlatid ? 'Plaid'    : 'Coinbase';
+  const subTitle   = isPlatid ? 'Bank accounts & transactions' : 'Crypto portfolio & balances';
+  const connectedLabel = connected ? (institution || (isPlatid ? 'Bank connected' : 'Coinbase connected')) : 'Not connected';
+
+  return (
+    <div className={`linked-account-card${connected ? ' linked-account-card--connected' : ''}`}>
+      <div className="linked-account-card-left">
+        <div className="linked-account-icon" style={{ background: bgColor }}>{icon}</div>
+        <div>
+          <p className="linked-account-title">{title}</p>
+          <p className="linked-account-sub">{connected ? connectedLabel : subTitle}</p>
+          {connected && connectedAt && <p className="linked-account-date">Connected {new Date(connectedAt).toLocaleDateString()}</p>}
+          {error && <p className="linked-account-error">{error}</p>}
+        </div>
+      </div>
+      <div className="linked-account-actions">
+        {connected ? (
+          <>
+            <span className="linked-account-badge">● Connected</span>
+            <button className="linked-account-disconnect" onClick={onDisconnect} disabled={connecting}>Disconnect</button>
+          </>
+        ) : (
+          <button
+            className="linked-account-connect"
+            style={{ background: bgColor }}
+            onClick={onConnect}
+            disabled={connecting}
+          >
+            {connecting ? 'Connecting…' : 'Connect'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── ProfilePage ────────────────────────────────────────────────────────────────
 function ProfilePage({ username, profile, onLogout, onBack, theme, onToggleTheme, onStartQuestionnaire }) {
   const RISK_DESC    = { conservative: 'Low risk, stable returns', moderate: 'Balanced growth & safety', aggressive: 'High risk, high reward' };
   const HORIZON_DESC = { short: 'Under 3 years', medium: '3 – 10 years', long: '10+ years' };
   const goals = (profile?.goals ?? []).map((g) => GOAL_LABELS[g] ?? g);
+
+  // ── Linked accounts state ──────────────────────────────────────────────────
+  const [plaidStatus,    setPlaidStatus]    = useState({ connected: false, institution: '', connected_at: null });
+  const [coinbaseStatus, setCoinbaseStatus] = useState({ connected: false, connected_at: null });
+  const [plaidBusy,      setPlaidBusy]      = useState(false);
+  const [coinbaseBusy,   setCoinbaseBusy]   = useState(false);
+  const [plaidError,     setPlaidError]     = useState('');
+  const [coinbaseError,  setCoinbaseError]  = useState('');
+  const [plaidScriptReady, setPlaidScriptReady] = useState(false);
+
+  // Load Plaid Link SDK
+  useEffect(() => {
+    if (!FF.plaid) return;
+    if (document.getElementById('plaid-link-script')) { setPlaidScriptReady(true); return; }
+    const script = document.createElement('script');
+    script.id  = 'plaid-link-script';
+    script.src = 'https://cdn.plaid.com/link/v2/stable/link-initialize.js';
+    script.onload = () => setPlaidScriptReady(true);
+    document.head.appendChild(script);
+  }, []);
+
+  // Fetch connection statuses on mount
+  useEffect(() => {
+    if (FF.plaid) {
+      fetch('/api/plaid?action=status', { credentials: 'same-origin' })
+        .then((r) => r.json())
+        .then((d) => { if (d.ok) setPlaidStatus(d); })
+        .catch(() => {});
+    }
+    if (FF.coinbase) {
+      fetch('/api/coinbase?action=status', { credentials: 'same-origin' })
+        .then((r) => r.json())
+        .then((d) => { if (d.ok) setCoinbaseStatus(d); })
+        .catch(() => {});
+    }
+  }, []);
+
+  // Check URL params for OAuth callback results
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('coinbase') === 'connected') {
+      setCoinbaseStatus({ connected: true, connected_at: new Date().toISOString() });
+      track('coinbase_connected');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+    if (params.get('coinbase') === 'error') {
+      setCoinbaseError('Coinbase connection failed. Please try again.');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
+  const handlePlaidConnect = async () => {
+    if (!plaidScriptReady) { setPlaidError('Plaid is loading, please wait…'); return; }
+    setPlaidBusy(true);
+    setPlaidError('');
+    try {
+      const res  = await fetch('/api/plaid?action=link_token', { method: 'POST', credentials: 'same-origin' });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Failed to create link token');
+
+      const handler = window.Plaid.create({
+        token: data.link_token,
+        onSuccess: async (publicToken) => {
+          const exRes = await fetch('/api/plaid?action=exchange', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ public_token: publicToken }),
+          });
+          const exData = await exRes.json();
+          if (!exRes.ok || exData.error) { setPlaidError(exData.error || 'Exchange failed'); return; }
+          setPlaidStatus({ connected: true, institution: exData.institution, connected_at: new Date().toISOString() });
+          // Bust portfolio cache so next load fetches real data
+          _apiCache.delete('/api/finance?type=portfolio');
+          track('plaid_connected', { institution: exData.institution });
+        },
+        onExit: (err) => { if (err) setPlaidError(err.display_message || 'Plaid link closed'); },
+      });
+      handler.open();
+    } catch (e) {
+      setPlaidError(e.message);
+    } finally {
+      setPlaidBusy(false);
+    }
+  };
+
+  const handlePlaidDisconnect = async () => {
+    setPlaidBusy(true);
+    setPlaidError('');
+    try {
+      await fetch('/api/plaid?action=disconnect', { method: 'POST', credentials: 'same-origin' });
+      setPlaidStatus({ connected: false, institution: '', connected_at: null });
+      _apiCache.delete('/api/finance?type=portfolio');
+      track('plaid_disconnected');
+    } catch { setPlaidError('Failed to disconnect.'); }
+    finally { setPlaidBusy(false); }
+  };
+
+  const handleCoinbaseConnect = () => {
+    window.location.href = '/api/coinbase?action=connect';
+  };
+
+  const handleCoinbaseDisconnect = async () => {
+    setCoinbaseBusy(true);
+    setCoinbaseError('');
+    try {
+      await fetch('/api/coinbase?action=disconnect', { method: 'POST', credentials: 'same-origin' });
+      setCoinbaseStatus({ connected: false, connected_at: null });
+      _apiCache.delete('/api/finance?type=portfolio');
+      track('coinbase_disconnected');
+    } catch { setCoinbaseError('Failed to disconnect.'); }
+    finally { setCoinbaseBusy(false); }
+  };
+
   const profileRows = [
     { label: 'Goals',           value: goals.length ? goals.join(', ') : 'None set' },
     { label: 'Risk appetite',   value: profile?.risk ? `${profile.risk} — ${RISK_DESC[profile.risk] ?? ''}` : 'Not set' },
@@ -3188,38 +3511,42 @@ function ProfilePage({ username, profile, onLogout, onBack, theme, onToggleTheme
     { label: 'Preferences',     value: (profile?.preferences ?? []).join(', ') || 'None' },
   ];
 
+  const completeness = profileCompletenessScore(profile, plaidStatus.connected, coinbaseStatus.connected);
+
   return (
     <div className="profile-shell">
-      {/* ── Sticky back bar ──────────────────────────────────────────────── */}
       <div className="profile-back-bar">
         <button className="profile-back-btn" onClick={onBack} aria-label="Back to dashboard">
           ← Dashboard
         </button>
       </div>
 
-      {/* ── Scrollable content ───────────────────────────────────────────── */}
       <div className="profile-scroll">
       <div style={{ width: '100%', maxWidth: '36rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '0 1rem', margin: '0 auto' }}>
         <div className="wizard-inner" style={{ padding: 0 }}>
           <div className="acct-badge">Account</div>
           <h2 className="wizard-heading">Profile settings</h2>
 
-          {/* Avatar */}
+          {/* Avatar + completeness */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <div style={{ width: '4rem', height: '4rem', borderRadius: '50%', background: 'linear-gradient(135deg, #f472a0, #c0356a)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <span style={{ fontSize: '1.75rem', fontWeight: 700, color: '#fff' }}>
-                {username?.[0]?.toUpperCase() ?? '?'}
-              </span>
+              <span style={{ fontSize: '1.75rem', fontWeight: 700, color: '#fff' }}>{username?.[0]?.toUpperCase() ?? '?'}</span>
             </div>
-            <div>
+            <div style={{ flex: 1 }}>
               <p style={{ margin: 0, fontWeight: 600, fontSize: '1rem' }}>{username}</p>
               <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--cds-text-secondary)' }}>Candyland Bank member</p>
+              <div className="completeness-bar-wrap">
+                <div className="completeness-bar-track">
+                  <div className="completeness-bar-fill" style={{ width: `${completeness.score}%` }} />
+                </div>
+                <span className="completeness-label">{completeness.score}% profile complete</span>
+              </div>
             </div>
           </div>
 
-          <div style={{ borderTop: '1px solid #fbc4d9', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <div style={{ borderTop: '1px solid #fbc4d9', paddingTop: '1rem' }}>
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--cds-text-secondary)' }}>
-              Your account is secured with IBM email verification and two-factor authentication via OTP.
+              Secured with IBM email verification and OTP two-factor authentication.
             </p>
           </div>
 
@@ -3228,7 +3555,7 @@ function ProfilePage({ username, profile, onLogout, onBack, theme, onToggleTheme
             <p style={{ margin: 0, fontWeight: 600, fontSize: '0.9rem' }}>Investor profile</p>
             {!profile ? (
               <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--cds-text-secondary)' }}>
-                No questionnaire completed yet. Use "Retake questionnaire" in the dashboard to build your profile.
+                No questionnaire completed yet.
               </p>
             ) : (
               <div className="db-kv-grid">
@@ -3247,19 +3574,10 @@ function ProfilePage({ username, profile, onLogout, onBack, theme, onToggleTheme
             <p style={{ margin: 0, fontWeight: 600, fontSize: '0.9rem' }}>Appearance</p>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle-01)', borderRadius: '0.75rem' }}>
               <div>
-                <p style={{ margin: 0, fontWeight: 600, fontSize: '0.875rem' }}>
-                  {theme === 'g100' ? '🌙 Dark mode' : '☀️ Light mode'}
-                </p>
-                <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>
-                  {theme === 'g100' ? 'Switch to light mode' : 'Switch to dark mode'}
-                </p>
+                <p style={{ margin: 0, fontWeight: 600, fontSize: '0.875rem' }}>{theme === 'g100' ? '🌙 Dark mode' : '☀️ Light mode'}</p>
+                <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>{theme === 'g100' ? 'Switch to light mode' : 'Switch to dark mode'}</p>
               </div>
-              <button
-                onClick={onToggleTheme}
-                aria-label="Toggle colour theme"
-                className="theme-toggle-btn"
-                data-dark={theme === 'g100' ? 'true' : 'false'}
-              >
+              <button onClick={onToggleTheme} aria-label="Toggle colour theme" className="theme-toggle-btn" data-dark={theme === 'g100' ? 'true' : 'false'}>
                 <span className="theme-toggle-knob" />
               </button>
             </div>
@@ -3269,44 +3587,32 @@ function ProfilePage({ username, profile, onLogout, onBack, theme, onToggleTheme
           <div style={{ borderTop: '1px solid #fbc4d9', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <p style={{ margin: 0, fontWeight: 600, fontSize: '0.9rem' }}>Linked accounts</p>
             <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--cds-text-secondary)' }}>
-              Connect your bank and crypto accounts for a unified view of your finances.
+              Connect your bank and crypto accounts for a unified view.
             </p>
-
-            {/* Plaid */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle-01)', borderRadius: '0.75rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <div style={{ width: '2rem', height: '2rem', borderRadius: '0.4rem', background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <svg width="18" height="18" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="4" fill="#000"/><path d="M7 8h4v4H7zm5 0h4v4h-4zm5 0h4v4h-4zm-10 5h4v4H7zm5 0h4v4h-4zm5 0h4v4h-4zm-10 5h4v4H7zm5 0h4v4h-4zm5 0h4v4h-4z" fill="#fff"/></svg>
-                </div>
-                <div>
-                  <p style={{ margin: 0, fontWeight: 600, fontSize: '0.875rem' }}>Plaid</p>
-                  <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>Bank accounts &amp; transactions</p>
-                </div>
-              </div>
-              <button
-                onClick={() => window.open('https://plaid.com/products/transactions/', '_blank', 'noopener')}
-                style={{ padding: '0.35rem 0.85rem', background: '#000', color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>
-                Connect
-              </button>
-            </div>
-
-            {/* Coinbase */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle-01)', borderRadius: '0.75rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <div style={{ width: '2rem', height: '2rem', borderRadius: '0.4rem', background: '#0052FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <svg width="18" height="18" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="16" fill="#0052FF"/><path d="M16 6C10.477 6 6 10.477 6 16s4.477 10 10 10 10-4.477 10-10S21.523 6 16 6zm0 16.5a6.5 6.5 0 110-13 6.5 6.5 0 010 13z" fill="#fff"/></svg>
-                </div>
-                <div>
-                  <p style={{ margin: 0, fontWeight: 600, fontSize: '0.875rem' }}>Coinbase</p>
-                  <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>Crypto portfolio &amp; balances</p>
-                </div>
-              </div>
-              <button
-                onClick={() => window.open('https://www.coinbase.com/settings/api', '_blank', 'noopener')}
-                style={{ padding: '0.35rem 0.85rem', background: '#0052FF', color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>
-                Connect
-              </button>
-            </div>
+            {FF.plaid && (
+              <LinkedAccountCard
+                provider="plaid"
+                connected={plaidStatus.connected}
+                institution={plaidStatus.institution}
+                connectedAt={plaidStatus.connected_at}
+                onConnect={handlePlaidConnect}
+                onDisconnect={handlePlaidDisconnect}
+                connecting={plaidBusy}
+                error={plaidError}
+              />
+            )}
+            {FF.coinbase && (
+              <LinkedAccountCard
+                provider="coinbase"
+                connected={coinbaseStatus.connected}
+                institution={null}
+                connectedAt={coinbaseStatus.connected_at}
+                onConnect={handleCoinbaseConnect}
+                onDisconnect={handleCoinbaseDisconnect}
+                connecting={coinbaseBusy}
+                error={coinbaseError}
+              />
+            )}
           </div>
         </div>
 
@@ -3324,6 +3630,1039 @@ function ProfilePage({ username, profile, onLogout, onBack, theme, onToggleTheme
     </div>
   );
 }
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── Notification Center ───────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const NOTIF_ICONS = {
+  unusual_spend:    <Warning size={16} className="notif-icon notif-icon--warn" />,
+  crypto_exposure:  <Warning size={16} className="notif-icon notif-icon--warn" />,
+  goal_milestone:   <Target  size={16} className="notif-icon notif-icon--success" />,
+  portfolio_drift:  <Renew   size={16} className="notif-icon notif-icon--info" />,
+  alert_triggered:  <Notification size={16} className="notif-icon notif-icon--pink" />,
+};
+
+function NotificationCenter({ notifications, unread, onMarkRead, onMarkAllRead, onDismiss }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handle = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, [open]);
+
+  const handleOpen = () => {
+    setOpen((o) => !o);
+    track('notification_center_opened');
+  };
+
+  return (
+    <div className="notif-center" ref={ref}>
+      <button
+        className="notif-bell-btn"
+        onClick={handleOpen}
+        aria-label={`Notifications${unread > 0 ? ` (${unread} unread)` : ''}`}
+        aria-expanded={open}
+      >
+        <Notification size={20} />
+        {unread > 0 && <span className="notif-badge">{unread > 9 ? '9+' : unread}</span>}
+      </button>
+
+      {open && (
+        <div className="notif-drawer" role="dialog" aria-label="Notifications">
+          <div className="notif-drawer-header">
+            <span className="notif-drawer-title">Notifications</span>
+            {unread > 0 && (
+              <button className="notif-mark-all" onClick={onMarkAllRead}>Mark all read</button>
+            )}
+          </div>
+
+          <div className="notif-list">
+            {notifications.length === 0 ? (
+              <p className="notif-empty">No notifications yet.</p>
+            ) : (
+              notifications.map((n) => (
+                <div
+                  key={n.id}
+                  className={`notif-item${n.read ? ' notif-item--read' : ''}`}
+                  onClick={() => !n.read && onMarkRead([n.id])}
+                >
+                  <div className="notif-item-icon">
+                    {NOTIF_ICONS[n.kind] || <Notification size={16} />}
+                  </div>
+                  <div className="notif-item-body">
+                    <p className="notif-item-title">{n.title}</p>
+                    <p className="notif-item-msg">{n.body}</p>
+                    <p className="notif-item-time">{new Date(n.created_at).toLocaleString()}</p>
+                  </div>
+                  <button
+                    className="notif-dismiss"
+                    onClick={(e) => { e.stopPropagation(); onDismiss(n.id); }}
+                    aria-label="Dismiss"
+                  >
+                    <Close size={14} />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── Goal Progress Tracker ─────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const GOAL_CATEGORY_OPTS = [
+  { value: 'retirement', label: 'Retirement' },
+  { value: 'home',       label: 'Home Purchase' },
+  { value: 'education',  label: 'Education' },
+  { value: 'wealth',     label: 'Wealth Growth' },
+  { value: 'emergency',  label: 'Emergency Fund' },
+  { value: 'other',      label: 'Other' },
+];
+
+function GoalProgressBar({ pct }) {
+  return (
+    <div className="goal-progress-track" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${pct}% complete`}>
+      <div
+        className="goal-progress-fill"
+        style={{ width: `${pct}%`, background: pct >= 100 ? '#24a148' : 'linear-gradient(90deg,#f472a0,#c0356a)' }}
+      />
+    </div>
+  );
+}
+
+function GoalCard({ goal, onUpdate, onDelete }) {
+  const [editing,  setEditing]  = useState(false);
+  const [amount,   setAmount]   = useState(String(goal.current_amount));
+  const [contrib,  setContrib]  = useState(String(goal.monthly_contribution));
+  const [saving,   setSaving]   = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    const res = await fetch(`/api/goals?id=${goal.id}`, {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        current_amount:      parseFloat(amount) || 0,
+        monthly_contribution: parseFloat(contrib) || 0,
+      }),
+    });
+    const data = await res.json();
+    setSaving(false);
+    if (data.ok) { onUpdate(data.goal); setEditing(false); }
+  };
+
+  const milestoneMarks = [25, 50, 75, 100];
+
+  return (
+    <div className="goal-card">
+      <div className="goal-card-header">
+        <div>
+          <p className="goal-card-name">{goal.name}</p>
+          <p className="goal-card-category">{GOAL_CATEGORY_OPTS.find((o) => o.value === goal.category)?.label ?? goal.category}</p>
+        </div>
+        <div className="goal-card-actions">
+          <button className="goal-edit-btn" onClick={() => setEditing((e) => !e)} aria-label="Edit goal">
+            <Edit size={14} />
+          </button>
+          <button className="goal-delete-btn" onClick={() => onDelete(goal.id)} aria-label="Delete goal">
+            <TrashCan size={14} />
+          </button>
+        </div>
+      </div>
+
+      <div className="goal-amounts">
+        <span className="goal-current">{fmt$(goal.current_amount)}</span>
+        <span className="goal-sep"> / </span>
+        <span className="goal-target">{fmt$(goal.target_amount)}</span>
+        <span className={`goal-pct-badge${goal.pct >= 100 ? ' goal-pct-badge--done' : ''}`}>{goal.pct}%</span>
+      </div>
+
+      <GoalProgressBar pct={goal.pct} />
+
+      {/* Milestone markers */}
+      <div className="goal-milestones">
+        {milestoneMarks.map((m) => (
+          <div
+            key={m}
+            className={`goal-milestone-mark${goal.pct >= m ? ' goal-milestone-mark--reached' : ''}`}
+            style={{ left: `${m}%` }}
+            title={`${m}% milestone${goal.pct >= m ? ' reached' : ''}`}
+          >
+            {goal.pct >= m && <CheckmarkFilled size={12} className="goal-milestone-icon" />}
+          </div>
+        ))}
+      </div>
+
+      <div className="goal-meta-row">
+        {goal.monthly_contribution > 0 && (
+          <span className="goal-meta-item">📅 {fmt$(goal.monthly_contribution)}/mo</span>
+        )}
+        {goal.estimated_date && goal.estimated_date !== 'Completed' && (
+          <span className="goal-meta-item">🏁 Est. {goal.estimated_date}</span>
+        )}
+        {goal.estimated_date === 'Completed' && (
+          <span className="goal-meta-item goal-meta-item--done">✅ Complete!</span>
+        )}
+      </div>
+
+      {editing && (
+        <div className="goal-edit-form">
+          <div className="goal-edit-row">
+            <label className="goal-edit-label">Current saved</label>
+            <input
+              className="goal-edit-input"
+              type="number"
+              min={0}
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0"
+            />
+          </div>
+          <div className="goal-edit-row">
+            <label className="goal-edit-label">Monthly contribution</label>
+            <input
+              className="goal-edit-input"
+              type="number"
+              min={0}
+              value={contrib}
+              onChange={(e) => setContrib(e.target.value)}
+              placeholder="0"
+            />
+          </div>
+          <div className="goal-edit-btns">
+            <button className="goal-save-btn" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+            <button className="goal-cancel-btn" onClick={() => setEditing(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PanelGoals({ profile }) {
+  const [goals,      setGoals]      = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState('');
+  const [showForm,   setShowForm]   = useState(false);
+  const [formData,   setFormData]   = useState({ name: '', target_amount: '', current_amount: '', monthly_contribution: '', category: 'other', target_date: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const [formError,  setFormError]  = useState('');
+
+  useEffect(() => {
+    fetch('/api/goals', { credentials: 'same-origin' })
+      .then((r) => r.json())
+      .then((d) => { if (d.ok) setGoals(d.goals); else setError(d.error || 'Failed to load'); })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const addGoal = async () => {
+    setFormError('');
+    if (!formData.name.trim() || !formData.target_amount) { setFormError('Name and target amount are required.'); return; }
+    setSubmitting(true);
+    const res  = await fetch('/api/goals', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name:                formData.name.trim(),
+        target_amount:       parseFloat(formData.target_amount) || 0,
+        current_amount:      parseFloat(formData.current_amount) || 0,
+        monthly_contribution: parseFloat(formData.monthly_contribution) || 0,
+        category:            formData.category,
+        target_date:         formData.target_date || null,
+      }),
+    });
+    const data = await res.json();
+    setSubmitting(false);
+    if (!data.ok) { setFormError(data.error || 'Failed to create'); return; }
+    setGoals((prev) => [...prev, data.goal]);
+    setShowForm(false);
+    setFormData({ name: '', target_amount: '', current_amount: '', monthly_contribution: '', category: 'other', target_date: '' });
+    track('goal_created', { category: formData.category });
+  };
+
+  const deleteGoal = async (id) => {
+    await fetch(`/api/goals?id=${id}`, { method: 'DELETE', credentials: 'same-origin' });
+    setGoals((prev) => prev.filter((g) => g.id !== id));
+    track('goal_deleted');
+  };
+
+  const updateGoal = (updated) => setGoals((prev) => prev.map((g) => g.id === updated.id ? updated : g));
+
+  const totalTarget  = goals.reduce((s, g) => s + g.target_amount,  0);
+  const totalSaved   = goals.reduce((s, g) => s + g.current_amount, 0);
+  const overallPct   = totalTarget > 0 ? Math.round((totalSaved / totalTarget) * 100) : 0;
+
+  return (
+    <div className="db-panel">
+      <div className="panel-header-row">
+        <div>
+          <h2 className="db-panel-heading">Goal Progress</h2>
+          <p className="db-panel-sub">Track your savings targets and milestones.</p>
+        </div>
+        <Button kind="primary" size="sm" onClick={() => { setShowForm((f) => !f); track('goal_add_clicked'); }}>
+          <Add size={16} style={{ marginRight: '0.3rem' }} />New Goal
+        </Button>
+      </div>
+
+      {/* Overview bar */}
+      {goals.length > 0 && (
+        <div className="goals-overview">
+          <div className="goals-overview-stats">
+            <div className="goals-overview-stat">
+              <span className="goals-overview-label">Total saved</span>
+              <span className="goals-overview-value">{fmt$(totalSaved)}</span>
+            </div>
+            <div className="goals-overview-stat">
+              <span className="goals-overview-label">Total target</span>
+              <span className="goals-overview-value">{fmt$(totalTarget)}</span>
+            </div>
+            <div className="goals-overview-stat">
+              <span className="goals-overview-label">Overall progress</span>
+              <span className="goals-overview-value">{overallPct}%</span>
+            </div>
+          </div>
+          <GoalProgressBar pct={overallPct} />
+        </div>
+      )}
+
+      {/* Add goal form */}
+      {showForm && (
+        <div className="goal-add-form">
+          <p className="goal-form-title">New goal</p>
+          {formError && <p className="goal-form-error">{formError}</p>}
+          <div className="goal-form-grid">
+            <input className="goal-form-input" placeholder="Goal name" value={formData.name} onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))} />
+            <select className="goal-form-select" value={formData.category} onChange={(e) => setFormData((f) => ({ ...f, category: e.target.value }))}>
+              {GOAL_CATEGORY_OPTS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <input className="goal-form-input" placeholder="Target amount ($)" type="number" min={0} value={formData.target_amount} onChange={(e) => setFormData((f) => ({ ...f, target_amount: e.target.value }))} />
+            <input className="goal-form-input" placeholder="Already saved ($)" type="number" min={0} value={formData.current_amount} onChange={(e) => setFormData((f) => ({ ...f, current_amount: e.target.value }))} />
+            <input className="goal-form-input" placeholder="Monthly contribution ($)" type="number" min={0} value={formData.monthly_contribution} onChange={(e) => setFormData((f) => ({ ...f, monthly_contribution: e.target.value }))} />
+            <input className="goal-form-input" type="date" value={formData.target_date} onChange={(e) => setFormData((f) => ({ ...f, target_date: e.target.value }))} title="Target date (optional)" />
+          </div>
+          <div className="goal-form-actions">
+            <button className="goal-save-btn" onClick={addGoal} disabled={submitting}>{submitting ? 'Creating…' : 'Create goal'}</button>
+            <button className="goal-cancel-btn" onClick={() => setShowForm(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      <PanelLoadingOrError loading={loading} error={error}>
+        {goals.length === 0 && !showForm && (
+          <div className="goals-empty">
+            <Target size={32} className="goals-empty-icon" />
+            <p>No goals yet. Click <strong>New Goal</strong> to get started.</p>
+          </div>
+        )}
+        <div className="goals-list">
+          {goals.map((g) => (
+            <GoalCard key={g.id} goal={g} onUpdate={updateGoal} onDelete={deleteGoal} />
+          ))}
+        </div>
+      </PanelLoadingOrError>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── Portfolio Rebalancing Insights ────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function RebalanceCard() {
+  const { data, loading, error } = useApi('/api/finance?type=rebalance');
+
+  if (loading) return <div className="rebalance-card rebalance-card--loading"><span className="panel-spinner" />Loading rebalance data…</div>;
+  if (error || !data) return null;
+
+  const scoreColor = data.healthScore >= 75 ? '#24a148' : data.healthScore >= 50 ? '#f4b45a' : '#da1e28';
+  const actionColors = { buy: '#24a148', sell: '#da1e28' };
+
+  return (
+    <div className="rebalance-card">
+      <div className="rebalance-header">
+        <div>
+          <h3 className="rebalance-title">Portfolio Rebalancing</h3>
+          <p className="rebalance-sub">Based on your <strong>{data.risk}</strong> risk profile</p>
+        </div>
+        <div className="rebalance-score" style={{ color: scoreColor }}>
+          <span className="rebalance-score-num">{data.healthScore}</span>
+          <span className="rebalance-score-label">/100</span>
+        </div>
+      </div>
+
+      {/* Allocation comparison table */}
+      <div className="rebalance-alloc-table">
+        {Object.entries(data.target).map(([cls, targetPct]) => {
+          const actual    = data.actual[cls] ?? 0;
+          const drift     = data.drift[cls]  ?? 0;
+          const driftAbs  = Math.abs(drift);
+          return (
+            <div key={cls} className="rebalance-alloc-row">
+              <span className="rebalance-cls">{cls.charAt(0).toUpperCase() + cls.slice(1)}</span>
+              <div className="rebalance-bar-group">
+                <div className="rebalance-bar-track">
+                  <div className="rebalance-bar-target" style={{ width: `${targetPct}%` }} />
+                  <div className="rebalance-bar-actual" style={{ width: `${actual}%` }} />
+                </div>
+              </div>
+              <span className="rebalance-actual">{actual}%</span>
+              <span className="rebalance-target">({targetPct}% target)</span>
+              {driftAbs >= 2 && (
+                <span className={`rebalance-drift rebalance-drift--${drift > 0 ? 'over' : 'under'}`}>
+                  {drift > 0 ? '▲' : '▼'}{driftAbs}%
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Buy/sell suggestions */}
+      {data.suggestions.length > 0 && (
+        <div className="rebalance-suggestions">
+          <p className="rebalance-suggestions-title">Suggested actions</p>
+          {data.suggestions.map((s) => (
+            <div key={s.asset_class} className="rebalance-suggestion-row">
+              <span className="rebalance-action-badge" style={{ background: actionColors[s.action] }}>
+                {s.action.toUpperCase()}
+              </span>
+              <span className="rebalance-suggestion-text">
+                {s.action === 'buy' ? 'Increase' : 'Reduce'} <strong>{s.asset_class}</strong> by ~{fmt$(s.amount)}
+                <span className="rebalance-drift-note"> (drift: {s.drift_pct > 0 ? '+' : ''}{s.drift_pct}%)</span>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {data.suggestions.length === 0 && (
+        <p className="rebalance-aligned">✅ Portfolio is within target ranges.</p>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── Budget vs Actual ─────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function BudgetVsActual({ spendingCategories }) {
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const [month, setMonth] = useState(currentMonth);
+  const [plans, setPlans] = useState({});
+  const [editing, setEditing] = useState(null); // category being edited
+  const [editVal, setEditVal] = useState('');
+  const [saving, setSaving]   = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/budget?month=${month}`, { credentials: 'same-origin' })
+      .then((r) => r.json())
+      .then((d) => { if (d.ok) setPlans(d.plans || {}); })
+      .catch(() => {});
+  }, [month]);
+
+  const savePlan = async (category, planned) => {
+    setSaving(true);
+    await fetch('/api/budget', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category, planned: parseFloat(planned) || 0, month }),
+    });
+    setSaving(false);
+    setPlans((prev) => ({ ...prev, [category]: parseFloat(planned) || 0 }));
+    setEditing(null);
+    track('budget_plan_saved', { category });
+  };
+
+  if (!spendingCategories?.length) return null;
+
+  return (
+    <div className="budget-vs-actual">
+      <div className="bva-header">
+        <h3 className="bva-title">Budget vs Actual</h3>
+        <div className="bva-month-selector">
+          <input
+            type="month"
+            className="bva-month-input"
+            value={month}
+            max={currentMonth}
+            onChange={(e) => setMonth(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="bva-legend">
+        <span className="bva-legend-dot bva-legend-dot--planned" />Planned
+        <span className="bva-legend-dot bva-legend-dot--actual"  />Actual
+      </div>
+
+      <div className="bva-table">
+        {spendingCategories.map((cat) => {
+          const planned  = plans[cat.category] || 0;
+          const actual   = cat.total || 0;
+          const diff     = planned > 0 ? actual - planned : null;
+          const varPct   = planned > 0 ? ((diff / planned) * 100).toFixed(1) : null;
+          const over     = diff != null && diff > 0;
+          const maxBar   = Math.max(planned, actual, 1);
+
+          return (
+            <div key={cat.category} className="bva-row">
+              <div className="bva-cat-info">
+                <span className="bva-cat-dot" style={{ background: cat.color }} />
+                <span className="bva-cat-name">{cat.category}</span>
+              </div>
+
+              <div className="bva-bars">
+                {planned > 0 && (
+                  <div className="bva-bar-track">
+                    <div className="bva-bar bva-bar--planned" style={{ width: `${(planned / maxBar) * 100}%` }} />
+                    <span className="bva-bar-label">{fmt$(planned)}</span>
+                  </div>
+                )}
+                <div className="bva-bar-track">
+                  <div className="bva-bar bva-bar--actual" style={{ width: `${(actual / maxBar) * 100}%`, background: cat.color }} />
+                  <span className="bva-bar-label">{fmt$(actual)}</span>
+                </div>
+              </div>
+
+              <div className="bva-diff-col">
+                {diff != null && (
+                  <span className={`bva-diff ${over ? 'bva-diff--over' : 'bva-diff--under'}`}>
+                    {over ? '+' : ''}{fmt$(diff)} ({varPct}%)
+                  </span>
+                )}
+                {editing === cat.category ? (
+                  <div className="bva-edit-row">
+                    <input
+                      className="bva-edit-input"
+                      type="number"
+                      min={0}
+                      value={editVal}
+                      onChange={(e) => setEditVal(e.target.value)}
+                      placeholder="Budget"
+                      autoFocus
+                    />
+                    <button className="bva-save-btn" onClick={() => savePlan(cat.category, editVal)} disabled={saving}>✓</button>
+                    <button className="bva-cancel-btn" onClick={() => setEditing(null)}>✕</button>
+                  </div>
+                ) : (
+                  <button
+                    className="bva-set-btn"
+                    onClick={() => { setEditing(cat.category); setEditVal(String(planned || '')); }}
+                    aria-label={`Set budget for ${cat.category}`}
+                  >
+                    {planned > 0 ? <Edit size={12} /> : <Add size={12} />}
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── Chat Export ──────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function exportChatAsMarkdown(messages, sessionTitle = 'Gumdrop Chat') {
+  const lines = [`# ${sessionTitle}`, `*Exported ${new Date().toLocaleString()}*`, ''];
+  for (const m of messages) {
+    const sender = m.sender === 'user' ? '**You**' : '**Gumdrop**';
+    lines.push(`${sender}: ${m.text}`);
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+
+function ChatExportMenu({ messages, sessionTitle }) {
+  const [open, setOpen] = useState(false);
+
+  const exportMd = () => {
+    const md   = exportChatAsMarkdown(messages, sessionTitle);
+    const blob = new Blob([md], { type: 'text/markdown' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `gumdrop-chat-${Date.now()}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    track('chat_exported', { format: 'markdown' });
+    setOpen(false);
+  };
+
+  const exportPdf = () => {
+    // Open print-friendly view in new window
+    const md   = exportChatAsMarkdown(messages, sessionTitle);
+    const html = `<!DOCTYPE html><html><head><title>${sessionTitle}</title>
+    <style>body{font-family:sans-serif;max-width:700px;margin:2rem auto;line-height:1.6}
+    strong{color:#c0356a}</style></head><body>
+    <pre style="white-space:pre-wrap">${md.replace(/</g,'&lt;')}</pre>
+    <script>window.print();<\/script></body></html>`;
+    const win = window.open('', '_blank');
+    win.document.write(html);
+    win.document.close();
+    track('chat_exported', { format: 'pdf' });
+    setOpen(false);
+  };
+
+  return (
+    <div className="chat-export-menu" style={{ position: 'relative' }}>
+      <button className="chat-export-btn" onClick={() => setOpen((o) => !o)} aria-label="Export chat" title="Export">
+        <Download size={16} />
+      </button>
+      {open && (
+        <div className="chat-export-dropdown">
+          <button onClick={exportMd}>Export as Markdown</button>
+          <button onClick={exportPdf}>Export / Print</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── Copy & Share Gumdrop Reply ────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function CopyButton({ text }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      track('message_copied');
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for browsers without clipboard API
+      const el = document.createElement('textarea');
+      el.value = text;
+      el.style.position = 'fixed';
+      el.style.opacity  = '0';
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  return (
+    <button
+      className={`copy-btn${copied ? ' copy-btn--copied' : ''}`}
+      onClick={handleCopy}
+      aria-label={copied ? 'Copied!' : 'Copy message'}
+      title={copied ? 'Copied!' : 'Copy'}
+    >
+      {copied ? <CheckmarkFilled size={14} /> : <Copy size={14} />}
+    </button>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── Savings Simulator ─────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function SavingsSimulator() {
+  const [initial,  setInitial]  = useState(10000);
+  const [monthly,  setMonthly]  = useState(500);
+  const [rate,     setRate]     = useState(7);
+  const [inflation, setInflation] = useState(2.5);
+  const [years,    setYears]    = useState(20);
+
+  const projection = useMemo(() => {
+    const r      = rate / 100 / 12;          // monthly nominal rate
+    const ir     = inflation / 100 / 12;     // monthly inflation rate
+    const months = years * 12;
+    const points = [];
+
+    let nominal  = initial;
+    let real     = initial;
+
+    for (let m = 0; m <= months; m += 3) { // quarterly points
+      points.push({
+        label: `Y${Math.round(m / 12)}`,
+        nominal: Math.round(nominal),
+        real:    Math.round(real),
+      });
+      // Step 3 months at a time
+      for (let j = 0; j < 3; j++) {
+        nominal = nominal * (1 + r) + monthly;
+        real    = real    * (1 + r - ir) + monthly;
+      }
+    }
+
+    const fv        = Math.round(initial * Math.pow(1 + rate/100, years) + monthly * 12 * ((Math.pow(1 + rate/100, years) - 1) / (rate/100)));
+    const totalIn   = initial + monthly * 12 * years;
+    const growth    = fv - totalIn;
+
+    return { points, fv, totalIn, growth };
+  }, [initial, monthly, rate, inflation, years]);
+
+  const maxVal = Math.max(...projection.points.map((p) => p.nominal));
+
+  return (
+    <div className="simulator-wrap">
+      <h3 className="simulator-title">Savings Simulator</h3>
+      <p className="simulator-sub">Explore what-if scenarios for your savings growth.</p>
+
+      <div className="simulator-controls">
+        <div className="sim-control">
+          <label className="sim-label">Starting amount</label>
+          <div className="sim-input-row">
+            <span className="sim-prefix">$</span>
+            <input className="sim-input" type="number" min={0} value={initial} onChange={(e) => setInitial(Number(e.target.value) || 0)} />
+          </div>
+        </div>
+        <div className="sim-control">
+          <label className="sim-label">Monthly contribution</label>
+          <div className="sim-input-row">
+            <span className="sim-prefix">$</span>
+            <input className="sim-input" type="number" min={0} value={monthly} onChange={(e) => setMonthly(Number(e.target.value) || 0)} />
+          </div>
+        </div>
+        <div className="sim-control">
+          <label className="sim-label">Annual return rate: <strong>{rate}%</strong></label>
+          <input className="sim-slider" type="range" min={0} max={20} step={0.5} value={rate} onChange={(e) => setRate(Number(e.target.value))} />
+        </div>
+        <div className="sim-control">
+          <label className="sim-label">Inflation rate: <strong>{inflation}%</strong></label>
+          <input className="sim-slider" type="range" min={0} max={10} step={0.5} value={inflation} onChange={(e) => setInflation(Number(e.target.value))} />
+        </div>
+        <div className="sim-control sim-control--full">
+          <label className="sim-label">Timeline: <strong>{years} years</strong></label>
+          <input className="sim-slider" type="range" min={1} max={40} value={years} onChange={(e) => setYears(Number(e.target.value))} />
+        </div>
+      </div>
+
+      {/* Summary cards */}
+      <div className="sim-summary">
+        <div className="sim-summary-card">
+          <span className="sim-summary-label">Future value</span>
+          <span className="sim-summary-value sim-summary-value--primary">{fmt$(projection.fv)}</span>
+        </div>
+        <div className="sim-summary-card">
+          <span className="sim-summary-label">Total invested</span>
+          <span className="sim-summary-value">{fmt$(projection.totalIn)}</span>
+        </div>
+        <div className="sim-summary-card">
+          <span className="sim-summary-label">Growth</span>
+          <span className="sim-summary-value sim-summary-value--green">{fmt$(projection.growth)}</span>
+        </div>
+      </div>
+
+      {/* Chart */}
+      <div className="sim-chart">
+        {projection.points.map((p) => (
+          <div key={p.label} className="sim-bar-col">
+            <div className="sim-bar-group">
+              <div
+                className="sim-bar sim-bar--nominal"
+                style={{ height: `${(p.nominal / maxVal) * 100}%` }}
+                title={`Nominal: ${fmt$(p.nominal)}`}
+              />
+              <div
+                className="sim-bar sim-bar--real"
+                style={{ height: `${(p.real / maxVal) * 100}%` }}
+                title={`Real (inflation-adjusted): ${fmt$(p.real)}`}
+              />
+            </div>
+            <span className="sim-bar-label">{p.label}</span>
+          </div>
+        ))}
+      </div>
+      <div className="sim-chart-legend">
+        <span className="sim-legend-dot sim-legend-dot--nominal" />Nominal
+        <span className="sim-legend-dot sim-legend-dot--real" />Real (inflation-adjusted)
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── Stock Price Alerts ────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function StockAlertsPanel() {
+  const [alerts,    setAlerts]    = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [showForm,  setShowForm]  = useState(false);
+  const [form,      setForm]      = useState({ ticker: '', direction: 'above', threshold: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  useEffect(() => {
+    if (!FF.alerts) { setLoading(false); return; }
+    fetch('/api/alerts', { credentials: 'same-origin' })
+      .then((r) => r.json())
+      .then((d) => { if (d.ok) setAlerts(d.alerts); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const addAlert = async () => {
+    setFormError('');
+    if (!form.ticker.trim() || !form.threshold) { setFormError('Ticker and threshold are required.'); return; }
+    setSubmitting(true);
+    const res  = await fetch('/api/alerts', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticker: form.ticker.toUpperCase().trim(), direction: form.direction, threshold: parseFloat(form.threshold) }),
+    });
+    const data = await res.json();
+    setSubmitting(false);
+    if (!data.ok) { setFormError(data.error || 'Failed to create alert'); return; }
+    setAlerts((prev) => [data.alert, ...prev]);
+    setShowForm(false);
+    setForm({ ticker: '', direction: 'above', threshold: '' });
+    track('stock_alert_created', { ticker: form.ticker, direction: form.direction });
+  };
+
+  const deleteAlert = async (id) => {
+    await fetch(`/api/alerts?id=${id}`, { method: 'DELETE', credentials: 'same-origin' });
+    setAlerts((prev) => prev.filter((a) => a.id !== id));
+  };
+
+  if (!FF.alerts) return null;
+
+  return (
+    <div className="alerts-panel">
+      <div className="alerts-header">
+        <div>
+          <h3 className="alerts-title">Price Alerts</h3>
+          <p className="alerts-sub">Get notified when a stock crosses your threshold.</p>
+        </div>
+        <button className="alerts-add-btn" onClick={() => setShowForm((f) => !f)}>
+          <Add size={16} /> New alert
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="alerts-form">
+          {formError && <p className="alerts-form-error">{formError}</p>}
+          <div className="alerts-form-row">
+            <input className="alerts-input" placeholder="Ticker (e.g. AAPL)" value={form.ticker} onChange={(e) => setForm((f) => ({ ...f, ticker: e.target.value.toUpperCase() }))} maxLength={10} />
+            <select className="alerts-select" value={form.direction} onChange={(e) => setForm((f) => ({ ...f, direction: e.target.value }))}>
+              <option value="above">rises above</option>
+              <option value="below">falls below</option>
+            </select>
+            <div className="alerts-threshold-wrap">
+              <span className="alerts-prefix">$</span>
+              <input className="alerts-input" type="number" min={0} placeholder="Price" value={form.threshold} onChange={(e) => setForm((f) => ({ ...f, threshold: e.target.value }))} />
+            </div>
+            <button className="alerts-submit-btn" onClick={addAlert} disabled={submitting}>{submitting ? 'Adding…' : 'Add'}</button>
+            <button className="alerts-cancel-btn" onClick={() => setShowForm(false)}>✕</button>
+          </div>
+        </div>
+      )}
+
+      <PanelLoadingOrError loading={loading} error={null}>
+        {alerts.length === 0 && !showForm && (
+          <p className="alerts-empty">No alerts set. Add one above.</p>
+        )}
+        <div className="alerts-list">
+          {alerts.map((a) => (
+            <div key={a.id} className={`alert-row${a.triggered ? ' alert-row--triggered' : ''}`}>
+              <span className="alert-ticker">{a.ticker}</span>
+              <span className="alert-rule">{a.direction === 'above' ? '≥' : '≤'} {fmt$(a.threshold)}</span>
+              {a.triggered
+                ? <span className="alert-status alert-status--triggered">✅ Triggered {a.triggered_at ? new Date(a.triggered_at).toLocaleDateString() : ''}</span>
+                : <span className="alert-status alert-status--active">● Active</span>
+              }
+              <button className="alert-delete-btn" onClick={() => deleteAlert(a.id)} aria-label="Delete alert"><TrashCan size={14} /></button>
+            </div>
+          ))}
+        </div>
+      </PanelLoadingOrError>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── Transaction Categorization Editor ────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const ALL_CATEGORIES = [
+  'Food & Dining','Shopping','Transportation','Utilities','Entertainment',
+  'Health','Subscriptions','Housing','Investments','Debt Payments',
+  'Travel','Education','Personal Care','Income','Other',
+];
+
+function TxnCategoryEditor({ transaction, overrides, onSave }) {
+  const [editing,   setEditing]   = useState(false);
+  const [category,  setCategory]  = useState(overrides[transaction.id]?.category ?? transaction.category);
+  const [recurring, setRecurring] = useState(overrides[transaction.id]?.recurring ?? !!transaction.recurring);
+  const [saving,    setSaving]    = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    await fetch('/api/txncategory', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ txn_id: transaction.id, category, recurring }),
+    });
+    setSaving(false);
+    onSave(transaction.id, { category, recurring });
+    setEditing(false);
+    track('txn_category_edited', { txn_id: transaction.id });
+  };
+
+  const isOverridden = !!overrides[transaction.id];
+
+  return (
+    <tr className={isOverridden ? 'txn-row--overridden' : undefined}>
+      <td style={{ fontFamily: 'IBM Plex Mono', fontSize: '0.8rem' }}>{transaction.date}</td>
+      <td>{transaction.desc}</td>
+      <td>
+        {editing ? (
+          <div className="txn-edit-row">
+            <select
+              className="txn-cat-select"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+            >
+              {ALL_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <label className="txn-recurring-label">
+              <input type="checkbox" checked={recurring} onChange={(e) => setRecurring(e.target.checked)} />
+              Recurring
+            </label>
+            <button className="txn-save-cat-btn" onClick={save} disabled={saving}>✓</button>
+            <button className="txn-cancel-cat-btn" onClick={() => setEditing(false)}>✕</button>
+          </div>
+        ) : (
+          <div className="txn-cat-display">
+            <span
+              className="spend-cat-chip"
+              style={{ background: transaction.category === 'Income' ? '#d1fae5' : '#fce7f3', color: transaction.category === 'Income' ? '#065f46' : '#9d2256' }}
+            >
+              {category}
+            </span>
+            {isOverridden && <span className="txn-override-badge" title="Category overridden">✎</span>}
+            <button className="txn-edit-cat-btn" onClick={() => setEditing(true)} aria-label="Edit category"><Edit size={12} /></button>
+          </div>
+        )}
+      </td>
+      <td className={transaction.amount > 0 ? 'db-up' : 'db-down'}>
+        {transaction.amount > 0 ? '+' : ''}{fmt$(Math.abs(transaction.amount))}
+      </td>
+    </tr>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── Guest Conversion Banner ───────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function GuestConversionBanner({ messageCount, onConvert, onDismiss }) {
+  const [dismissed, setDismissed] = useState(() => {
+    try { return localStorage.getItem('cb-guest-banner-dismissed') === '1'; } catch { return false; }
+  });
+
+  // Show after first meaningful interaction (≥1 bot reply)
+  const show = !dismissed && messageCount >= 2;
+
+  const handleDismiss = () => {
+    setDismissed(true);
+    try { localStorage.setItem('cb-guest-banner-dismissed', '1'); } catch {}
+    onDismiss?.();
+    track('guest_banner_dismissed');
+  };
+
+  const handleConvert = () => {
+    track('guest_conversion_clicked');
+    onConvert?.();
+  };
+
+  if (!show) return null;
+
+  return (
+    <div className="guest-banner" role="banner" aria-live="polite">
+      <div className="guest-banner-content">
+        <span className="guest-banner-icon">💾</span>
+        <div>
+          <p className="guest-banner-title">Save your profile &amp; conversation history</p>
+          <p className="guest-banner-sub">Create a free account to keep your financial profile and chat history across sessions.</p>
+        </div>
+      </div>
+      <div className="guest-banner-actions">
+        <button className="guest-banner-cta" onClick={handleConvert}>
+          Create account <ArrowRight size={14} />
+        </button>
+        <button className="guest-banner-dismiss" onClick={handleDismiss} aria-label="Dismiss">
+          <Close size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── Dynamic AI Suggested Prompts ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function buildDynamicPrompts(profile) {
+  if (!profile) return [
+    { label: 'Review my portfolio', icon: <Growth size={14} aria-hidden="true" /> },
+    { label: 'Build emergency fund', icon: <Finance size={14} aria-hidden="true" /> },
+    { label: 'Explain ETFs', icon: <Analytics size={14} aria-hidden="true" /> },
+    { label: 'Debt payoff strategy', icon: <Flash size={14} aria-hidden="true" /> },
+    { label: 'Retirement planning', icon: <Sprout size={14} aria-hidden="true" /> },
+    { label: 'Reduce monthly spending', icon: <Notebook size={14} aria-hidden="true" /> },
+  ];
+
+  const prompts = [];
+  const { risk, goals = [], horizon, annualIncome } = profile;
+
+  // Risk-based
+  if (risk === 'aggressive')   prompts.push({ label: 'Growth stock picks for my risk level', icon: <Growth size={14} /> });
+  if (risk === 'conservative') prompts.push({ label: 'Low-risk bond allocation strategies',  icon: <Finance size={14} /> });
+  if (risk === 'moderate')     prompts.push({ label: 'Balanced portfolio review',             icon: <Analytics size={14} /> });
+
+  // Goal-based
+  if (goals.includes('retirement')) prompts.push({ label: 'Optimise my retirement contributions', icon: <Sprout size={14} /> });
+  if (goals.includes('home'))       prompts.push({ label: 'How much house can I afford?',         icon: <Flash size={14} /> });
+  if (goals.includes('education'))  prompts.push({ label: '529 plan vs taxable investing',         icon: <Notebook size={14} /> });
+  if (goals.includes('wealth'))     prompts.push({ label: 'Tax-loss harvesting strategies',        icon: <Task size={14} /> });
+
+  // Horizon-based
+  if (horizon === 'short') prompts.push({ label: 'Best short-term savings vehicles',        icon: <Flash size={14} /> });
+  if (horizon === 'long')  prompts.push({ label: 'Long-term index fund strategy',           icon: <Growth size={14} /> });
+
+  // Income-based
+  if (annualIncome === 'over-250k') prompts.push({ label: 'Backdoor Roth IRA explained',   icon: <Analytics size={14} /> });
+  if (annualIncome === 'under-25k') prompts.push({ label: 'Investing on a tight budget',   icon: <Finance size={14} /> });
+
+  // Always include a fallback
+  prompts.push({ label: 'Review my portfolio', icon: <Growth size={14} /> });
+  prompts.push({ label: 'Reduce monthly spending', icon: <Notebook size={14} /> });
+
+  // Deduplicate and limit to 6
+  const seen = new Set();
+  return prompts.filter((p) => { if (seen.has(p.label)) return false; seen.add(p.label); return true; }).slice(0, 6);
+}
+
 
 // ── Shared nav shell ───────────────────────────────────────────────────────────
 function NavShell({ children, username, onGoProfile, onGoHome, heroHeader, authHeader }) {
@@ -3495,6 +4834,7 @@ export default function App() {
           username={username}
           onStartQuestionnaire={() => nav('wizard')}
           onLogout={handleLogout}
+          onGoAccount={() => nav('account')}
         />
       </NavShell>
     );

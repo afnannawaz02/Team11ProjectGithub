@@ -34,3 +34,13 @@ database_id   = "effb499d-cbb7-4fa9-b5cf-9ea2ca8ad81a"
 #                This is NOT an IBM Cloud IAM key. NOT a username/password.
 #
 # RESEND_API_KEY — Resend transactional email key for OTP delivery.
+
+# ── Cron triggers (alerts Worker) ────────────────────────────────────────────
+# Evaluates stock price alerts once per hour via alerts.js onScheduled handler.
+# NOTE: Cron is only supported in Cloudflare Workers (not Pages Functions).
+# If deploying as Workers, add this block. For Pages, use a scheduled Worker
+# that calls /api/alerts?action=cron with a service binding or Workers cron.
+#
+# Uncomment and add to a dedicated alerts Worker if needed:
+# [triggers]
+# crons = ["0 * * * *"]

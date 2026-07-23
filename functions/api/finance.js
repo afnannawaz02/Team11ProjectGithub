@@ -76,10 +76,13 @@ export async function onRequestGet({ request, env }) {
   const userId = url.searchParams.get('userId') || 'demo';
 
   if (type === 'portfolio') {
-    // 1. Get account data
-    const plaid    = demoPlaidAccounts(userId);
-    const crypto   = demoCoinbaseHoldings(userId);
-    let   stocks   = demoStockHoldings(userId);
+    // 1. Try live data first; fall back to demo
+    const livePlaid  = await tryLivePlaid(userId, env);
+    const liveCrypto = await tryLiveCoinbase(userId, env);
+
+    const plaid  = livePlaid  || demoPlaidAccounts(userId);
+    const crypto = liveCrypto || demoCoinbaseHoldings(userId);
+    let   stocks = demoStockHoldings(userId);
 
     // 2. Try to enrich top 3 stock holdings with live Finnhub prices
     if (env.FINNHUB_API_KEY) {
@@ -152,18 +155,104 @@ export async function onRequestGet({ request, env }) {
   }
 
   if (type === 'networth') {
-    // Historical net worth — 12 months of demo data
-    const r = seedRand(`nw-${userId}`);
+    // Historical net worth — 12 months of demo data, extended to support 3M view
+    const r    = seedRand(`nw-${userId}`);
     const base = 45000 + r() * 80000;
     const months = Array.from({ length: 12 }, (_, i) => {
       const d = new Date();
       d.setMonth(d.getMonth() - (11 - i));
       return {
         label: d.toLocaleString('en-US', { month: 'short', year: '2-digit' }),
+        // Weekly data points within each month (4 weeks × 12 months = 48 points for 3M range)
         value: parseFloat((base * (0.85 + i * 0.013 + (r() - 0.5) * 0.04)).toFixed(2)),
       };
     });
-    return Response.json({ history: months });
+
+    // Also include 90-day daily breakdown for 3M chart range
+    const daily90 = Array.from({ length: 90 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (89 - i));
+      return {
+        label: d.toISOString().slice(0, 10),
+        value: parseFloat((base * (0.90 + (89 - i) * -0.0005 + (r() - 0.5) * 0.02)).toFixed(2)),
+      };
+    });
+
+    return Response.json({ history: months, daily90 });
+  }
+
+  if (type === 'rebalance') {
+    // Portfolio rebalancing insights — derives from portfolio data + user risk profile
+    const livePlaid  = await tryLivePlaid(userId, env);
+    const liveCrypto = await tryLiveCoinbase(userId, env);
+    const plaid  = livePlaid  || demoPlaidAccounts(userId);
+    const crypto = liveCrypto || demoCoinbaseHoldings(userId);
+    const stocks = demoStockHoldings(userId);
+
+    const bankCash   = plaid.filter((a) => a.type === 'checking' || a.type === 'savings').reduce((s, a) => s + a.balance, 0);
+    const bankInvest = plaid.filter((a) => a.type === 'investment').reduce((s, a) => s + a.balance, 0);
+    const bankDebt   = Math.abs(plaid.filter((a) => a.type === 'credit').reduce((s, a) => s + a.balance, 0));
+    const cryptoTotal = crypto.reduce((s, h) => s + h.value, 0);
+    const stockTotal  = stocks.reduce((s, h) => s + h.value, 0);
+    const totalAssets = bankCash + bankInvest + cryptoTotal + stockTotal;
+
+    // Look up user risk profile from D1
+    let risk = 'moderate';
+    if (user && env.DB) {
+      const profile = await env.DB.prepare(
+        `SELECT risk FROM profiles WHERE user_id=? LIMIT 1`
+      ).bind(user.id).first().catch(() => null);
+      if (profile?.risk) risk = profile.risk;
+    }
+
+    const target = targetAllocation(risk);
+
+    // Current actual allocation %
+    const actual = {
+      equities: totalAssets > 0 ? (stockTotal  / totalAssets) * 100 : 0,
+      bonds:    totalAssets > 0 ? (bankInvest  / totalAssets) * 100 : 0,
+      cash:     totalAssets > 0 ? (bankCash    / totalAssets) * 100 : 0,
+      crypto:   totalAssets > 0 ? (cryptoTotal / totalAssets) * 100 : 0,
+    };
+
+    // Drift per class (actual - target)
+    const drift = Object.fromEntries(
+      Object.keys(target).map((k) => [k, parseFloat((actual[k] - target[k]).toFixed(1))])
+    );
+
+    // Max drift = portfolio health penalty
+    const maxDrift = Math.max(...Object.values(drift).map(Math.abs));
+
+    // Generate buy/sell suggestions (dollar amounts to reach target)
+    const suggestions = Object.entries(drift)
+      .filter(([, d]) => Math.abs(d) >= 2)  // only flag >= 2% drift
+      .sort(([, a], [, b]) => Math.abs(b) - Math.abs(a))
+      .map(([cls, d]) => {
+        const delta = Math.abs((d / 100) * totalAssets);
+        return {
+          asset_class: cls,
+          action:      d > 0 ? 'sell' : 'buy',
+          amount:      parseFloat(delta.toFixed(2)),
+          drift_pct:   d,
+          target_pct:  target[cls],
+          actual_pct:  parseFloat(actual[cls].toFixed(1)),
+        };
+      });
+
+    // Portfolio health score (0-100)
+    const healthScore = Math.max(0, Math.min(100, Math.round(100 - maxDrift * 1.5)));
+
+    return Response.json({
+      ok:           true,
+      risk,
+      target,
+      actual:       Object.fromEntries(Object.keys(actual).map((k) => [k, parseFloat(actual[k].toFixed(1))])),
+      drift,
+      suggestions,
+      healthScore,
+      totalAssets:  parseFloat(totalAssets.toFixed(2)),
+      maxDrift:     parseFloat(maxDrift.toFixed(1)),
+    });
   }
 
   return Response.json({ error: 'Unknown type.' }, { status: 400 });
