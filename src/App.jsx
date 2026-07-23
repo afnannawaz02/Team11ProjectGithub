@@ -1513,26 +1513,28 @@ function BarSparkline({ data, colorFn }) {
 // ── Net Worth line chart ────────────────────────────────────────────────────────
 function NetWorthChart({ history }) {
   if (!history?.length) return null;
+  // Single-point guard: duplicate the point so the chart renders as a flat line
+  const pts = history.length === 1 ? [history[0], history[0]] : history;
   const W = 560, H = 140, PAD = { t: 10, r: 8, b: 28, l: 70 };
-  const vals = history.map((d) => d.value);
+  const vals = pts.map((d) => d.value);
   const min = Math.min(...vals), max = Math.max(...vals);
-  const sX = (i) => PAD.l + (i / (history.length - 1)) * (W - PAD.l - PAD.r);
+  const sX = (i) => PAD.l + (i / (pts.length - 1)) * (W - PAD.l - PAD.r);
   const sY = (v) => PAD.t + (H - PAD.t - PAD.b) * (1 - (v - min) / (max - min || 1));
   const area = `M${sX(0)},${sY(vals[0])} ` + vals.map((v, i) => `L${sX(i)},${sY(v)}`).join(' ')
-    + ` L${sX(history.length - 1)},${H - PAD.b} L${sX(0)},${H - PAD.b} Z`;
+    + ` L${sX(pts.length - 1)},${H - PAD.b} L${sX(0)},${H - PAD.b} Z`;
   const up = vals[vals.length - 1] >= vals[0];
   const col = up ? '#24a148' : '#da1e28';
-  const ticks = [0, Math.floor(history.length / 2), history.length - 1];
+  const ticks = [0, Math.floor(pts.length / 2), pts.length - 1];
 
   // Compute polyline total length for stroke-dashoffset draw-on animation
   const lineId = `nw-line-${col.replace('#','')}`;
   const linePoints = vals.map((v, i) => [sX(i), sY(v)]);
-  const lineLength = linePoints.reduce((acc, pt, i) => {
+  const lineLength = Math.max(linePoints.reduce((acc, pt, i) => {
     if (i === 0) return 0;
     const [x0, y0] = linePoints[i - 1];
     const [x1, y1] = pt;
     return acc + Math.hypot(x1 - x0, y1 - y0);
-  }, 0);
+  }, 0), 1); // ensure non-zero so dashoffset animation works
 
   return (
     <div className="nw-chart-wrap">
@@ -1553,7 +1555,7 @@ function NetWorthChart({ history }) {
           );
         })}
         {ticks.map((i) => (
-          <text key={i} x={sX(i)} y={H - PAD.b + 14} textAnchor="middle" fontSize="9" fill="#9e5a72">{history[i].label}</text>
+          <text key={i} x={sX(i)} y={H - PAD.b + 14} textAnchor="middle" fontSize="9" fill="#9e5a72">{pts[i].label}</text>
         ))}
         <path d={area} fill="url(#nw-fill)" className="nw-area-fill" />
         <polyline
@@ -1735,8 +1737,28 @@ function _PanelSpending_REMOVED() {
   );
 }
 
+// ── ConnectAccountsPrompt — shown when no Plaid/Coinbase account is linked ────
+function ConnectAccountsPrompt({ provider }) {
+  const msg = provider === 'plaid'
+    ? { heading: 'No bank accounts connected', body: 'Connect your bank via Plaid to view brokerage balances.' }
+    : provider === 'coinbase'
+    ? { heading: 'Coinbase not connected', body: 'Connect your Coinbase account to view your crypto holdings.' }
+    : { heading: 'No accounts connected', body: 'Connect your bank or crypto accounts to unlock your portfolio view.' };
+
+  return (
+    <div className="panel-empty-state">
+      <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🔗</div>
+      <p style={{ fontWeight: 600, marginBottom: '0.25rem' }}>{msg.heading}</p>
+      <p className="panel-hint">{msg.body}</p>
+      <p className="panel-hint">
+        Visit your <strong>Profile</strong> page to link accounts.
+      </p>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
-// ── Panel: Portfolio + Net Worth (combined) ───────────────────────────────────
+// ── Panel: Portfolio + Net Worth (combined) ───────────────────────────────════
 // ═══════════════════════════════════════════════════════════════════════════════
 function PanelPortfolioAndWealth({ profile }) {
   const [view, setView] = useState('allocation');
@@ -1770,7 +1792,9 @@ function PanelPortfolioAndWealth({ profile }) {
       {/* ── Allocation tab ── */}
       {view === 'allocation' && (
         <PanelLoadingOrError loading={loading} error={error}>
-          {data && (
+          {data && data.notConnected ? (
+            <ConnectAccountsPrompt />
+          ) : data && (
             <>
               {/* Summary cards — 3-column, pink border */}
               <div className="alloc-summary-row">
@@ -1800,7 +1824,7 @@ function PanelPortfolioAndWealth({ profile }) {
                 </div>
               </div>
 
-              {/* Metrics — single bordered row of 4 cells */}
+              {/* Metrics — single bordered row */}
               <div className="alloc-metrics-bar">
                 {[
                   { label: 'Diversification Score', value: `${data.diversScore}/100` },
@@ -1814,33 +1838,19 @@ function PanelPortfolioAndWealth({ profile }) {
                 ))}
               </div>
 
-              {/* Sector bars */}
-              {data.sectors?.length > 0 && (
+              {/* Linked accounts list */}
+              {data.plaidAccounts?.length > 0 && (
                 <div className="spend-cats">
-                  <h3 className="spend-section-title">Sector Exposure (Equities)</h3>
-                  {data.sectors.map((s, i) => {
-                    const colors = ['#e91e8c','#9c27b0','#673ab7','#f472a0','#c2185b'];
-                    return (
-                      <div key={s.label} className="spend-cat-row">
-                        <div className="spend-cat-meta">
-                          <span className="spend-cat-dot" style={{ background: colors[i % colors.length] }} />
-                          <span className="spend-cat-name">{s.label}</span>
-                          <span className="spend-cat-pct">{s.pct}%</span>
-                          <span className="spend-cat-amt">{fmt$(s.value)}</span>
-                        </div>
-                        <div className="spend-cat-bar-track">
-                          <div
-                            className="spend-cat-bar"
-                            style={{
-                              width: `${s.pct}%`,
-                              background: `linear-gradient(90deg,${colors[i % colors.length]},${colors[i % colors.length]}aa)`,
-                              animation: `bar-fill-ltr 600ms cubic-bezier(0.4,0,0.2,1) ${i * 60}ms both`,
-                            }}
-                          />
-                        </div>
+                  <h3 className="spend-section-title">Linked Accounts</h3>
+                  {data.plaidAccounts.map((a) => (
+                    <div key={a.id} className="spend-cat-row">
+                      <div className="spend-cat-meta">
+                        <span className="spend-cat-name">{a.name}</span>
+                        <span className="spend-cat-pct" style={{ textTransform: 'capitalize' }}>{a.type}</span>
+                        <span className="spend-cat-amt">{a.type === 'credit' ? `(${fmt$(Math.abs(a.balance))})` : fmt$(a.balance)}</span>
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
                 </div>
               )}
             </>
@@ -1848,29 +1858,43 @@ function PanelPortfolioAndWealth({ profile }) {
         </PanelLoadingOrError>
       )}
 
-      {/* ── Stocks tab ── */}
+      {/* ── Stocks / Brokerage tab ── */}
       {view === 'stocks' && (
         <PanelLoadingOrError loading={loading} error={error}>
-          {data && (
-            <div className="db-table-wrap">
-              <table className="db-table">
-                <thead><tr><th>Symbol</th><th>Price</th><th>Shares</th><th>Value</th><th>Allocation</th></tr></thead>
-                <tbody>
-                  {(data.stocks || []).map((s) => {
-                    const alloc = data.totalAssets > 0 ? ((s.value / data.totalAssets) * 100).toFixed(1) : '0';
-                    return (
-                      <tr key={s.symbol}>
-                        <td><span className="db-ticker">{s.symbol}</span></td>
-                        <td style={{ fontFamily: 'IBM Plex Mono' }}>{fmt$(s.price)}</td>
-                        <td>{s.shares.toFixed(2)}</td>
-                        <td className="db-up">{fmt$(s.value)}</td>
-                        <td><span className="alloc-bar-inline"><span style={{ width: `${alloc}%` }} />{alloc}%</span></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+          {data && data.notConnected ? (
+            <ConnectAccountsPrompt provider="plaid" />
+          ) : data && (
+            <>
+              {(data.stocks || []).length === 0 ? (
+                <div className="panel-empty-state">
+                  <p>No brokerage accounts found.</p>
+                  <p className="panel-hint">Connect a Plaid account that includes an investment or brokerage account.</p>
+                </div>
+              ) : (
+                <>
+                  <p className="panel-hint" style={{ marginBottom: '0.75rem' }}>
+                    Plaid provides account-level balances. Individual stock positions require a direct brokerage integration.
+                  </p>
+                  <div className="db-table-wrap">
+                    <table className="db-table">
+                      <thead><tr><th>Account</th><th>Balance</th><th>Portfolio %</th></tr></thead>
+                      <tbody>
+                        {(data.stocks || []).map((s, idx) => {
+                          const alloc = data.totalAssets > 0 ? ((s.value / data.totalAssets) * 100).toFixed(1) : '0';
+                          return (
+                            <tr key={idx}>
+                              <td>{s.name}</td>
+                              <td className="db-up" style={{ fontFamily: 'IBM Plex Mono' }}>{fmt$(s.value)}</td>
+                              <td><span className="alloc-bar-inline"><span style={{ width: `${alloc}%` }} />{alloc}%</span></td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </>
           )}
         </PanelLoadingOrError>
       )}
@@ -1878,40 +1902,51 @@ function PanelPortfolioAndWealth({ profile }) {
       {/* ── Crypto tab ── */}
       {view === 'crypto' && (
         <PanelLoadingOrError loading={loading} error={error}>
-          {data && (
+          {data && data.notConnected ? (
+            <ConnectAccountsPrompt provider="coinbase" />
+          ) : data && (
             <>
-              <div className="sub-summary">
-                <div className="sub-summary-card">
-                  <span className="sub-summary-label">Crypto Total</span>
-                  <span className="sub-summary-value">{fmt$(data.crypto?.reduce((s, h) => s + h.value, 0) || 0)}</span>
+              {(data.crypto || []).length === 0 ? (
+                <div className="panel-empty-state">
+                  <p>No crypto holdings found.</p>
+                  <p className="panel-hint">Connect your Coinbase account to see your crypto portfolio here.</p>
                 </div>
-                <div className="sub-summary-card">
-                  <span className="sub-summary-label">Crypto % of Portfolio</span>
-                  <span className={`sub-summary-value ${data.cryptoPct > 15 ? 'db-down' : 'db-up'}`}>{data.cryptoPct}%</span>
-                </div>
-              </div>
-              <div className="db-table-wrap">
-                <table className="db-table">
-                  <thead><tr><th>Coin</th><th>Price</th><th>Qty</th><th>Value</th><th>Weight</th></tr></thead>
-                  <tbody>
-                    {(data.crypto || []).map((h) => {
-                      const cryptoTotal = data.crypto.reduce((s, x) => s + x.value, 0);
-                      const weight = cryptoTotal > 0 ? ((h.value / cryptoTotal) * 100).toFixed(1) : '0';
-                      return (
-                        <tr key={h.symbol}>
-                          <td><span className="db-ticker" style={{ background: '#ede9fe', color: '#5b21b6' }}>{h.symbol}</span> <small>{h.name}</small></td>
-                          <td style={{ fontFamily: 'IBM Plex Mono' }}>{fmt$(h.price)}</td>
-                          <td style={{ fontFamily: 'IBM Plex Mono', fontSize: '0.8rem' }}>{h.qty}</td>
-                          <td className="db-up">{fmt$(h.value)}</td>
-                          <td><span className="alloc-bar-inline"><span style={{ width: `${weight}%`, background: '#7c5cd8' }} />{weight}%</span></td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              {data.cryptoPct > 15 && (
-                <p className="panel-hint">⚠ Crypto exceeds 15% of your total portfolio. Consider rebalancing to reduce volatility risk.</p>
+              ) : (
+                <>
+                  <div className="sub-summary">
+                    <div className="sub-summary-card">
+                      <span className="sub-summary-label">Crypto Total</span>
+                      <span className="sub-summary-value">{fmt$(data.crypto.reduce((s, h) => s + h.value, 0))}</span>
+                    </div>
+                    <div className="sub-summary-card">
+                      <span className="sub-summary-label">Crypto % of Portfolio</span>
+                      <span className={`sub-summary-value ${data.cryptoPct > 15 ? 'db-down' : 'db-up'}`}>{data.cryptoPct}%</span>
+                    </div>
+                  </div>
+                  <div className="db-table-wrap">
+                    <table className="db-table">
+                      <thead><tr><th>Coin</th><th>Price</th><th>Qty</th><th>Value</th><th>Weight</th></tr></thead>
+                      <tbody>
+                        {data.crypto.map((h) => {
+                          const cryptoTotal = data.crypto.reduce((s, x) => s + x.value, 0);
+                          const weight = cryptoTotal > 0 ? ((h.value / cryptoTotal) * 100).toFixed(1) : '0';
+                          return (
+                            <tr key={h.symbol}>
+                              <td><span className="db-ticker" style={{ background: '#ede9fe', color: '#5b21b6' }}>{h.symbol}</span> <small>{h.name}</small></td>
+                              <td style={{ fontFamily: 'IBM Plex Mono' }}>{h.price > 0 ? fmt$(h.price) : '—'}</td>
+                              <td style={{ fontFamily: 'IBM Plex Mono', fontSize: '0.8rem' }}>{h.qty}</td>
+                              <td className="db-up">{fmt$(h.value)}</td>
+                              <td><span className="alloc-bar-inline"><span style={{ width: `${weight}%`, background: '#7c5cd8' }} />{weight}%</span></td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  {data.cryptoPct > 15 && (
+                    <p className="panel-hint">⚠ Crypto exceeds 15% of your total portfolio. Consider rebalancing to reduce volatility risk.</p>
+                  )}
+                </>
               )}
             </>
           )}
@@ -1919,7 +1954,11 @@ function PanelPortfolioAndWealth({ profile }) {
       )}
 
       {/* ── Rebalance tab ── */}
-      {view === 'rebalance' && <RebalanceCard />}
+      {view === 'rebalance' && (
+        data && data.notConnected
+          ? <ConnectAccountsPrompt />
+          : <RebalanceCard />
+      )}
 
       {/* ── Profile tab ── */}
       {view === 'profile' && (

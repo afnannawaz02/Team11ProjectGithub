@@ -1,63 +1,153 @@
 /**
  * functions/api/finance.js — Cloudflare Pages Function
- * GET /api/finance?type=portfolio
- * GET /api/finance?type=networth
  *
- * Aggregates Plaid (bank), Coinbase (crypto), and Finnhub (equities) data
- * into a unified portfolio view with asset allocation and health metrics.
+ * GET /api/finance?type=portfolio   — unified portfolio view (Plaid + Coinbase + Finnhub)
+ * GET /api/finance?type=networth    — net worth history (derived from live balances)
+ * GET /api/finance?type=rebalance   — rebalancing insights based on user risk profile
  *
- * In production these would call real Plaid + Coinbase APIs with user OAuth tokens.
- * Currently returns realistic demo data seeded by user session — ready to swap
- * for live API calls without changing the UI contract.
+ * Auth: reads cb_session cookie → D1 sessions/users tables.
+ * No session → 401. No connected accounts → notConnected:true empty-state response.
  *
  * Env bindings:
- *   FINNHUB_API_KEY   — for live equity quotes
- *   DB                — D1 database (survey profile for context)
+ *   DB                — D1 database
+ *   PLAID_CLIENT_ID   — Plaid API key
+ *   PLAID_SECRET      — Plaid secret
+ *   PLAID_ENV         — "sandbox" | "development" | "production" (default: "sandbox")
+ *   COINBASE_CLIENT_ID     — Coinbase OAuth app
+ *   COINBASE_CLIENT_SECRET — Coinbase OAuth secret
+ *   FINNHUB_API_KEY   — live equity quotes (optional enrichment)
  */
 
-const FH_BASE = 'https://finnhub.io/api/v1';
+const FH_BASE    = 'https://finnhub.io/api/v1';
+const PLAID_BASE = (env) => `https://${env.PLAID_ENV || 'sandbox'}.plaid.com`;
+const CB_API     = 'https://api.coinbase.com/v2';
+const CB_TOKEN   = 'https://login.coinbase.com/oauth2/token';
 
-// ── Demo data generators (deterministic per user) ────────────────────────────
-
-function seedRand(str) {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
-  return function() { h = (Math.imul(31, h) + 0x6d2b79f5) | 0; return ((h >>> 0) / 0xffffffff); };
+// ── Auth helper ───────────────────────────────────────────────────────────────
+async function requireUser(request, env) {
+  const cookie = request.headers.get('Cookie') || '';
+  const token  = cookie.match(/cb_session=([^;]+)/)?.[1];
+  if (!token) return null;
+  const row = await env.DB.prepare(
+    `SELECT u.id, u.username FROM sessions s
+     JOIN users u ON u.id = s.user_id
+     WHERE s.token = ? AND s.expires_at > datetime('now') LIMIT 1`
+  ).bind(token).first().catch(() => null);
+  return row || null;
 }
 
-function demoPlaidAccounts(userId) {
-  const r = seedRand(`plaid-${userId}`);
-  return [
-    { id: 'checking-1', name: 'Chase Checking',    type: 'checking',  balance: Math.round((2000 + r() * 8000) * 100) / 100  },
-    { id: 'savings-1',  name: 'Chase Savings',     type: 'savings',   balance: Math.round((5000 + r() * 25000) * 100) / 100 },
-    { id: 'credit-1',   name: 'Chase Sapphire',    type: 'credit',    balance: -Math.round((500 + r() * 3500) * 100) / 100  },
-    { id: 'invest-1',   name: 'Fidelity Brokerage',type: 'investment',balance: Math.round((8000 + r() * 42000) * 100) / 100 },
-  ];
+// ── Plaid helpers (inlined — Pages Functions cannot import siblings) ──────────
+async function plaidPost(env, path, body) {
+  const res = await fetch(`${PLAID_BASE(env)}${path}`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      client_id: env.PLAID_CLIENT_ID,
+      secret:    env.PLAID_SECRET,
+      ...body,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error_message || `Plaid ${path} failed`);
+  return data;
 }
 
-function demoCoinbaseHoldings(userId) {
-  const r = seedRand(`coinbase-${userId}`);
-  const prices = { BTC: 67450, ETH: 3820, SOL: 185, USDC: 1.00 };
-  return [
-    { symbol: 'BTC',  name: 'Bitcoin',  qty: parseFloat((0.05 + r() * 0.35).toFixed(6)), price: prices.BTC  },
-    { symbol: 'ETH',  name: 'Ethereum', qty: parseFloat((0.5  + r() * 3.5).toFixed(4)),  price: prices.ETH  },
-    { symbol: 'SOL',  name: 'Solana',   qty: parseFloat((5    + r() * 45).toFixed(2)),    price: prices.SOL  },
-    { symbol: 'USDC', name: 'USD Coin', qty: parseFloat((100  + r() * 900).toFixed(2)),   price: prices.USDC },
-  ].map((h) => ({ ...h, value: parseFloat((h.qty * h.price).toFixed(2)) }));
+/** Returns mapped accounts array or null if not connected / error. */
+async function fetchPlaidAccounts(userId, env) {
+  if (!env.PLAID_CLIENT_ID || !env.PLAID_SECRET) return null;
+
+  const row = await env.DB.prepare(
+    'SELECT access_token, institution FROM plaid_tokens WHERE user_id = ? LIMIT 1'
+  ).bind(userId).first().catch(() => null);
+  if (!row) return null;
+
+  const data = await plaidPost(env, '/accounts/get', {
+    access_token: row.access_token,
+  }).catch(() => null);
+
+  if (!data?.accounts) return null;
+
+  return data.accounts.map((a) => ({
+    id:          a.account_id,
+    name:        `${row.institution || 'Bank'} – ${a.name}`,
+    type:        mapPlaidType(a.type, a.subtype),
+    balance:     a.type === 'credit'
+                   ? -(a.balances.current ?? 0)
+                   : (a.balances.current ?? 0),
+    institution: row.institution || '',
+  }));
 }
 
-function demoStockHoldings(userId) {
-  const r = seedRand(`stocks-${userId}`);
-  const prices = { AAPL: 191.85, MSFT: 422.06, GOOGL: 177.34, NVDA: 875.40, VTI: 241.55, BND: 74.20 };
-  return Object.entries(prices).map(([sym, price]) => ({
-    symbol: sym,
-    shares: parseFloat((1 + r() * 20).toFixed(2)),
-    price,
-    value:  0, // filled after
-  })).map((h) => ({ ...h, value: parseFloat((h.shares * h.price).toFixed(2)) }));
+function mapPlaidType(type, subtype) {
+  if (type === 'credit')                              return 'credit';
+  if (subtype === 'savings')                          return 'savings';
+  if (subtype === 'checking')                         return 'checking';
+  if (type === 'investment' || type === 'brokerage')  return 'investment';
+  return 'checking';
 }
 
-// Fetch a live quote from Finnhub — returns price or null on failure
+// ── Coinbase helpers (inlined) ────────────────────────────────────────────────
+/** Returns holdings array or null if not connected / token refresh fails. */
+async function fetchCoinbaseHoldings(userId, env) {
+  if (!env.COINBASE_CLIENT_ID || !env.COINBASE_CLIENT_SECRET) return null;
+
+  let row = await env.DB.prepare(
+    'SELECT access_token, refresh_token, expires_at FROM coinbase_tokens WHERE user_id = ? LIMIT 1'
+  ).bind(userId).first().catch(() => null);
+  if (!row) return null;
+
+  // Refresh token if expired (60s buffer)
+  if (new Date(row.expires_at) < new Date(Date.now() + 60000)) {
+    const refreshed = await fetch(CB_TOKEN, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type:    'refresh_token',
+        refresh_token: row.refresh_token,
+        client_id:     env.COINBASE_CLIENT_ID,
+        client_secret: env.COINBASE_CLIENT_SECRET,
+      }),
+    }).then((r) => r.json()).catch(() => null);
+
+    if (!refreshed?.access_token) return null;
+
+    const newExpiry = new Date(Date.now() + refreshed.expires_in * 1000).toISOString();
+    await env.DB.prepare(
+      'UPDATE coinbase_tokens SET access_token=?, refresh_token=?, expires_at=? WHERE user_id=?'
+    ).bind(
+      refreshed.access_token,
+      refreshed.refresh_token || row.refresh_token,
+      newExpiry,
+      userId,
+    ).run().catch(() => {});
+
+    row = { ...row, access_token: refreshed.access_token };
+  }
+
+  const data = await fetch(`${CB_API}/accounts?limit=100`, {
+    headers: {
+      Authorization: `Bearer ${row.access_token}`,
+      'CB-VERSION':  '2024-01-01',
+    },
+  }).then((r) => r.json()).catch(() => null);
+
+  if (!data?.data) return null;
+
+  return data.data
+    .filter((a) => parseFloat(a.balance?.amount || 0) > 0)
+    .map((a) => ({
+      symbol: a.currency?.code || a.balance?.currency || '?',
+      name:   a.name || a.currency?.name || a.balance?.currency || '?',
+      qty:    parseFloat(a.balance?.amount || 0),
+      // native_balance is in USD; price derived below if qty > 0
+      price:  parseFloat(a.balance?.amount || 0) > 0
+                ? parseFloat((parseFloat(a.native_balance?.amount || 0) / parseFloat(a.balance.amount)).toFixed(4))
+                : 0,
+      value:  parseFloat(a.native_balance?.amount || 0),
+    }));
+}
+
+// ── Finnhub helper ────────────────────────────────────────────────────────────
 async function liveQuote(ticker, apiKey) {
   try {
     const r = await fetch(`${FH_BASE}/quote?symbol=${ticker}&token=${apiKey}`, {
@@ -69,189 +159,241 @@ async function liveQuote(ticker, apiKey) {
   } catch { return null; }
 }
 
+// ── Target allocation by risk level ──────────────────────────────────────────
+function targetAllocation(risk) {
+  const targets = {
+    conservative: { equities: 30, bonds: 50, cash: 15, crypto: 5  },
+    moderate:     { equities: 55, bonds: 25, cash: 15, crypto: 5  },
+    aggressive:   { equities: 70, bonds: 10, cash:  5, crypto: 15 },
+  };
+  return targets[risk] ?? targets.moderate;
+}
+
+// ── Empty-state helpers ───────────────────────────────────────────────────────
+function emptyPortfolio() {
+  return {
+    notConnected:     true,
+    totalAssets:      0,
+    totalDebt:        0,
+    netWorth:         0,
+    allocation:       [],
+    sectors:          [],
+    stocks:           [],
+    crypto:           [],
+    plaidAccounts:    [],
+    topConcentration: 0,
+    diversScore:      0,
+    healthScore:      0,
+    cryptoPct:        0,
+    plaidConnected:   false,
+    coinbaseConnected: false,
+  };
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────────
 export async function onRequestGet({ request, env }) {
-  const url    = new URL(request.url);
-  const type   = url.searchParams.get('type') || 'portfolio';
-  const userId = url.searchParams.get('userId') || 'demo';
+  const user = await requireUser(request, env);
+  if (!user) {
+    return Response.json({ error: 'Unauthorised.' }, { status: 401 });
+  }
 
+  const url  = new URL(request.url);
+  const type = url.searchParams.get('type') || 'portfolio';
+
+  // ── /api/finance?type=portfolio ──────────────────────────────────────────
   if (type === 'portfolio') {
-    // 1. Try live data first; fall back to demo
-    const livePlaid  = await tryLivePlaid(userId, env);
-    const liveCrypto = await tryLiveCoinbase(userId, env);
+    const plaid  = await fetchPlaidAccounts(user.id, env);
+    const crypto = await fetchCoinbaseHoldings(user.id, env);
 
-    const plaid  = livePlaid  || demoPlaidAccounts(userId);
-    const crypto = liveCrypto || demoCoinbaseHoldings(userId);
-    let   stocks = demoStockHoldings(userId);
+    // If neither account is connected, return an explicit empty state.
+    if (!plaid && !crypto) {
+      return Response.json(emptyPortfolio());
+    }
 
-    // 2. Try to enrich top 3 stock holdings with live Finnhub prices
-    if (env.FINNHUB_API_KEY) {
-      const top3 = stocks.slice(0, 3);
-      await Promise.allSettled(top3.map(async (h) => {
-        const price = await liveQuote(h.symbol, env.FINNHUB_API_KEY);
+    const accounts       = plaid  || [];
+    const cryptoHoldings = crypto || [];
+
+    // Plaid brokerage/investment accounts are surfaced as a single "Brokerage" line
+    // (Plaid does not expose individual stock positions via /accounts/get).
+    const investmentAccounts = accounts.filter((a) => a.type === 'investment');
+    const stocks = investmentAccounts.map((a) => ({
+      symbol: 'BROKERAGE',
+      name:   a.name,
+      shares: null,            // no per-share data from Plaid
+      price:  null,
+      value:  a.balance,
+    }));
+
+    // Try to enrich crypto prices via Finnhub if not already populated
+    if (env.FINNHUB_API_KEY && cryptoHoldings.length) {
+      await Promise.allSettled(cryptoHoldings.map(async (h) => {
+        if (h.price && h.price > 0) return; // already has price from native_balance
+        const sym   = `${h.symbol}USD`;      // e.g. BTCUSD
+        const price = await liveQuote(sym, env.FINNHUB_API_KEY);
         if (price) {
           h.price = price;
-          h.value = parseFloat((h.shares * price).toFixed(2));
+          h.value = parseFloat((h.qty * price).toFixed(2));
         }
       }));
     }
 
-    // 3. Compute totals
-    const bankCash    = plaid.filter((a) => a.type === 'checking' || a.type === 'savings').reduce((s, a) => s + a.balance, 0);
-    const bankInvest  = plaid.filter((a) => a.type === 'investment').reduce((s, a) => s + a.balance, 0);
-    const bankDebt    = Math.abs(plaid.filter((a) => a.type === 'credit').reduce((s, a) => s + a.balance, 0));
-    const cryptoTotal = crypto.reduce((s, h) => s + h.value, 0);
-    const stockTotal  = stocks.reduce((s, h) => s + h.value, 0);
-    const totalAssets = bankCash + bankInvest + cryptoTotal + stockTotal;
+    // Totals
+    const bankCash    = accounts.filter((a) => a.type === 'checking' || a.type === 'savings').reduce((s, a) => s + a.balance, 0);
+    const bankInvest  = investmentAccounts.reduce((s, a) => s + a.balance, 0);
+    const bankDebt    = Math.abs(accounts.filter((a) => a.type === 'credit').reduce((s, a) => s + a.balance, 0));
+    const cryptoTotal = cryptoHoldings.reduce((s, h) => s + h.value, 0);
+    const stockTotal  = bankInvest; // Plaid investment balance IS the stock total
+    const totalAssets = bankCash + bankInvest + cryptoTotal;
     const netWorth    = totalAssets - bankDebt;
 
-    // 4. Asset allocation
+    // Asset allocation
     const allocation = [
-      { label: 'US Equities',     value: stockTotal,  pct: 0, color: '#f472a0' },
       { label: 'Bank / Savings',  value: bankCash,    pct: 0, color: '#c0356a' },
       { label: 'Brokerage Acct',  value: bankInvest,  pct: 0, color: '#9d2256' },
       { label: 'Cryptocurrency',  value: cryptoTotal, pct: 0, color: '#6b2040' },
-    ].map((a) => ({ ...a, pct: totalAssets > 0 ? parseFloat(((a.value / totalAssets) * 100).toFixed(1)) : 0 }));
+    ]
+      .filter((a) => a.value > 0)
+      .map((a) => ({
+        ...a,
+        pct: totalAssets > 0 ? parseFloat(((a.value / totalAssets) * 100).toFixed(1)) : 0,
+      }));
 
-    // 5. Sector exposure (hardcoded for demo stocks)
-    const sectorMap = { AAPL: 'Technology', MSFT: 'Technology', GOOGL: 'Technology', NVDA: 'Technology', VTI: 'Diversified ETF', BND: 'Fixed Income' };
-    const sectorAgg = {};
-    for (const h of stocks) {
-      const sec = sectorMap[h.symbol] || 'Other';
-      sectorAgg[sec] = (sectorAgg[sec] || 0) + h.value;
-    }
-    const sectors = Object.entries(sectorAgg)
-      .map(([label, value]) => ({ label, value: parseFloat(value.toFixed(2)), pct: parseFloat(((value / stockTotal) * 100).toFixed(1)) }))
-      .sort((a, b) => b.value - a.value);
-
-    // 6. Concentration risk — top holding pct
-    const allPositions = [
-      ...stocks.map((h) => ({ label: h.symbol, value: h.value })),
-      ...crypto.map((h) => ({ label: h.symbol, value: h.value })),
-    ].sort((a, b) => b.value - a.value);
+    // Crypto concentration
+    const cryptoPct        = totalAssets > 0 ? parseFloat(((cryptoTotal / totalAssets) * 100).toFixed(1)) : 0;
+    const allPositions     = cryptoHoldings.map((h) => ({ label: h.symbol, value: h.value })).sort((a, b) => b.value - a.value);
     const topConcentration = allPositions[0] ? parseFloat(((allPositions[0].value / totalAssets) * 100).toFixed(1)) : 0;
 
-    // 7. Diversification score (0–100): penalise concentration and crypto > 20%
-    const cryptoPct   = cryptoTotal / totalAssets * 100;
+    // Scores
     const diversScore = Math.max(0, Math.min(100, Math.round(100 - topConcentration * 0.6 - Math.max(0, cryptoPct - 20) * 0.5)));
+    const healthScore = Math.max(0, Math.min(100, Math.round(
+      diversScore * 0.4
+      + (netWorth > 50000 ? 30 : netWorth / 50000 * 30)
+      + (bankCash > 10000 ? 30 : bankCash / 10000 * 30)
+    )));
 
-    // 8. Financial health score (0–100)
-    const healthScore = Math.round(Math.min(100, diversScore * 0.4 + (netWorth > 50000 ? 30 : netWorth / 50000 * 30) + (bankCash > 10000 ? 30 : bankCash / 10000 * 30)));
+    // Sector breakdown is not available without individual stock positions
+    const sectors = [];
 
     return Response.json({
+      notConnected:     false,
+      plaidConnected:   !!plaid,
+      coinbaseConnected: !!crypto,
       totalAssets:      parseFloat(totalAssets.toFixed(2)),
       totalDebt:        parseFloat(bankDebt.toFixed(2)),
       netWorth:         parseFloat(netWorth.toFixed(2)),
       allocation,
       sectors,
       stocks,
-      crypto,
-      plaidAccounts:    plaid,
+      crypto:           cryptoHoldings,
+      plaidAccounts:    accounts,
       topConcentration,
       diversScore,
       healthScore,
-      cryptoPct:        parseFloat(cryptoPct.toFixed(1)),
+      cryptoPct,
     });
   }
 
+  // ── /api/finance?type=networth ───────────────────────────────────────────
   if (type === 'networth') {
-    // Historical net worth — 12 months of demo data, extended to support 3M view
-    const r    = seedRand(`nw-${userId}`);
-    const base = 45000 + r() * 80000;
-    const months = Array.from({ length: 12 }, (_, i) => {
-      const d = new Date();
-      d.setMonth(d.getMonth() - (11 - i));
-      return {
-        label: d.toLocaleString('en-US', { month: 'short', year: '2-digit' }),
-        // Weekly data points within each month (4 weeks × 12 months = 48 points for 3M range)
-        value: parseFloat((base * (0.85 + i * 0.013 + (r() - 0.5) * 0.04)).toFixed(2)),
-      };
-    });
+    // Derive current net worth from live accounts; return a single data point if
+    // no history table exists yet. Returns empty arrays if no accounts connected.
+    const plaid  = await fetchPlaidAccounts(user.id, env);
+    const crypto = await fetchCoinbaseHoldings(user.id, env);
 
-    // Also include 90-day daily breakdown for 3M chart range
-    const daily90 = Array.from({ length: 90 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() - (89 - i));
-      return {
-        label: d.toISOString().slice(0, 10),
-        value: parseFloat((base * (0.90 + (89 - i) * -0.0005 + (r() - 0.5) * 0.02)).toFixed(2)),
-      };
-    });
+    if (!plaid && !crypto) {
+      return Response.json({ history: [], daily90: [], notConnected: true });
+    }
 
-    return Response.json({ history: months, daily90 });
+    const accounts    = plaid  || [];
+    const cryptoHoldings = crypto || [];
+    const bankCash    = accounts.filter((a) => a.type === 'checking' || a.type === 'savings').reduce((s, a) => s + a.balance, 0);
+    const bankInvest  = accounts.filter((a) => a.type === 'investment').reduce((s, a) => s + a.balance, 0);
+    const bankDebt    = Math.abs(accounts.filter((a) => a.type === 'credit').reduce((s, a) => s + a.balance, 0));
+    const cryptoTotal = cryptoHoldings.reduce((s, h) => s + h.value, 0);
+    const currentNW   = parseFloat((bankCash + bankInvest + cryptoTotal - bankDebt).toFixed(2));
+
+    const today = new Date().toISOString().slice(0, 10);
+    const label = new Date().toLocaleString('en-US', { month: 'short', year: '2-digit' });
+
+    // Single snapshot point — historical snapshots require a separate cron job
+    // that persists daily net worth snapshots to a net_worth_history D1 table.
+    // TODO: implement nightly snapshot cron + query history here.
+    return Response.json({
+      notConnected: false,
+      history:  [{ label, value: currentNW }],
+      daily90:  [{ label: today, value: currentNW }],
+    });
   }
 
+  // ── /api/finance?type=rebalance ──────────────────────────────────────────
   if (type === 'rebalance') {
-    // Portfolio rebalancing insights — derives from portfolio data + user risk profile
-    const livePlaid  = await tryLivePlaid(userId, env);
-    const liveCrypto = await tryLiveCoinbase(userId, env);
-    const plaid  = livePlaid  || demoPlaidAccounts(userId);
-    const crypto = liveCrypto || demoCoinbaseHoldings(userId);
-    const stocks = demoStockHoldings(userId);
+    const plaid  = await fetchPlaidAccounts(user.id, env);
+    const crypto = await fetchCoinbaseHoldings(user.id, env);
 
-    const bankCash   = plaid.filter((a) => a.type === 'checking' || a.type === 'savings').reduce((s, a) => s + a.balance, 0);
-    const bankInvest = plaid.filter((a) => a.type === 'investment').reduce((s, a) => s + a.balance, 0);
-    const bankDebt   = Math.abs(plaid.filter((a) => a.type === 'credit').reduce((s, a) => s + a.balance, 0));
-    const cryptoTotal = crypto.reduce((s, h) => s + h.value, 0);
-    const stockTotal  = stocks.reduce((s, h) => s + h.value, 0);
-    const totalAssets = bankCash + bankInvest + cryptoTotal + stockTotal;
+    if (!plaid && !crypto) {
+      return Response.json({ notConnected: true, ok: false });
+    }
+
+    const accounts       = plaid  || [];
+    const cryptoHoldings = crypto || [];
+
+    const bankCash    = accounts.filter((a) => a.type === 'checking' || a.type === 'savings').reduce((s, a) => s + a.balance, 0);
+    const bankInvest  = accounts.filter((a) => a.type === 'investment').reduce((s, a) => s + a.balance, 0);
+    const bankDebt    = Math.abs(accounts.filter((a) => a.type === 'credit').reduce((s, a) => s + a.balance, 0));
+    const cryptoTotal = cryptoHoldings.reduce((s, h) => s + h.value, 0);
+    const totalAssets = bankCash + bankInvest + cryptoTotal;
 
     // Look up user risk profile from D1
     let risk = 'moderate';
-    if (user && env.DB) {
-      const profile = await env.DB.prepare(
-        `SELECT risk FROM profiles WHERE user_id=? LIMIT 1`
-      ).bind(user.id).first().catch(() => null);
-      if (profile?.risk) risk = profile.risk;
-    }
+    const profile = await env.DB.prepare(
+      'SELECT risk FROM profiles WHERE user_id=? LIMIT 1'
+    ).bind(user.id).first().catch(() => null);
+    if (profile?.risk) risk = profile.risk;
 
     const target = targetAllocation(risk);
 
     // Current actual allocation %
     const actual = {
-      equities: totalAssets > 0 ? (stockTotal  / totalAssets) * 100 : 0,
-      bonds:    totalAssets > 0 ? (bankInvest  / totalAssets) * 100 : 0,
+      equities: totalAssets > 0 ? (bankInvest  / totalAssets) * 100 : 0,
+      bonds:    0, // Plaid does not expose bond holdings separately
       cash:     totalAssets > 0 ? (bankCash    / totalAssets) * 100 : 0,
       crypto:   totalAssets > 0 ? (cryptoTotal / totalAssets) * 100 : 0,
     };
 
     // Drift per class (actual - target)
     const drift = Object.fromEntries(
-      Object.keys(target).map((k) => [k, parseFloat((actual[k] - target[k]).toFixed(1))])
+      Object.keys(target).map((k) => [k, parseFloat(((actual[k] ?? 0) - target[k]).toFixed(1))])
     );
 
-    // Max drift = portfolio health penalty
+    // Max drift for health score
     const maxDrift = Math.max(...Object.values(drift).map(Math.abs));
 
-    // Generate buy/sell suggestions (dollar amounts to reach target)
+    // Buy/sell suggestions for classes with >= 2% drift
     const suggestions = Object.entries(drift)
-      .filter(([, d]) => Math.abs(d) >= 2)  // only flag >= 2% drift
+      .filter(([, d]) => Math.abs(d) >= 2)
       .sort(([, a], [, b]) => Math.abs(b) - Math.abs(a))
-      .map(([cls, d]) => {
-        const delta = Math.abs((d / 100) * totalAssets);
-        return {
-          asset_class: cls,
-          action:      d > 0 ? 'sell' : 'buy',
-          amount:      parseFloat(delta.toFixed(2)),
-          drift_pct:   d,
-          target_pct:  target[cls],
-          actual_pct:  parseFloat(actual[cls].toFixed(1)),
-        };
-      });
+      .map(([cls, d]) => ({
+        asset_class: cls,
+        action:      d > 0 ? 'sell' : 'buy',
+        amount:      parseFloat(Math.abs((d / 100) * totalAssets).toFixed(2)),
+        drift_pct:   d,
+        target_pct:  target[cls],
+        actual_pct:  parseFloat((actual[cls] ?? 0).toFixed(1)),
+      }));
 
-    // Portfolio health score (0-100)
     const healthScore = Math.max(0, Math.min(100, Math.round(100 - maxDrift * 1.5)));
 
     return Response.json({
-      ok:           true,
+      ok:          true,
+      notConnected: false,
       risk,
       target,
-      actual:       Object.fromEntries(Object.keys(actual).map((k) => [k, parseFloat(actual[k].toFixed(1))])),
+      actual: Object.fromEntries(Object.keys(actual).map((k) => [k, parseFloat((actual[k] ?? 0).toFixed(1))])),
       drift,
       suggestions,
       healthScore,
-      totalAssets:  parseFloat(totalAssets.toFixed(2)),
-      maxDrift:     parseFloat(maxDrift.toFixed(1)),
+      totalAssets: parseFloat(totalAssets.toFixed(2)),
+      maxDrift:    parseFloat(maxDrift.toFixed(1)),
     });
   }
 

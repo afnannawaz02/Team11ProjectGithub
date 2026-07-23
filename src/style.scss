@@ -2585,6 +2585,21 @@ code, pre,
   margin: 0;
 }
 
+.panel-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: $spacing-09 $spacing-05;
+  text-align: center;
+  color: var(--cds-text-secondary, rgba(255,255,255,0.6));
+  gap: $spacing-03;
+
+  p { margin: 0; }
+
+  strong { color: var(--cds-text-primary, #fff); }
+}
+
 // ── Spending Intelligence Panel ────────────────────────────────────────────────
 .spend-summary-grid {
   display: grid;
