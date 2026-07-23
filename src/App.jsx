@@ -3417,21 +3417,23 @@ function LinkedAccountCard({ provider, connected, institution, connectedAt, onCo
 }
 
 // ── ProfilePage ────────────────────────────────────────────────────────────────
-function ProfilePage({ username, profile, onLogout, onBack, theme, onToggleTheme, onStartQuestionnaire }) {
+function ProfilePage({
+  username, profile, onLogout, onBack, theme, onToggleTheme, onStartQuestionnaire,
+  // Lifted linked-account state from App root:
+  plaidStatus, setPlaidStatus, coinbaseStatus, setCoinbaseStatus, onAccountLinked,
+}) {
   const RISK_DESC    = { conservative: 'Low risk, stable returns', moderate: 'Balanced growth & safety', aggressive: 'High risk, high reward' };
   const HORIZON_DESC = { short: 'Under 3 years', medium: '3 – 10 years', long: '10+ years' };
   const goals = (profile?.goals ?? []).map((g) => GOAL_LABELS[g] ?? g);
 
-  // ── Linked accounts state ──────────────────────────────────────────────────
-  const [plaidStatus,    setPlaidStatus]    = useState({ connected: false, institution: '', connected_at: null });
-  const [coinbaseStatus, setCoinbaseStatus] = useState({ connected: false, connected_at: null });
-  const [plaidBusy,      setPlaidBusy]      = useState(false);
-  const [coinbaseBusy,   setCoinbaseBusy]   = useState(false);
-  const [plaidError,     setPlaidError]     = useState('');
-  const [coinbaseError,  setCoinbaseError]  = useState('');
-  const [plaidScriptReady, setPlaidScriptReady] = useState(false);
+  // ── Local UI state (busy/error only — status lives in App root) ───────────
+  const [plaidBusy,        setPlaidBusy]        = useState(false);
+  const [coinbaseBusy,     setCoinbaseBusy]      = useState(false);
+  const [plaidError,       setPlaidError]        = useState('');
+  const [coinbaseError,    setCoinbaseError]     = useState('');
+  const [plaidScriptReady, setPlaidScriptReady]  = useState(false);
 
-  // Load Plaid Link SDK
+  // Load Plaid Link SDK once
   useEffect(() => {
     if (!FF.plaid) return;
     if (document.getElementById('plaid-link-script')) { setPlaidScriptReady(true); return; }
@@ -3440,36 +3442,6 @@ function ProfilePage({ username, profile, onLogout, onBack, theme, onToggleTheme
     script.src = 'https://cdn.plaid.com/link/v2/stable/link-initialize.js';
     script.onload = () => setPlaidScriptReady(true);
     document.head.appendChild(script);
-  }, []);
-
-  // Fetch connection statuses on mount
-  useEffect(() => {
-    if (FF.plaid) {
-      fetch('/api/plaid?action=status', { credentials: 'same-origin' })
-        .then((r) => r.json())
-        .then((d) => { if (d.ok) setPlaidStatus(d); })
-        .catch(() => {});
-    }
-    if (FF.coinbase) {
-      fetch('/api/coinbase?action=status', { credentials: 'same-origin' })
-        .then((r) => r.json())
-        .then((d) => { if (d.ok) setCoinbaseStatus(d); })
-        .catch(() => {});
-    }
-  }, []);
-
-  // Check URL params for OAuth callback results
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('coinbase') === 'connected') {
-      setCoinbaseStatus({ connected: true, connected_at: new Date().toISOString() });
-      track('coinbase_connected');
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-    if (params.get('coinbase') === 'error') {
-      setCoinbaseError('Coinbase connection failed. Please try again.');
-      window.history.replaceState({}, '', window.location.pathname);
-    }
   }, []);
 
   const handlePlaidConnect = async () => {
@@ -3492,9 +3464,9 @@ function ProfilePage({ username, profile, onLogout, onBack, theme, onToggleTheme
           });
           const exData = await exRes.json();
           if (!exRes.ok || exData.error) { setPlaidError(exData.error || 'Exchange failed'); return; }
+          // Update lifted state and notify App root to bust caches
           setPlaidStatus({ connected: true, institution: exData.institution, connected_at: new Date().toISOString() });
-          // Bust portfolio cache so next load fetches real data
-          _apiCache.delete('/api/finance?type=portfolio');
+          onAccountLinked?.();
           track('plaid_connected', { institution: exData.institution });
         },
         onExit: (err) => { if (err) setPlaidError(err.display_message || 'Plaid link closed'); },
@@ -3513,13 +3485,14 @@ function ProfilePage({ username, profile, onLogout, onBack, theme, onToggleTheme
     try {
       await fetch('/api/plaid?action=disconnect', { method: 'POST', credentials: 'same-origin' });
       setPlaidStatus({ connected: false, institution: '', connected_at: null });
-      _apiCache.delete('/api/finance?type=portfolio');
+      onAccountLinked?.();
       track('plaid_disconnected');
     } catch { setPlaidError('Failed to disconnect.'); }
     finally { setPlaidBusy(false); }
   };
 
   const handleCoinbaseConnect = () => {
+    // OAuth redirect — App root handles the ?coinbase=connected callback on return
     window.location.href = '/api/coinbase?action=connect';
   };
 
@@ -3529,7 +3502,7 @@ function ProfilePage({ username, profile, onLogout, onBack, theme, onToggleTheme
     try {
       await fetch('/api/coinbase?action=disconnect', { method: 'POST', credentials: 'same-origin' });
       setCoinbaseStatus({ connected: false, connected_at: null });
-      _apiCache.delete('/api/finance?type=portfolio');
+      onAccountLinked?.();
       track('coinbase_disconnected');
     } catch { setCoinbaseError('Failed to disconnect.'); }
     finally { setCoinbaseBusy(false); }
@@ -4765,6 +4738,10 @@ export default function App() {
   const [booting, setBooting]   = useState(true);
   const [theme, setTheme]       = useState(() => localStorage.getItem('cb-theme') ?? 'g10');
 
+  // ── Linked account status — lifted here so it persists across page navigation ──
+  const [plaidStatus,    setPlaidStatus]    = useState({ connected: false, institution: '', connected_at: null });
+  const [coinbaseStatus, setCoinbaseStatus] = useState({ connected: false, connected_at: null });
+
   // Outgoing page layer — holds the previous content while it animates out
   const [outgoing, setOutgoing] = useState(null); // { content, exitCls }
   const prevPageRef             = useRef('home');
@@ -4799,6 +4776,22 @@ export default function App() {
     localStorage.setItem('cb-theme', next);
   };
 
+  // Fetch linked-account status — called after login and after connect/disconnect
+  const fetchLinkedStatus = () => {
+    if (FF.plaid) {
+      fetch('/api/plaid?action=status', { credentials: 'same-origin' })
+        .then((r) => r.json())
+        .then((d) => { if (d.ok) setPlaidStatus(d); })
+        .catch(() => {});
+    }
+    if (FF.coinbase) {
+      fetch('/api/coinbase?action=status', { credentials: 'same-origin' })
+        .then((r) => r.json())
+        .then((d) => { if (d.ok) setCoinbaseStatus(d); })
+        .catch(() => {});
+    }
+  };
+
   // Restore session from HttpOnly cookie on page load
   useEffect(() => {
     restoreSession().then((res) => {
@@ -4807,16 +4800,50 @@ export default function App() {
         setProfile(res.profile ?? null);
         prevPageRef.current = 'dashboard';
         setPage('dashboard');
+        fetchLinkedStatus();
       }
       setBooting(false);
     });
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle Coinbase OAuth redirect at app root — works regardless of which page
+  // the user lands on after the OAuth flow (Coinbase always redirects to /?coinbase=…)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('coinbase') === 'connected') {
+      setCoinbaseStatus({ connected: true, connected_at: new Date().toISOString() });
+      // Re-fetch to get the real connected_at from D1
+      fetch('/api/coinbase?action=status', { credentials: 'same-origin' })
+        .then((r) => r.json())
+        .then((d) => { if (d.ok) setCoinbaseStatus(d); })
+        .catch(() => {});
+      // Bust portfolio cache
+      _apiCache.delete('/api/finance?type=portfolio');
+      _apiCache.delete('/api/finance?type=networth');
+      track('coinbase_connected');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+    if (params.get('coinbase') === 'error') {
+      track('coinbase_connect_error');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Bust all finance caches and re-fetch linked status after any connect/disconnect
+  const handleAccountLinked = () => {
+    _apiCache.delete('/api/finance?type=portfolio');
+    _apiCache.delete('/api/finance?type=networth');
+    _apiCache.delete('/api/finance?type=rebalance');
+    fetchLinkedStatus();
+  };
 
   const handleLogout = async () => {
     await logout();
     setUsername(null);
     setProfile(null);
     setIsGuest(false);
+    setPlaidStatus({ connected: false, institution: '', connected_at: null });
+    setCoinbaseStatus({ connected: false, connected_at: null });
     navigate('home');
   };
 
@@ -4833,6 +4860,7 @@ export default function App() {
             setProfile(res.profile ?? null);
             setUsername(res.username);
             setIsGuest(false);
+            fetchLinkedStatus();
             nav('dashboard');
           }}
           onGoHome={() => nav('home')}
@@ -4862,6 +4890,11 @@ export default function App() {
           theme={theme}
           onToggleTheme={toggleTheme}
           onStartQuestionnaire={() => nav('wizard')}
+          plaidStatus={plaidStatus}
+          setPlaidStatus={setPlaidStatus}
+          coinbaseStatus={coinbaseStatus}
+          setCoinbaseStatus={setCoinbaseStatus}
+          onAccountLinked={handleAccountLinked}
         />
       </NavShell>
     );
@@ -4886,6 +4919,7 @@ export default function App() {
               setProfile(res.profile ?? null);
               setUsername(res.username);
               setIsGuest(false);
+              fetchLinkedStatus();
               nav('wizard');
             }}
             onGoHome={() => nav('home')}
